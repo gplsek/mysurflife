@@ -2,14 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 
 /**
- * Custom Wind Particle Animation Component
- * Creates Windy-style animated particles that follow wind vectors
+ * Wind Forecast Grid Overlay
+ * Shows wind speed (colored cells) and direction (arrows) like iWindsurf
  */
 const WindParticles = ({ windData, visible = true }) => {
   const map = useMap();
   const canvasRef = useRef(null);
-  const particlesRef = useRef([]);
-  const animationRef = useRef(null);
 
   useEffect(() => {
     console.log('WindParticles useEffect triggered', { visible, hasData: !!windData, vectors: windData?.vectors?.length });
@@ -80,29 +78,18 @@ const WindParticles = ({ windData, visible = true }) => {
 
     const ctx = canvas.getContext('2d');
     
-    const particles = [];
-    const numParticles = 1500; // Beautiful flowing particles
-    const maxAge = 60; // Shorter trails
-    const fadeOpacity = 0.05; // Faster fade for clearer view
-
-    // Color scheme (like Windy)
+    // Grid cell size (pixels)
+    const cellSize = 50;
+    
+    // Color scheme for wind speed (iWindsurf style)
     const getWindColor = (speed) => {
-      if (speed < 5) return 'rgba(0, 255, 0, 0.5)';      // Green (light)
-      if (speed < 10) return 'rgba(100, 200, 255, 0.5)'; // Blue
-      if (speed < 15) return 'rgba(255, 200, 0, 0.5)';   // Yellow
-      if (speed < 25) return 'rgba(255, 100, 0, 0.5)';   // Orange
-      return 'rgba(255, 0, 0, 0.5)';                     // Red (strong)
+      if (speed < 5) return { bg: 'rgba(144, 238, 144, 0.4)', arrow: '#2d5016' };   // Light green
+      if (speed < 10) return { bg: 'rgba(135, 206, 250, 0.5)', arrow: '#1e3a8a' };  // Light blue
+      if (speed < 15) return { bg: 'rgba(65, 105, 225, 0.6)', arrow: '#1e3a8a' };   // Royal blue
+      if (speed < 20) return { bg: 'rgba(255, 215, 0, 0.6)', arrow: '#713f12' };    // Gold
+      if (speed < 25) return { bg: 'rgba(255, 140, 0, 0.7)', arrow: '#7c2d12' };    // Orange
+      return { bg: 'rgba(220, 20, 60, 0.8)', arrow: '#7f1d1d' };                    // Crimson
     };
-
-    // Initialize particles
-    for (let i = 0; i < numParticles; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        age: Math.random() * maxAge
-      });
-    }
-    particlesRef.current = particles;
 
     // Get wind vector at position
     const getWindAt = (lat, lon) => {
@@ -121,98 +108,95 @@ const WindParticles = ({ windData, visible = true }) => {
         }
       }
 
-      if (!nearest || minDist > 1.0) {
-        return { u: 0, v: 0, speed: 0 };
+      if (!nearest || minDist > 1.5) {
+        return null;
       }
 
       return {
-        u: nearest.u_component || 0,
-        v: nearest.v_component || 0,
-        speed: nearest.speed_kts || 0
+        speed: nearest.speed_kts || 0,
+        direction: nearest.direction_deg || 0
       };
     };
 
-    // Convert pixel to lat/lon
-    const pixelToLatLng = (x, y) => {
-      const containerPoint = { x, y };
-      return map.containerPointToLatLng([x, y]);
-    };
-
-    // Convert lat/lon to pixel
-    const latLngToPixel = (lat, lon) => {
-      const point = map.latLngToContainerPoint([lat, lon]);
-      return { x: point.x, y: point.y };
-    };
-
-    // Animation loop
-    const animate = () => {
+    // Draw arrow pointing in wind direction
+    const drawArrow = (x, y, direction, color, size = 20) => {
+      ctx.save();
+      ctx.translate(x, y);
+      // Add 180 degrees because wind direction is "from", we want to show "to"
+      ctx.rotate(((direction + 180) * Math.PI) / 180);
       
-      // Fade effect for smooth trails (use semi-transparent white to fade, not black)
-      ctx.fillStyle = `rgba(255, 255, 255, ${fadeOpacity})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Update and draw particles
-      particles.forEach(particle => {
-        // Get lat/lon of particle
-        const latLng = pixelToLatLng(particle.x, particle.y);
-        
-        // Get wind at position
-        const wind = getWindAt(latLng.lat, latLng.lng);
-        
-        // Move particle based on wind
-        const scale = 0.8; // Speed multiplier
-        const pixelVelocity = {
-          x: wind.u * scale,
-          y: -wind.v * scale // Flip Y for screen coordinates
-        };
-
-        particle.x += pixelVelocity.x;
-        particle.y += pixelVelocity.y;
-        particle.age++;
-
-        // Respawn if too old or out of bounds
-        if (particle.age > maxAge || 
-            particle.x < 0 || particle.x > canvas.width ||
-            particle.y < 0 || particle.y > canvas.height) {
-          particle.x = Math.random() * canvas.width;
-          particle.y = Math.random() * canvas.height;
-          particle.age = 0;
-        }
-
-        // Draw particle with color based on wind speed
-        const opacity = 1 - (particle.age / maxAge);
-        const color = getWindColor(wind.speed);
-        ctx.fillStyle = color.replace('0.5', opacity * 0.8);
-        ctx.beginPath();
-        ctx.arc(particle.x, particle.y, 1.5, 0, Math.PI * 2); // Small particle
-        ctx.fill();
-      });
-
-      animationRef.current = requestAnimationFrame(animate);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2;
+      
+      // Arrow shaft
+      ctx.beginPath();
+      ctx.moveTo(0, -size/2);
+      ctx.lineTo(0, size/2);
+      ctx.stroke();
+      
+      // Arrow head
+      ctx.beginPath();
+      ctx.moveTo(0, size/2);
+      ctx.lineTo(-size/4, size/4);
+      ctx.lineTo(size/4, size/4);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.restore();
     };
 
-    // Start animation
-    animate();
+    // Draw the grid once
+    const drawGrid = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw grid cells
+      for (let x = 0; x < canvas.width; x += cellSize) {
+        for (let y = 0; y < canvas.height; y += cellSize) {
+          // Get center of cell
+          const centerX = x + cellSize / 2;
+          const centerY = y + cellSize / 2;
+          
+          // Convert to lat/lon
+          const latLng = map.containerPointToLatLng([centerX, centerY]);
+          
+          // Get wind data
+          const wind = getWindAt(latLng.lat, latLng.lng);
+          
+          if (wind) {
+            const colors = getWindColor(wind.speed);
+            
+            // Draw colored background cell
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(x, y, cellSize, cellSize);
+            
+            // Draw wind direction arrow
+            drawArrow(centerX, centerY, wind.direction, colors.arrow, cellSize * 0.6);
+          }
+        }
+      }
+    };
 
-    // Update canvas on map move/zoom
-    const updateCanvas = () => {
+    // Initial draw
+    drawGrid();
+    
+    // Update canvas size and redraw on map changes
+    const handleMapChange = () => {
       const size = map.getSize();
       canvas.width = size.x;
       canvas.height = size.y;
       canvas.style.width = size.x + 'px';
       canvas.style.height = size.y + 'px';
+      drawGrid(); // Redraw after resize
     };
 
-    map.on('moveend', updateCanvas);
-    map.on('zoomend', updateCanvas);
+    map.on('moveend', drawGrid);
+    map.on('zoomend', handleMapChange);
 
     // Cleanup
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      map.off('moveend', updateCanvas);
-      map.off('zoomend', updateCanvas);
+      map.off('moveend', drawGrid);
+      map.off('zoomend', handleMapChange);
       if (canvas && canvas.parentNode) {
         canvas.parentNode.removeChild(canvas);
       }
