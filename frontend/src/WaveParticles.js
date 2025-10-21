@@ -50,7 +50,7 @@ const WaveParticles = ({ swellData, visible = true }) => {
     const particles = [];
     const numParticles = 2500;
     const maxAge = 120; // Longer lifespan for wave particles
-    const fadeOpacity = 0.97;
+    const fadeOpacity = 0.03; // Low opacity for trail effect (was 0.97 which covered everything!)
 
     // Wave color scheme (based on wave height)
     const getWaveColor = (height) => {

@@ -52,7 +52,7 @@ const WindParticles = ({ windData, visible = true }) => {
     const particles = [];
     const numParticles = 3000;
     const maxAge = 100;
-    const fadeOpacity = 0.96;
+    const fadeOpacity = 0.04; // Low opacity for trail effect (was 0.96 which covered everything!)
 
     // Color scheme (like Windy)
     const getWindColor = (speed) => {
@@ -114,12 +114,19 @@ const WindParticles = ({ windData, visible = true }) => {
     };
 
     // Animation loop
+    let frameCount = 0;
     const animate = () => {
+      frameCount++;
+      if (frameCount === 1 || frameCount % 60 === 0) {
+        console.log(`WindParticles animate frame ${frameCount}, particles: ${particles.length}`);
+      }
+      
       // Fade effect
       ctx.fillStyle = `rgba(255, 255, 255, ${fadeOpacity})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
+      let drawnCount = 0;
       particles.forEach(particle => {
         // Get lat/lon of particle
         const latLng = pixelToLatLng(particle.x, particle.y);
