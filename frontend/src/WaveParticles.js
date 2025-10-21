@@ -12,8 +12,11 @@ const WaveParticles = ({ swellData, visible = true }) => {
   const animationRef = useRef(null);
 
   useEffect(() => {
-    if (!visible || !swellData || !swellData.wave_data) {
-      if (canvasRef.current) {
+    console.log('WaveParticles useEffect triggered', { visible, hasData: !!swellData, waveData: swellData?.wave_data?.length });
+    
+    if (!visible || !swellData || !swellData.wave_data || swellData.wave_data.length === 0) {
+      console.log('WaveParticles: Not rendering - conditions not met');
+      if (canvasRef.current && canvasRef.current.parentNode) {
         canvasRef.current.style.display = 'none';
       }
       if (animationRef.current) {
@@ -22,6 +25,8 @@ const WaveParticles = ({ swellData, visible = true }) => {
       return;
     }
 
+    console.log('WaveParticles: Creating canvas with', swellData.wave_data.length, 'wave points');
+    
     // Create canvas overlay
     const mapContainer = map.getContainer();
     let canvas = canvasRef.current;

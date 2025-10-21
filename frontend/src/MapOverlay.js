@@ -306,10 +306,16 @@ export default function MapOverlay() {
 
   const fetchWindOverlay = async (model) => {
     try {
+      console.log(`Fetching wind overlay for model: ${model}`);
       const res = await fetch(`/api/wind-overlay?model=${model}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setOverlayData(prev => ({ ...prev, wind: { ...prev.wind, [model]: data } }));
+      console.log(`Wind overlay data received for ${model}:`, data);
+      setOverlayData(prev => {
+        const newData = { ...prev, wind: { ...(prev.wind || {}), [model]: data } };
+        console.log('Updated overlayData:', newData);
+        return newData;
+      });
     } catch (err) {
       console.error(`Error fetching ${model} wind overlay:`, err);
     }
@@ -317,10 +323,16 @@ export default function MapOverlay() {
 
   const fetchSwellOverlay = async () => {
     try {
+      console.log('Fetching swell overlay (WW3)');
       const res = await fetch('/api/swell-overlay?model=ww3');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setOverlayData(prev => ({ ...prev, swell: data }));
+      console.log('Swell overlay data received:', data);
+      setOverlayData(prev => {
+        const newData = { ...prev, swell: data };
+        console.log('Updated overlayData with swell:', newData);
+        return newData;
+      });
     } catch (err) {
       console.error('Error fetching swell overlay:', err);
     }

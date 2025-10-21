@@ -12,8 +12,11 @@ const WindParticles = ({ windData, visible = true }) => {
   const animationRef = useRef(null);
 
   useEffect(() => {
-    if (!visible || !windData || !windData.vectors) {
-      if (canvasRef.current) {
+    console.log('WindParticles useEffect triggered', { visible, hasData: !!windData, vectors: windData?.vectors?.length });
+    
+    if (!visible || !windData || !windData.vectors || windData.vectors.length === 0) {
+      console.log('WindParticles: Not rendering - conditions not met');
+      if (canvasRef.current && canvasRef.current.parentNode) {
         canvasRef.current.style.display = 'none';
       }
       if (animationRef.current) {
@@ -22,6 +25,8 @@ const WindParticles = ({ windData, visible = true }) => {
       return;
     }
 
+    console.log('WindParticles: Creating canvas with', windData.vectors.length, 'vectors');
+    
     // Create canvas overlay
     const mapContainer = map.getContainer();
     let canvas = canvasRef.current;
@@ -40,6 +45,8 @@ const WindParticles = ({ windData, visible = true }) => {
     canvas.style.display = 'block';
     canvas.width = mapContainer.offsetWidth;
     canvas.height = mapContainer.offsetHeight;
+    
+    console.log('WindParticles: Canvas created/shown', { width: canvas.width, height: canvas.height, zIndex: canvas.style.zIndex });
 
     const ctx = canvas.getContext('2d');
     const particles = [];
