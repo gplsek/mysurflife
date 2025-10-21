@@ -233,6 +233,22 @@ export default function MapOverlay() {
     return `${surfM.toFixed(2)} m`;
   };
 
+  const getEnergyLevel = (energy) => {
+    if (!energy) return { label: 'N/A', color: '#999', width: 0 };
+    
+    if (energy < 50) {
+      return { label: 'Small', color: '#94a3b8', width: (energy / 500) * 100 };
+    } else if (energy < 150) {
+      return { label: 'Moderate', color: '#fbbf24', width: (energy / 500) * 100 };
+    } else if (energy < 300) {
+      return { label: 'Powerful', color: '#fb923c', width: (energy / 500) * 100 };
+    } else if (energy < 500) {
+      return { label: 'Very Powerful', color: '#f87171', width: (energy / 500) * 100 };
+    } else {
+      return { label: 'Extreme', color: '#dc2626', width: Math.min((energy / 500) * 100, 100) };
+    }
+  };
+
   const formatTemp = (tempC) => {
     if (!tempC) return 'N/A';
     if (units === 'imperial') {
@@ -490,7 +506,7 @@ export default function MapOverlay() {
                 <table style={{ width: '100%', fontSize: '13px' }}>
                   <tbody>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>🏄 Surf Size:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>🏄 Face Height:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold', color: '#0066cc', fontSize: '14px' }}>
                         {formatSurfSize(selectedBuoy.surf_height_m)}
                         <TrendIndicator trend={selectedBuoy.wave_trend} />
@@ -517,9 +533,35 @@ export default function MapOverlay() {
                     </tr>
                     {selectedBuoy.wave_energy && (
                       <tr>
-                        <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Energy Index:</td>
-                        <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
-                          {selectedBuoy.wave_energy.toFixed(1)}
+                        <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Energy:</td>
+                        <td style={{ padding: '4px 0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ flex: 1, minWidth: '80px' }}>
+                              <div style={{
+                                height: '18px',
+                                backgroundColor: '#e5e7eb',
+                                borderRadius: '9px',
+                                overflow: 'hidden',
+                                position: 'relative'
+                              }}>
+                                <div style={{
+                                  height: '100%',
+                                  width: `${getEnergyLevel(selectedBuoy.wave_energy).width}%`,
+                                  backgroundColor: getEnergyLevel(selectedBuoy.wave_energy).color,
+                                  borderRadius: '9px',
+                                  transition: 'width 0.3s ease'
+                                }} />
+                              </div>
+                            </div>
+                            <div style={{ 
+                              fontSize: '11px', 
+                              fontWeight: 'bold',
+                              color: getEnergyLevel(selectedBuoy.wave_energy).color,
+                              minWidth: '85px'
+                            }}>
+                              {selectedBuoy.wave_energy.toFixed(0)} - {getEnergyLevel(selectedBuoy.wave_energy).label}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     )}
