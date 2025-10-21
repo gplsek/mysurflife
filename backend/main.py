@@ -324,3 +324,143 @@ async def clear_cache():
     """Clear the buoy data cache (useful for debugging)."""
     cache.clear()
     return {"message": "Cache cleared", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/buoy-history/{station_id}")
+async def get_buoy_history(station_id: str, hours: int = 48):
+    """
+    Fetch historical wave data for a buoy from NDBC.
+    Returns time series of wave height, period, direction, wind, etc.
+    """
+    cache_key = f"history_{station_id}_{hours}"
+    
+    # Check cache (longer TTL for historical data - 30 minutes)
+    if cache_key in cache:
+        cached_time = cache[cache_key].get("cached_at")
+        if cached_time and datetime.now() - cached_time < timedelta(minutes=30):
+            return cache[cache_key]["data"]
+    
+    url = f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            text = response.text
+    except Exception as e:
+        return {
+            "error": f"Failed to fetch data: {str(e)}",
+            "station_id": station_id,
+            "data": []
+        }
+    
+    lines = text.strip().split("\n")
+    headers = None
+    data_points = []
+    cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+    
+    for line in lines:
+        # Skip comment lines (headers and units)
+        if line.startswith("#"):
+            if not headers:
+                # Extract header from first # line
+                headers = line.lstrip("#").split()
+            continue
+        
+        if not line.strip():
+            continue
+        
+        # Parse data row
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        
+        try:
+            # Parse timestamp: YY MM DD hh mm
+            year = int(parts[0])
+            month = int(parts[1])
+            day = int(parts[2])
+            hour = int(parts[3])
+            minute = int(parts[4])
+            
+            # Handle 2-digit year (NDBC uses YY format)
+            if year < 100:
+                year += 2000
+            
+            timestamp = datetime(year, month, day, hour, minute)
+            
+            # Skip data older than requested hours
+            if timestamp < cutoff_time:
+                continue
+            
+            # Parse wave data
+            def safe_float(val):
+                try:
+                    f = float(val)
+                    return None if f == 99.0 or f == 999.0 or f == 9999.0 or f == 99.0 else f
+                except:
+                    return None
+            
+            # Map data based on headers
+            data_dict = {}
+            for i, header in enumerate(headers):
+                if i < len(parts):
+                    data_dict[header] = parts[i]
+            
+            # Extract key wave metrics
+            wvht_m = safe_float(data_dict.get("WVHT"))
+            dpd_sec = safe_float(data_dict.get("DPD"))
+            mwd_deg = safe_float(data_dict.get("MWD"))
+            wspd_ms = safe_float(data_dict.get("WSPD"))
+            wdir_deg = safe_float(data_dict.get("WDIR"))
+            gst_ms = safe_float(data_dict.get("GST"))
+            atmp_c = safe_float(data_dict.get("ATMP"))
+            wtmp_c = safe_float(data_dict.get("WTMP"))
+            
+            # Convert to imperial
+            wvht_ft = round(wvht_m * 3.28084, 2) if wvht_m is not None else None
+            
+            # Calculate surf height and energy if we have data
+            surf_height_m = None
+            wave_energy = None
+            if wvht_m is not None and dpd_sec is not None:
+                surf_height_m = round(0.7 * wvht_m * math.sqrt(dpd_sec), 2)
+                wave_energy = round(wvht_m ** 2 * dpd_sec, 1)
+            
+            data_point = {
+                "timestamp": timestamp.isoformat() + "Z",
+                "wvht_m": wvht_m,
+                "wvht_ft": wvht_ft,
+                "dpd_sec": dpd_sec,
+                "mwd_deg": mwd_deg,
+                "surf_height_m": surf_height_m,
+                "wave_energy": wave_energy,
+                "wspd_ms": wspd_ms,
+                "wdir_deg": wdir_deg,
+                "gst_ms": gst_ms,
+                "atmp_c": atmp_c,
+                "wtmp_c": wtmp_c
+            }
+            
+            data_points.append(data_point)
+            
+        except (ValueError, IndexError) as e:
+            # Skip malformed rows
+            continue
+    
+    # Sort by timestamp (oldest first)
+    data_points.sort(key=lambda x: x["timestamp"])
+    
+    result = {
+        "station_id": station_id,
+        "hours": hours,
+        "data_points": len(data_points),
+        "data": data_points
+    }
+    
+    # Cache the result
+    cache[cache_key] = {
+        "cached_at": datetime.now(),
+        "data": result
+    }
+    
+    return result

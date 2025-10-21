@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -174,6 +175,10 @@ export default function MapOverlay() {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [selectedBuoy, setSelectedBuoy] = useState(null);
+  const [showChart, setShowChart] = useState(false);
+  const [historicalData, setHistoricalData] = useState([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartError, setChartError] = useState(null);
   
   // Load preferences from localStorage or use defaults
   const [units, setUnits] = useState(() => localStorage.getItem('units') || 'imperial');
@@ -204,6 +209,52 @@ export default function MapOverlay() {
       setLoading(false);
     }
   };
+
+  const fetchHistoricalData = async (stationId, hours = 48) => {
+    try {
+      setChartLoading(true);
+      setChartError(null);
+      const res = await fetch(`/api/buoy-history/${stationId}?hours=${hours}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json();
+      
+      if (result.error) {
+        setChartError(result.error);
+        setHistoricalData([]);
+        return;
+      }
+      
+      // Transform data for Recharts
+      const chartData = result.data.map(point => ({
+        time: new Date(point.timestamp).toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit'
+        }),
+        waveHeight: units === 'imperial' ? point.wvht_ft : point.wvht_m,
+        period: point.dpd_sec,
+        surfHeight: units === 'imperial' ? 
+          (point.surf_height_m ? point.surf_height_m * 3.28084 : null) : 
+          point.surf_height_m,
+        energy: point.wave_energy
+      }));
+      
+      setHistoricalData(chartData);
+    } catch (err) {
+      console.error('Error fetching historical data:', err);
+      setChartError(err.message);
+      setHistoricalData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
+  // Reset chart state when buoy changes
+  useEffect(() => {
+    setShowChart(false);
+    setHistoricalData([]);
+    setChartError(null);
+  }, [selectedBuoy?.station]);
 
   useEffect(() => {
     fetchBuoyData();
@@ -459,7 +510,9 @@ export default function MapOverlay() {
             borderRadius: '8px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
             minWidth: '280px',
-            maxWidth: '320px'
+            maxWidth: '320px',
+            maxHeight: 'calc(100vh - 20px)',
+            overflowY: 'auto'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', color: '#0066cc' }}>
@@ -617,6 +670,193 @@ export default function MapOverlay() {
                     </tr>
                   </tbody>
                 </table>
+
+                {/* Chart Toggle Button */}
+                <button
+                  onClick={() => {
+                    if (!showChart && historicalData.length === 0) {
+                      fetchHistoricalData(selectedBuoy.station);
+                    }
+                    setShowChart(!showChart);
+                  }}
+                  style={{
+                    width: '100%',
+                    marginTop: '12px',
+                    padding: '10px',
+                    backgroundColor: '#0066cc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#0052a3'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = '#0066cc'}
+                >
+                  <span>{showChart ? '📊 Hide Charts' : '📈 Show Wave History'}</span>
+                </button>
+
+                {/* Historical Charts */}
+                {showChart && (
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #eee' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#333' }}>
+                      📈 Last 48 Hours
+                    </h4>
+                    
+                    {chartLoading && (
+                      <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        Loading chart data...
+                      </div>
+                    )}
+                    
+                    {chartError && (
+                      <div style={{ padding: '12px', backgroundColor: '#fee', borderRadius: '6px', color: '#d32f2f', fontSize: '12px' }}>
+                        ⚠️ {chartError}
+                      </div>
+                    )}
+                    
+                    {!chartLoading && !chartError && historicalData.length > 0 && (
+                      <>
+                        {/* Wave Height Chart */}
+                        <div style={{ marginBottom: '20px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
+                            Wave Height & Face Height
+                          </div>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <LineChart data={historicalData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                              <XAxis 
+                                dataKey="time" 
+                                tick={{ fontSize: 10 }}
+                                interval="preserveStartEnd"
+                              />
+                              <YAxis 
+                                tick={{ fontSize: 10 }}
+                                label={{ 
+                                  value: units === 'imperial' ? 'Height (ft)' : 'Height (m)', 
+                                  angle: -90, 
+                                  position: 'insideLeft',
+                                  style: { fontSize: 10 }
+                                }}
+                              />
+                              <Tooltip 
+                                contentStyle={{ fontSize: '11px' }}
+                                formatter={(value) => value ? value.toFixed(2) : 'N/A'}
+                              />
+                              <Legend wrapperStyle={{ fontSize: '11px' }} />
+                              <Line 
+                                type="monotone" 
+                                dataKey="waveHeight" 
+                                stroke="#0066cc" 
+                                name="Wave Height"
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                              />
+                              <Line 
+                                type="monotone" 
+                                dataKey="surfHeight" 
+                                stroke="#22c55e" 
+                                name="Face Height"
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {/* Period Chart */}
+                        <div style={{ marginBottom: '20px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
+                            Wave Period
+                          </div>
+                          <ResponsiveContainer width="100%" height={150}>
+                            <LineChart data={historicalData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                              <XAxis 
+                                dataKey="time" 
+                                tick={{ fontSize: 10 }}
+                                interval="preserveStartEnd"
+                              />
+                              <YAxis 
+                                tick={{ fontSize: 10 }}
+                                label={{ 
+                                  value: 'Period (sec)', 
+                                  angle: -90, 
+                                  position: 'insideLeft',
+                                  style: { fontSize: 10 }
+                                }}
+                              />
+                              <Tooltip 
+                                contentStyle={{ fontSize: '11px' }}
+                                formatter={(value) => value ? value.toFixed(1) : 'N/A'}
+                              />
+                              <Legend wrapperStyle={{ fontSize: '11px' }} />
+                              <Line 
+                                type="monotone" 
+                                dataKey="period" 
+                                stroke="#f59e0b" 
+                                name="Period"
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {/* Energy Chart */}
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
+                            Wave Energy Index
+                          </div>
+                          <ResponsiveContainer width="100%" height={150}>
+                            <LineChart data={historicalData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                              <XAxis 
+                                dataKey="time" 
+                                tick={{ fontSize: 10 }}
+                                interval="preserveStartEnd"
+                              />
+                              <YAxis 
+                                tick={{ fontSize: 10 }}
+                                label={{ 
+                                  value: 'Energy', 
+                                  angle: -90, 
+                                  position: 'insideLeft',
+                                  style: { fontSize: 10 }
+                                }}
+                              />
+                              <Tooltip 
+                                contentStyle={{ fontSize: '11px' }}
+                                formatter={(value) => value ? value.toFixed(0) : 'N/A'}
+                              />
+                              <Legend wrapperStyle={{ fontSize: '11px' }} />
+                              <Line 
+                                type="monotone" 
+                                dataKey="energy" 
+                                stroke="#ef4444" 
+                                name="Energy"
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </>
+                    )}
+                    
+                    {!chartLoading && !chartError && historicalData.length === 0 && (
+                      <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                        No historical data available
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
