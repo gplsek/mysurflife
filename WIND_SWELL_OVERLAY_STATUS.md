@@ -1,9 +1,24 @@
 # 🌬️🌊 Wind & Swell Overlay Integration Status
 
-## ✅ Phase 1 Complete - API Endpoints Ready!
+## ✅ Phase 1 Complete + Custom Particle Animations!
 
 **Last Updated:** 2025-10-21  
-**Commit:** `721891c`
+**Commit:** `cce32a7`
+
+### 🎨 NEW: Windy-Style Particle Animations!
+We now have **100% custom particle-based animations** for both wind and swell, inspired by Windy.com but completely independent:
+
+- **WindParticles.js**: 3000 animated particles following wind flow
+  - Color-coded by speed (green → blue → yellow → orange → red)
+  - Fade trail effects for smooth visualization
+  - Works with HRRR, GFS, and NAM models
+  
+- **WaveParticles.js**: 2500 animated particles following ocean swell
+  - Color-coded by wave height (light green → crimson)
+  - Elongated elliptical particles with wave oscillation
+  - Works with WaveWatch III model
+  
+No Windy.com iframe - fully custom implementation!
 
 ---
 
@@ -149,12 +164,23 @@ curl "http://localhost:8000/api/overlays/models"
 ## 📊 Current Status
 
 ### ✅ Complete:
-- [x] Wind overlay API endpoint with 3 models
-- [x] Swell overlay API endpoint (WW3)
-- [x] Model info API endpoint
-- [x] Configurable geographic bounds
-- [x] Caching (10min wind, 30min swell)
-- [x] Sample data structure defined
+- [x] **Phase 1: Backend API**
+  - [x] Wind overlay API endpoint with 3 models (GFS, HRRR, NAM)
+  - [x] Swell overlay API endpoint (WW3)
+  - [x] Model info API endpoint
+  - [x] Configurable geographic bounds
+  - [x] Caching (10min wind, 30min swell)
+  - [x] Sample data structure defined
+  
+- [x] **Phase 3: Frontend Visualization** ✨ NEW!
+  - [x] Overlay toggle controls in map UI
+  - [x] Custom particle-based wind animation (WindParticles.js)
+  - [x] Custom particle-based swell animation (WaveParticles.js)
+  - [x] Model selector checkboxes (HRRR, GFS, NAM, WW3)
+  - [x] Animated Windy-style visualization
+  - [x] Color-coded by intensity (wind speed / wave height)
+  - [x] Fade trail effects for smooth flow
+  - [x] Real-time canvas rendering
 
 ### 🔄 Next Steps:
 
@@ -168,13 +194,6 @@ curl "http://localhost:8000/api/overlays/models"
 1. Access WaveWatch III NetCDF files via THREDDS/OPeNDAP
 2. Extract wave height, period, direction
 3. Return grid of wave parameters
-
-#### Phase 3: Frontend Visualization
-1. Add overlay toggle controls to map
-2. Render wind vectors as arrows
-3. Render swell as color-coded heatmap or arrows
-4. Add model selector dropdown
-5. Animate overlays (optional)
 
 ---
 
@@ -304,7 +323,15 @@ Users will see:
 
 ---
 
-**Status:** Phase 1 Complete! ✅  
-**Next:** Frontend overlay controls + CDIP URL verification  
-**Then:** Real data integration (Phase 2)
+**Status:** Phase 1 & 3 Complete! ✅🎨  
+**What Works NOW:**
+- Toggle HRRR/GFS/NAM wind models → See animated particle flow
+- Toggle WaveWatch III swell → See animated wave particles
+- Color-coded by intensity
+- Windy-style smooth animations
+- No external dependencies
+
+**Next:** 
+1. Find correct CDIP THREDDS URLs (for buoy forecasts)
+2. Real data integration (Phase 2A: Wind, Phase 2B: Swell)
 
