@@ -33,12 +33,26 @@ const WindParticles = ({ windData, visible = true }) => {
     // Create canvas overlay directly in map container (not pane)
     let canvas = canvasRef.current;
     
+    // Check if canvas still exists in DOM
+    if (canvas && !document.body.contains(canvas)) {
+      console.warn('WindParticles: Canvas was removed from DOM! Recreating...');
+      canvas = null;
+      canvasRef.current = null;
+    }
+    
     if (!canvas) {
       canvas = document.createElement('canvas');
-      canvas.id = 'wind-particle-canvas';
+      canvas.id = 'wind-particle-canvas-' + Date.now();
+      canvas.className = 'particle-overlay-canvas';
       canvasRef.current = canvas;
       mapContainer.appendChild(canvas);
-      console.log('WindParticles: Canvas created and appended');
+      console.log('WindParticles: NEW Canvas created and appended', {
+        id: canvas.id,
+        parentTag: mapContainer.tagName,
+        parentClass: mapContainer.className
+      });
+    } else {
+      console.log('WindParticles: Reusing existing canvas', { id: canvas.id });
     }
 
     // Set canvas dimensions and styling
