@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import WindParticles from './WindParticles';
+import WaveParticles from './WaveParticles';
 
 const { BaseLayer } = LayersControl;
 
@@ -188,15 +189,13 @@ export default function MapOverlay() {
   const [windOverlays, setWindOverlays] = useState({
     gfs: false,
     hrrr: false,
-    nam: false,
-    windy: false  // Windy.com animated overlay
+    nam: false
   });
   const [swellOverlay, setSwellOverlay] = useState(false);
   const [overlayData, setOverlayData] = useState({
     wind: null,
     swell: null
   });
-  const [showWindyIframe, setShowWindyIframe] = useState(false);
   
   // Load preferences from localStorage or use defaults
   const [units, setUnits] = useState(() => localStorage.getItem('units') || 'imperial');
@@ -332,9 +331,7 @@ export default function MapOverlay() {
     const newState = !windOverlays[model];
     setWindOverlays(prev => ({ ...prev, [model]: newState }));
     
-    if (model === 'windy') {
-      setShowWindyIframe(newState);
-    } else if (newState) {
+    if (newState) {
       fetchWindOverlay(model);
     }
   };
@@ -523,32 +520,12 @@ export default function MapOverlay() {
                 <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
-                    checked={windOverlays.windy}
-                    onChange={() => handleWindToggle('windy')}
-                    style={{ marginRight: '6px', cursor: 'pointer' }}
-                  />
-                  <span>
-                    Windy.com <span style={{ color: '#22c55e', fontSize: '10px' }}>✨ Animated!</span>
-                  </span>
-                </label>
-                <div style={{ 
-                  borderTop: '1px dashed #eee', 
-                  margin: '6px 0', 
-                  paddingTop: '6px',
-                  fontSize: '10px',
-                  color: '#888'
-                }}>
-                  <em>Advanced models:</em>
-                </div>
-                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
                     checked={windOverlays.hrrr}
                     onChange={() => handleWindToggle('hrrr')}
                     style={{ marginRight: '6px', cursor: 'pointer' }}
                   />
                   <span>
-                    HRRR <span style={{ color: '#666', fontSize: '10px' }}>(3km, hourly)</span>
+                    HRRR <span style={{ color: '#22c55e', fontSize: '10px' }}>✨ Animated! (3km)</span>
                   </span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
@@ -559,7 +536,7 @@ export default function MapOverlay() {
                     style={{ marginRight: '6px', cursor: 'pointer' }}
                   />
                   <span>
-                    GFS <span style={{ color: '#666', fontSize: '10px' }}>(25km, 6hr)</span>
+                    GFS <span style={{ color: '#22c55e', fontSize: '10px' }}>✨ Animated! (25km)</span>
                   </span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -570,7 +547,7 @@ export default function MapOverlay() {
                     style={{ marginRight: '6px', cursor: 'pointer' }}
                   />
                   <span>
-                    NAM <span style={{ color: '#666', fontSize: '10px' }}>(12km, 6hr)</span>
+                    NAM <span style={{ color: '#22c55e', fontSize: '10px' }}>✨ Animated! (12km)</span>
                   </span>
                 </label>
               </div>
@@ -590,7 +567,7 @@ export default function MapOverlay() {
                     style={{ marginRight: '6px', cursor: 'pointer' }}
                   />
                   <span>
-                    WaveWatch III <span style={{ color: '#666', fontSize: '10px' }}>(50km)</span>
+                    WaveWatch III <span style={{ color: '#22c55e', fontSize: '10px' }}>✨ Animated! (50km)</span>
                   </span>
                 </label>
               </div>
@@ -840,7 +817,7 @@ export default function MapOverlay() {
 
           {/* Custom Wind Particle Animation */}
           {Object.entries(windOverlays).map(([model, enabled]) => {
-            if (!enabled || model === 'windy' || !overlayData.wind?.[model]) return null;
+            if (!enabled || !overlayData.wind?.[model]) return null;
             return (
               <WindParticles 
                 key={`particles-${model}`}
@@ -849,6 +826,14 @@ export default function MapOverlay() {
               />
             );
           })}
+
+          {/* Custom Wave/Swell Particle Animation */}
+          {swellOverlay && overlayData.swell && (
+            <WaveParticles 
+              swellData={overlayData.swell}
+              visible={swellOverlay}
+            />
+          )}
         </MapContainer>
 
         {/* Buoy Details Panel */}
@@ -1297,53 +1282,6 @@ export default function MapOverlay() {
           </div>
         )}
 
-        {/* Windy.com Animated Overlay */}
-        {showWindyIframe && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 999,
-            pointerEvents: 'none'
-          }}>
-            <iframe
-              src={`https://embed.windy.com/embed2.html?lat=36.0&lon=-119.0&detailLat=33.0&detailLon=-118.0&width=650&height=450&zoom=6&level=surface&overlay=wind&product=ecmwf&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=mph&metricTemp=%C2%B0F&radarRange=-1`}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                pointerEvents: 'auto'
-              }}
-              title="Windy Wind Animation"
-            />
-            <button
-              onClick={() => {
-                setWindOverlays(prev => ({ ...prev, windy: false }));
-                setShowWindyIframe(false);
-              }}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                padding: '8px 16px',
-                backgroundColor: 'rgba(0, 102, 204, 0.9)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                zIndex: 1000,
-                pointerEvents: 'auto',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-              }}
-            >
-              ✕ Close Windy
-            </button>
-          </div>
-        )}
       </div>
   );
 }
