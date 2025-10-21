@@ -41,10 +41,11 @@ A real-time surf conditions dashboard tracking 14 California buoys with live wav
     - Energy index trend
     - Lazy-loaded on demand
   - **🔮 5-Day Forecast** - Toggle forecast overlay on charts:
-    - Trend-based projection (Phase 1)
+    - **Phase 2:** CDIP ECMWF model integration (infrastructure complete!)
+    - Intelligent fallback to trend projection if CDIP unavailable
     - Dotted lines distinguish forecast from observed
     - Next 120 hours in 3-hour intervals
-    - Phase 2: Full CDIP ECMWF model integration planned
+    - High confidence for ECMWF forecasts, low for trend fallback
 - **Smart Scoring** (0-3 scale):
   - Considers surf face height, period, direction, and energy
   - Color-coded markers: Green (3), Orange (2), Red (1), Grey (0)
@@ -218,5 +219,5 @@ Energy = WVHT² × DPD
 
 **Last Updated:** 2025-10-21  
 **Status:** Active Development  
-**Latest Feature:** 🔮 5-day wave forecast overlay with CDIP integration roadmap  
-**Next Session Focus:** CDIP ECMWF model integration (Phase 2), wind overlay, swell overlay
+**Latest Feature:** 🚀 Phase 2: CDIP ECMWF forecast infrastructure complete (NetCDF/OPeNDAP integration)  
+**Next Session Focus:** CDIP URL verification, wind overlay, swell overlay
