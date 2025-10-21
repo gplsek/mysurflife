@@ -795,10 +795,12 @@ async def get_wind_overlay(
     Supports multiple forecast models: GFS, HRRR, NAM
     Returns wind vectors for visualization.
     """
-    # Default to California bounds if not specified
+    # Default to Pacific Ocean area west of California (ocean only, not land)
     if not bounds:
-        # California coastal area
-        bounds = "32.5,-120.5,40.0,-117.0"
+        # Extended west into Pacific Ocean, covering surfing area
+        # West: -130°, East: -117° (stops before land)
+        # South: 30°, North: 42° (covers CA coast)
+        bounds = "30.0,-130.0,42.0,-117.0"
     
     try:
         min_lat, min_lon, max_lat, max_lon = map(float, bounds.split(','))
@@ -918,9 +920,10 @@ async def get_swell_overlay(
     Get swell/wave overlay data for the map.
     Uses NOAA WaveWatch III model for global wave forecasts.
     """
-    # Default to California bounds
+    # Default to Pacific Ocean area west of California (ocean only, not land)
     if not bounds:
-        bounds = "32.5,-120.5,40.0,-117.0"
+        # Extended west into Pacific Ocean, covering surfing area
+        bounds = "30.0,-130.0,42.0,-117.0"
     
     try:
         min_lat, min_lon, max_lat, max_lon = map(float, bounds.split(','))
