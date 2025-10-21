@@ -82,19 +82,19 @@ const TrendIndicator = ({ trend }) => {
     rising: { 
       icon: '↑', 
       color: '#22c55e', 
-      text: 'Rising',
+      text: 'Rising - waves building',
       path: 'M12 19 L12 5 M12 5 L8 9 M12 5 L16 9'
     },
     holding: { 
       icon: '→', 
       color: '#3b82f6', 
-      text: 'Holding',
+      text: 'Holding - steady conditions',
       path: 'M5 12 L19 12 M19 12 L15 8 M19 12 L15 16'
     },
     falling: { 
       icon: '↓', 
       color: '#ef4444', 
-      text: 'Falling',
+      text: 'Falling - waves dropping',
       path: 'M12 5 L12 19 M12 19 L8 15 M12 19 L16 15'
     }
   };
@@ -102,7 +102,14 @@ const TrendIndicator = ({ trend }) => {
   const config = trendConfig[trend] || trendConfig.holding;
   
   return (
-    <span title={config.text} style={{ cursor: 'help' }}>
+    <span 
+      title={config.text} 
+      style={{ 
+        cursor: 'pointer',
+        display: 'inline-block',
+        position: 'relative'
+      }}
+    >
       <svg 
         width={18} 
         height={18} 
