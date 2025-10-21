@@ -469,69 +469,46 @@ async def get_buoy_history(station_id: str, hours: int = 48):
 
 async def fetch_cdip_ecmwf_forecast(cdip_id: str, hours: int = 120):
     """
-    Fetch ECMWF model forecast from CDIP THREDDS server using OPeNDAP.
+    Fetch 5-day directional wave forecast from CDIP THREDDS server using OPeNDAP.
+    Uses the archive directional wave files (e.g., 153p1_direc_wave.nc)
     Returns forecast data or None if unavailable.
     """
     try:
-        # CDIP model forecast URL (trying different possible patterns)
-        possible_urls = [
-            f"https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/model/MOP_alongshore/{cdip_id}/{cdip_id}_rt.nc",
-            f"https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/model/MOP_validation/{cdip_id}/{cdip_id}_rt.nc",
-            f"https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/{cdip_id}_rt.nc",
-        ]
+        # CDIP directional wave forecast URL pattern
+        # Format: https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/archive/{station_id}p1/{station_id}p1_direc_wave.nc
+        url = f"https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/archive/{cdip_id}p1/{cdip_id}p1_direc_wave.nc"
         
-        dataset = None
-        successful_url = None
+        print(f"Attempting to fetch CDIP forecast from: {url}")
         
-        # Try each URL pattern
-        for url in possible_urls:
-            try:
-                dataset = Dataset(url)
-                successful_url = url
-                break
-            except Exception:
-                continue
-        
-        if not dataset:
+        try:
+            dataset = Dataset(url)
+            successful_url = url
+        except Exception as e:
+            print(f"Failed to open CDIP forecast NetCDF: {e}")
             return None
         
-        # Extract variables (CDIP uses these variable names)
-        # Common CDIP variables: waveTime, waveHs (significant height), waveTp (peak period), waveDp (peak direction)
-        time_var = None
-        hs_var = None
-        tp_var = None
-        dp_var = None
+        # Extract variables from CDIP directional wave file
+        # Variable names as documented:
+        # - time: Forecast timestamps
+        # - significant_wave_height: Hs forecast
+        # - peak_wave_period: Peak wave period over time
+        # - waveDirection: Direction (optional)
         
-        # Try to find the correct variable names
         var_names = list(dataset.variables.keys())
+        print(f"Available variables in CDIP file: {var_names}")
         
-        # Look for time variable
-        for name in ['waveTime', 'time', 'wave_time']:
-            if name in var_names:
-                time_var = dataset.variables[name]
-                break
-        
-        # Look for significant wave height
-        for name in ['waveHs', 'Hs', 'wave_height', 'hs']:
-            if name in var_names:
-                hs_var = dataset.variables[name]
-                break
-        
-        # Look for peak period
-        for name in ['waveTp', 'Tp', 'wave_period', 'tp']:
-            if name in var_names:
-                tp_var = dataset.variables[name]
-                break
-        
-        # Look for peak direction
-        for name in ['waveDp', 'Dp', 'wave_direction', 'dp', 'meanDirection']:
-            if name in var_names:
-                dp_var = dataset.variables[name]
-                break
-        
-        if not time_var or not hs_var:
+        # Get required variables
+        if 'time' not in var_names or 'significant_wave_height' not in var_names:
+            print(f"Missing required variables. Available: {var_names}")
             dataset.close()
             return None
+        
+        time_var = dataset.variables['time']
+        hs_var = dataset.variables['significant_wave_height']
+        
+        # Optional variables
+        tp_var = dataset.variables.get('peak_wave_period')
+        dp_var = dataset.variables.get('waveDirection')
         
         # Read data
         times = time_var[:]
