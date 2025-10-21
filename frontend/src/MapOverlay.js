@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-lea
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import WindParticles from './WindParticles';
 
 const { BaseLayer } = LayersControl;
 
@@ -834,6 +835,18 @@ export default function MapOverlay() {
                   </div>
                 </Popup>
               </Marker>
+            );
+          })}
+
+          {/* Custom Wind Particle Animation */}
+          {Object.entries(windOverlays).map(([model, enabled]) => {
+            if (!enabled || model === 'windy' || !overlayData.wind?.[model]) return null;
+            return (
+              <WindParticles 
+                key={`particles-${model}`}
+                windData={overlayData.wind[model]}
+                visible={enabled}
+              />
             );
           })}
         </MapContainer>

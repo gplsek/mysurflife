@@ -1,0 +1,182 @@
+import { useEffect, useRef } from 'react';
+import { useMap } from 'react-leaflet';
+
+/**
+ * Custom Wind Particle Animation Component
+ * Creates Windy-style animated particles that follow wind vectors
+ */
+const WindParticles = ({ windData, visible = true }) => {
+  const map = useMap();
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const animationRef = useRef(null);
+
+  useEffect(() => {
+    if (!visible || !windData || !windData.vectors) {
+      if (canvasRef.current) {
+        canvasRef.current.style.display = 'none';
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      return;
+    }
+
+    // Create canvas overlay
+    const mapContainer = map.getContainer();
+    let canvas = canvasRef.current;
+    
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.style.position = 'absolute';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.pointerEvents = 'none';
+      canvas.style.zIndex = '600';
+      canvasRef.current = canvas;
+      mapContainer.appendChild(canvas);
+    }
+
+    canvas.style.display = 'block';
+    canvas.width = mapContainer.offsetWidth;
+    canvas.height = mapContainer.offsetHeight;
+
+    const ctx = canvas.getContext('2d');
+    const particles = [];
+    const numParticles = 3000;
+    const maxAge = 100;
+    const fadeOpacity = 0.96;
+
+    // Color scheme (like Windy)
+    const getWindColor = (speed) => {
+      if (speed < 5) return 'rgba(0, 255, 0, 0.5)';      // Green (light)
+      if (speed < 10) return 'rgba(100, 200, 255, 0.5)'; // Blue
+      if (speed < 15) return 'rgba(255, 200, 0, 0.5)';   // Yellow
+      if (speed < 25) return 'rgba(255, 100, 0, 0.5)';   // Orange
+      return 'rgba(255, 0, 0, 0.5)';                     // Red (strong)
+    };
+
+    // Initialize particles
+    for (let i = 0; i < numParticles; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        age: Math.random() * maxAge
+      });
+    }
+    particlesRef.current = particles;
+
+    // Get wind vector at position
+    const getWindAt = (lat, lon) => {
+      // Find nearest wind vector
+      let nearest = null;
+      let minDist = Infinity;
+
+      for (const vector of windData.vectors) {
+        const dist = Math.sqrt(
+          Math.pow(vector.lat - lat, 2) + 
+          Math.pow(vector.lon - lon, 2)
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = vector;
+        }
+      }
+
+      if (!nearest || minDist > 1.0) {
+        return { u: 0, v: 0, speed: 0 };
+      }
+
+      return {
+        u: nearest.u_component || 0,
+        v: nearest.v_component || 0,
+        speed: nearest.speed_kts || 0
+      };
+    };
+
+    // Convert pixel to lat/lon
+    const pixelToLatLng = (x, y) => {
+      const containerPoint = { x, y };
+      return map.containerPointToLatLng([x, y]);
+    };
+
+    // Convert lat/lon to pixel
+    const latLngToPixel = (lat, lon) => {
+      const point = map.latLngToContainerPoint([lat, lon]);
+      return { x: point.x, y: point.y };
+    };
+
+    // Animation loop
+    const animate = () => {
+      // Fade effect
+      ctx.fillStyle = `rgba(255, 255, 255, ${fadeOpacity})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Update and draw particles
+      particles.forEach(particle => {
+        // Get lat/lon of particle
+        const latLng = pixelToLatLng(particle.x, particle.y);
+        
+        // Get wind at position
+        const wind = getWindAt(latLng.lat, latLng.lng);
+        
+        // Move particle based on wind
+        const scale = 0.8; // Speed multiplier
+        const pixelVelocity = {
+          x: wind.u * scale,
+          y: -wind.v * scale // Flip Y for screen coordinates
+        };
+
+        particle.x += pixelVelocity.x;
+        particle.y += pixelVelocity.y;
+        particle.age++;
+
+        // Respawn if too old or out of bounds
+        if (particle.age > maxAge || 
+            particle.x < 0 || particle.x > canvas.width ||
+            particle.y < 0 || particle.y > canvas.height) {
+          particle.x = Math.random() * canvas.width;
+          particle.y = Math.random() * canvas.height;
+          particle.age = 0;
+        }
+
+        // Draw particle
+        const opacity = 1 - (particle.age / maxAge);
+        const color = getWindColor(wind.speed);
+        ctx.fillStyle = color.replace('0.5', opacity * 0.7);
+        ctx.fillRect(particle.x, particle.y, 1.5, 1.5);
+      });
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    // Start animation
+    animate();
+
+    // Update canvas on map move/zoom
+    const updateCanvas = () => {
+      canvas.width = mapContainer.offsetWidth;
+      canvas.height = mapContainer.offsetHeight;
+    };
+
+    map.on('moveend', updateCanvas);
+    map.on('zoomend', updateCanvas);
+
+    // Cleanup
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      map.off('moveend', updateCanvas);
+      map.off('zoomend', updateCanvas);
+      if (canvas && canvas.parentNode) {
+        canvas.parentNode.removeChild(canvas);
+      }
+    };
+  }, [map, windData, visible]);
+
+  return null;
+};
+
+export default WindParticles;
+
