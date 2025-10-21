@@ -41,6 +41,35 @@ const msToMph = (ms) => ms * 2.23694;
 const msToKph = (ms) => ms * 3.6;
 const msToKnots = (ms) => ms * 1.94384;
 
+// Direction Arrow Component
+const DirectionArrow = ({ degrees, color = '#333', size = 20 }) => {
+  if (!degrees && degrees !== 0) return null;
+  
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      style={{ 
+        display: 'inline-block', 
+        verticalAlign: 'middle',
+        marginLeft: '6px',
+        transform: `rotate(${degrees}deg)`,
+        transition: 'transform 0.3s ease'
+      }}
+    >
+      <path 
+        d="M12 2 L12 18 M12 2 L8 6 M12 2 L16 6" 
+        stroke={color} 
+        strokeWidth="2" 
+        fill="none" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
 const scoreBuoy = (b) => {
   const wave = b.wave_height_m;
   const period = parseFloat(b.dominant_period_sec);
@@ -386,6 +415,7 @@ export default function MapOverlay() {
                       <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Dir:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {selectedBuoy.mean_wave_dir}°
+                        <DirectionArrow degrees={parseFloat(selectedBuoy.mean_wave_dir)} color="#0066cc" />
                       </td>
                     </tr>
                     <tr style={{ borderTop: '1px solid #eee' }}>
@@ -403,6 +433,7 @@ export default function MapOverlay() {
                       <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wind Dir:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {getWindDirection(selectedBuoy.wind_dir)}
+                        <DirectionArrow degrees={selectedBuoy.wind_dir} color="#FF6B35" />
                       </td>
                     </tr>
                     {selectedBuoy.wind_gust_ms && (
