@@ -45,6 +45,10 @@ const msToKnots = (ms) => ms * 1.94384;
 const DirectionArrow = ({ degrees, color = '#333', size = 20 }) => {
   if (!degrees && degrees !== 0) return null;
   
+  // Add 180° because meteorological convention: degrees show where it's FROM
+  // Arrow shows where it's GOING (opposite direction)
+  const rotationDegrees = degrees + 180;
+  
   return (
     <svg 
       width={size} 
@@ -54,7 +58,7 @@ const DirectionArrow = ({ degrees, color = '#333', size = 20 }) => {
         display: 'inline-block', 
         verticalAlign: 'middle',
         marginLeft: '6px',
-        transform: `rotate(${degrees}deg)`,
+        transform: `rotate(${rotationDegrees}deg)`,
         transition: 'transform 0.3s ease'
       }}
     >
