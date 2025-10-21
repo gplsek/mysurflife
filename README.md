@@ -22,6 +22,7 @@ A real-time surf conditions dashboard tracking 14 California buoys with live wav
   - `/api/buoy-status` - Single buoy (Del Mar)
   - `/api/buoy-status/all` - All 14 buoys
   - `/api/buoy-history/{station_id}?hours=48` - Historical time series
+  - `/api/buoy-forecast/{station_id}?hours=120` - 5-day forecast (Phase 1: trend-based)
   - `/api/cache/clear` - Clear cache
 
 ### ✅ **Frontend (React + Leaflet)**
@@ -39,6 +40,11 @@ A real-time surf conditions dashboard tracking 14 California buoys with live wav
     - Period trend
     - Energy index trend
     - Lazy-loaded on demand
+  - **🔮 5-Day Forecast** - Toggle forecast overlay on charts:
+    - Trend-based projection (Phase 1)
+    - Dotted lines distinguish forecast from observed
+    - Next 120 hours in 3-hour intervals
+    - Phase 2: Full CDIP ECMWF model integration planned
 - **Smart Scoring** (0-3 scale):
   - Considers surf face height, period, direction, and energy
   - Color-coded markers: Green (3), Orange (2), Red (1), Grey (0)
@@ -212,5 +218,5 @@ Energy = WVHT² × DPD
 
 **Last Updated:** 2025-10-21  
 **Status:** Active Development  
-**Latest Feature:** 📈 Historical wave charts with 48-hour trends  
-**Next Session Focus:** Wind overlay, swell overlay
+**Latest Feature:** 🔮 5-day wave forecast overlay with CDIP integration roadmap  
+**Next Session Focus:** CDIP ECMWF model integration (Phase 2), wind overlay, swell overlay

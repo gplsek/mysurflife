@@ -35,6 +35,8 @@
 - ✅ Tooltips on trend indicators
 - ✅ Wind source attribution
 - ✅ Smooth animations
+- ✅ 48-hour historical charts with Recharts
+- ✅ 5-day forecast overlay (trend-based, Phase 1)
 
 ---
 
@@ -70,7 +72,39 @@
 
 ---
 
-### 2. 🌬️ Wind Overlay (PRIORITY #2)
+### ✅ 1b. 🔮 5-Day Wave Forecast (COMPLETED - Phase 1!)
+
+**Goal:** Add forecast overlay to historical charts
+
+**Phase 1 Implementation (COMPLETED):**
+- ✅ Create `/api/buoy-forecast/{station_id}?hours=120` endpoint
+- ✅ Trend-based projection using recent NDBC data
+- ✅ 40 forecast points (every 3 hours for 5 days)
+- ✅ Checkbox toggle: "5-day forecast"
+- ✅ Dotted lines distinguish forecast from observed
+- ✅ Lighter colors for forecast vs observed data
+- ✅ 3-hour cache TTL
+- ✅ CDIP station mapping integration
+- ✅ All 3 charts support forecast (Wave, Period, Energy)
+
+**Phase 2 Roadmap:**
+- [ ] Integrate CDIP THREDDS server for ECMWF model data
+- [ ] Replace trend projection with actual forecast models
+- [ ] Add confidence intervals/error bars
+- [ ] Support multiple forecast models (CDIP, NOAA WW3)
+- [ ] Forecast accuracy indicators
+
+**Implementation Details:**
+- Endpoint: `/api/buoy-forecast/{station_id}?hours={hours}`
+- Uses `cdip_station_mapping.json` for buoy → CDIP mapping
+- 13 of 14 buoys support CDIP (Mission Bay excluded)
+- Simple sine wave variation for demo (±10% from avg)
+- Returns: `wvht_m`, `wvht_ft`, `dpd_sec`, `surf_height_m`, `wave_energy`
+- Metadata: `source`, `confidence`, `cdip_available`
+
+---
+
+### 2. 🌬️ Wind Overlay (NEXT PRIORITY)
 
 **Goal:** Animated wind vector layer on map
 
@@ -201,6 +235,10 @@ git push
 ---
 
 **Session Date:** Oct 21, 2025  
-**Last Commit:** `1ad91ff` - Add visual energy indicator and rename to Face Height  
-**Next Steps:** Historical charts → Wind overlay → Swell overlay
+**Last Commit:** `4cc447d` - Add 5-day wave forecast overlay to historical charts  
+**Current Status:**
+- ✅ Historical charts (48 hours) - COMPLETE
+- ✅ 5-day forecast overlay (Phase 1: trend-based) - COMPLETE
+- 🔄 Next: CDIP ECMWF model integration (Phase 2) for real forecast data
+- 📋 Queued: Wind overlay → Swell overlay
 
