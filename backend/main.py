@@ -843,8 +843,49 @@ async def get_wind_overlay(
     
     config = model_configs[model]
     
-    # For Phase 1, return model info and sample data
+    # For Phase 1, return model info and DENSE GRID of sample data for particle animation
     # Phase 2 will fetch actual GRIB2 data
+    
+    # Generate a dense grid of wind vectors for particle animation
+    # Using 0.5 degree spacing (about 50km) for smooth particle flow
+    import math
+    vectors = []
+    lat_step = 0.5
+    lon_step = 0.5
+    
+    lat = min_lat
+    while lat <= max_lat:
+        lon = min_lon
+        while lon <= max_lon:
+            # Generate varying wind patterns for visual effect
+            # Base wind from west/northwest (typical for California)
+            base_dir = 290 + (lat - 35) * 10  # Varies with latitude
+            base_speed = 10 + abs(lat - 35) * 2  # Stronger winds north
+            
+            # Add some spatial variation for interesting patterns
+            dir_variation = math.sin(lat * 0.5) * 20 + math.cos(lon * 0.5) * 15
+            speed_variation = abs(math.sin(lat * lon * 0.1)) * 5
+            
+            direction = (base_dir + dir_variation) % 360
+            speed = max(3, base_speed + speed_variation)
+            
+            # Convert to u/v components (meteorological convention: "from" direction)
+            dir_rad = math.radians(direction)
+            u_component = -speed * math.sin(dir_rad)
+            v_component = -speed * math.cos(dir_rad)
+            
+            vectors.append({
+                "lat": round(lat, 2),
+                "lon": round(lon, 2),
+                "speed_kts": round(speed, 1),
+                "direction_deg": round(direction, 0),
+                "u_component": round(u_component, 2),
+                "v_component": round(v_component, 2)
+            })
+            
+            lon += lon_step
+        lat += lat_step
+    
     result = {
         "model": model,
         "model_name": config["name"],
@@ -856,26 +897,8 @@ async def get_wind_overlay(
             "max_lon": max_lon
         },
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "note": "Phase 1: Model info ready. Phase 2: Fetch actual GRIB2 wind data",
-        "vectors": [
-            # Sample wind vectors (will be replaced with real data)
-            {
-                "lat": 33.0,
-                "lon": -118.0,
-                "speed_kts": 12,
-                "direction_deg": 270,  # From west
-                "u_component": -12.0,  # East-west
-                "v_component": 0.0     # North-south
-            },
-            {
-                "lat": 34.0,
-                "lon": -119.0,
-                "speed_kts": 15,
-                "direction_deg": 315,  # From northwest
-                "u_component": -10.6,
-                "v_component": 10.6
-            }
-        ]
+        "note": f"Phase 1: Dense grid with {len(vectors)} sample vectors for particle animation. Phase 2: Fetch actual GRIB2 wind data",
+        "vectors": vectors
     }
     
     # Cache the result
@@ -921,7 +944,51 @@ async def get_swell_overlay(
         "forecast_range": "180 hours"
     }
     
-    # Phase 1: Return model info and sample data
+    # Phase 1: Return model info and DENSE GRID of sample data for particle animation
+    
+    # Generate a dense grid of wave/swell data for particle animation
+    # Using 0.5 degree spacing (about 50km) for smooth particle flow
+    import math
+    wave_data = []
+    lat_step = 0.5
+    lon_step = 0.5
+    
+    lat = min_lat
+    while lat <= max_lat:
+        lon = min_lon
+        while lon <= max_lon:
+            # Generate varying swell patterns
+            # Pacific swells typically come from W/NW (270-315 degrees)
+            base_dir = 285 + (lat - 35) * 5  # Varies slightly with latitude
+            base_height = 1.5 + abs(lat - 35) * 0.3  # Larger swells to the north
+            base_period = 12 + abs(lat - 34) * 0.5  # Longer periods to the north
+            
+            # Add spatial variation for interesting patterns
+            dir_variation = math.sin(lat * 0.3) * 15 + math.cos(lon * 0.4) * 10
+            height_variation = abs(math.sin(lat * lon * 0.05)) * 0.8
+            period_variation = abs(math.cos(lat + lon)) * 2
+            
+            direction = (base_dir + dir_variation) % 360
+            height_m = max(0.5, base_height + height_variation)
+            height_ft = height_m * 3.28084
+            period = max(6, base_period + period_variation)
+            
+            # Calculate wave energy (simplified)
+            energy = round(height_m ** 2 * period, 1)
+            
+            wave_data.append({
+                "lat": round(lat, 2),
+                "lon": round(lon, 2),
+                "wave_height_m": round(height_m, 2),
+                "wave_height_ft": round(height_ft, 1),
+                "period_sec": round(period, 1),
+                "direction_deg": round(direction, 0),
+                "energy": energy
+            })
+            
+            lon += lon_step
+        lat += lat_step
+    
     result = {
         "model": model,
         "model_name": ww3_config["name"],
@@ -933,28 +1000,8 @@ async def get_swell_overlay(
             "max_lon": max_lon
         },
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "note": "Phase 1: Model info ready. Phase 2: Fetch actual WW3 wave data",
-        "wave_data": [
-            # Sample wave data (will be replaced with real WW3 data)
-            {
-                "lat": 33.0,
-                "lon": -118.0,
-                "wave_height_m": 1.5,
-                "wave_height_ft": 4.9,
-                "period_sec": 12,
-                "direction_deg": 285,  # From WNW
-                "energy": 27.0
-            },
-            {
-                "lat": 34.0,
-                "lon": -119.0,
-                "wave_height_m": 1.2,
-                "wave_height_ft": 3.9,
-                "period_sec": 14,
-                "direction_deg": 270,
-                "energy": 20.2
-            }
-        ]
+        "note": f"Phase 1: Dense grid with {len(wave_data)} sample wave points for particle animation. Phase 2: Fetch actual WW3 wave data",
+        "wave_data": wave_data
     }
     
     # Cache the result
