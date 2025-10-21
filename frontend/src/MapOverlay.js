@@ -680,6 +680,138 @@ export default function MapOverlay() {
                 </Marker>
             );
           })}
+
+          {/* Wind Overlay Markers */}
+          {Object.entries(windOverlays).map(([model, enabled]) => {
+            if (!enabled || !overlayData.wind?.[model]?.vectors) return null;
+            
+            const vectors = overlayData.wind[model].vectors;
+            const modelColors = {
+              hrrr: '#4169E1',  // Royal blue
+              gfs: '#32CD32',   // Lime green
+              nam: '#FF6347'    // Tomato red
+            };
+            
+            return vectors.map((vector, idx) => {
+              const windIcon = L.divIcon({
+                html: `
+                  <div style="
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transform: rotate(${vector.direction_deg + 180}deg);
+                  ">
+                    <svg width="30" height="30" viewBox="0 0 24 24">
+                      <path 
+                        d="M12 2 L12 18 M12 2 L8 6 M12 2 L16 6" 
+                        stroke="${modelColors[model]}" 
+                        stroke-width="2.5" 
+                        fill="none" 
+                        stroke-linecap="round" 
+                        stroke-linejoin="round"
+                        opacity="0.8"
+                      />
+                    </svg>
+                  </div>
+                `,
+                className: '',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+              });
+              
+              return (
+                <Marker
+                  key={`${model}-wind-${idx}`}
+                  position={[vector.lat, vector.lon]}
+                  icon={windIcon}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '12px' }}>
+                      <strong>{model.toUpperCase()} Wind</strong><br/>
+                      Speed: {vector.speed_kts} kts<br/>
+                      Direction: {vector.direction_deg}° (from)<br/>
+                      {overlayData.wind[model].model_name}
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            });
+          })}
+
+          {/* Swell Overlay Markers */}
+          {swellOverlay && overlayData.swell?.wave_data && overlayData.swell.wave_data.map((wave, idx) => {
+            // Color based on wave height
+            const heightFt = wave.wave_height_ft || 0;
+            let color = '#90EE90'; // Light green
+            if (heightFt > 6) color = '#FF6347'; // Red
+            else if (heightFt > 4) color = '#FFA500'; // Orange
+            else if (heightFt > 2) color = '#FFD700'; // Yellow
+            
+            const swellIcon = L.divIcon({
+              html: `
+                <div style="
+                  width: 50px;
+                  height: 50px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex-direction: column;
+                ">
+                  <div style="
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50%;
+                    background: ${color};
+                    opacity: 0.6;
+                    border: 2px solid #0066cc;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    font-weight: bold;
+                    color: #000;
+                  ">
+                    ${heightFt.toFixed(1)}'
+                  </div>
+                  ${wave.direction_deg ? `
+                    <div style="
+                      width: 0;
+                      height: 0;
+                      border-left: 5px solid transparent;
+                      border-right: 5px solid transparent;
+                      border-top: 10px solid #0066cc;
+                      opacity: 0.7;
+                      transform: rotate(${wave.direction_deg}deg);
+                      margin-top: 2px;
+                    "></div>
+                  ` : ''}
+                </div>
+              `,
+              className: '',
+              iconSize: [50, 50],
+              iconAnchor: [25, 25]
+            });
+            
+            return (
+              <Marker
+                key={`swell-${idx}`}
+                position={[wave.lat, wave.lon]}
+                icon={swellIcon}
+              >
+                <Popup>
+                  <div style={{ fontSize: '12px' }}>
+                    <strong>WaveWatch III Swell</strong><br/>
+                    Height: {wave.wave_height_ft?.toFixed(1)} ft ({wave.wave_height_m?.toFixed(1)} m)<br/>
+                    Period: {wave.period_sec} sec<br/>
+                    Direction: {wave.direction_deg}°<br/>
+                    Energy: {wave.energy?.toFixed(1)}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
 
         {/* Buoy Details Panel */}
