@@ -475,8 +475,9 @@ async def fetch_cdip_ecmwf_forecast(cdip_id: str, hours: int = 120):
     """
     try:
         # CORRECT CDIP URL - realtime directory, not archive!
-        # Format: https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/{station_id}p1_rt.nc
-        url = f"https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/{cdip_id}p1_rt.nc"
+        # Format: https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/{station_id}_rt.nc
+        # Note: cdip_id from mapping already includes 'p1' suffix (e.g., '153p1')
+        url = f"https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/{cdip_id}_rt.nc"
         
         print(f"Attempting to fetch CDIP data from: {url}")
         
