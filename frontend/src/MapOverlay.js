@@ -74,6 +74,58 @@ const DirectionArrow = ({ degrees, color = '#333', size = 20 }) => {
   );
 };
 
+// Trend Indicator Component
+const TrendIndicator = ({ trend }) => {
+  if (!trend) return null;
+  
+  const trendConfig = {
+    rising: { 
+      icon: '↑', 
+      color: '#22c55e', 
+      text: 'Rising',
+      path: 'M12 19 L12 5 M12 5 L8 9 M12 5 L16 9'
+    },
+    holding: { 
+      icon: '→', 
+      color: '#3b82f6', 
+      text: 'Holding',
+      path: 'M5 12 L19 12 M19 12 L15 8 M19 12 L15 16'
+    },
+    falling: { 
+      icon: '↓', 
+      color: '#ef4444', 
+      text: 'Falling',
+      path: 'M12 5 L12 19 M12 19 L8 15 M12 19 L16 15'
+    }
+  };
+  
+  const config = trendConfig[trend] || trendConfig.holding;
+  
+  return (
+    <span title={config.text} style={{ cursor: 'help' }}>
+      <svg 
+        width={18} 
+        height={18} 
+        viewBox="0 0 24 24" 
+        style={{ 
+          display: 'inline-block', 
+          verticalAlign: 'middle',
+          marginLeft: '6px'
+        }}
+      >
+        <path 
+          d={config.path}
+          stroke={config.color} 
+          strokeWidth="2.5" 
+          fill="none" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+};
+
 const scoreBuoy = (b) => {
   const wave = b.wave_height_m;
   const period = parseFloat(b.dominant_period_sec);
@@ -407,6 +459,7 @@ export default function MapOverlay() {
                       <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Height:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {formatWaveHeight(selectedBuoy.wave_height_m)}
+                        <TrendIndicator trend={selectedBuoy.wave_trend} />
                       </td>
                     </tr>
                     <tr>

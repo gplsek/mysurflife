@@ -122,6 +122,9 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
             lines = response.text.splitlines()
 
         headers = []
+        wave_heights = []  # Store last few wave heights for trend
+        first_valid_row = None
+        
         for line in lines:
             # Skip all comment lines (both header and units rows)
             if line.startswith("#"):
@@ -143,91 +146,122 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
             # Skip rows with missing critical data (MM = missing)
             if parsed.get("WVHT") in ["MM", "NaN", None] or parsed.get("DPD") in ["MM", "NaN", None]:
                 continue
-
-            # Handle different possible column names
-            year = parsed.get("YY") or parsed.get("yr")
-            month = parsed.get("MM") or parsed.get("mo")
-            day = parsed.get("DD") or parsed.get("dy")
-            hour = parsed.get("hh") or parsed.get("hr")
-            minute = parsed.get("mm") or parsed.get("mn")
-
-            # Parse wave height (keep in meters, let frontend convert)
+            
+            # Store wave height for trend calculation (collect up to 5 readings)
             try:
-                wave_height_m = float(parsed.get("WVHT", "0"))
+                wh = float(parsed.get("WVHT", "0"))
+                if wh > 0 and len(wave_heights) < 5:
+                    wave_heights.append(wh)
             except:
-                wave_height_m = None
+                pass
+            
+            # Keep the first valid row for current conditions
+            if first_valid_row is None:
+                first_valid_row = parsed
 
-            # Parse water temperature (in Celsius)
-            try:
-                water_temp_c = float(parsed.get("WTMP", "0"))
-            except:
-                water_temp_c = None
+        # Use the first valid row for current conditions
+        if first_valid_row is None:
+            return {"station": buoy_id, "error": "No valid data rows found"}
+            
+        parsed = first_valid_row
+        
+        # Calculate wave height trend
+        wave_trend = "holding"  # default
+        if len(wave_heights) >= 3:
+            # Compare most recent vs older readings (newest is index 0)
+            recent_avg = sum(wave_heights[:2]) / 2  # Last 2 readings
+            older_avg = sum(wave_heights[2:4]) / min(2, len(wave_heights[2:4]))  # Previous 2 readings
+            diff_percent = ((recent_avg - older_avg) / older_avg) * 100
+            
+            if diff_percent > 10:  # More than 10% increase
+                wave_trend = "rising"
+            elif diff_percent < -10:  # More than 10% decrease
+                wave_trend = "falling"
+            else:
+                wave_trend = "holding"
+        
+        # Handle different possible column names
+        year = parsed.get("YY") or parsed.get("yr")
+        month = parsed.get("MM") or parsed.get("mo")
+        day = parsed.get("DD") or parsed.get("dy")
+        hour = parsed.get("hh") or parsed.get("hr")
+        minute = parsed.get("mm") or parsed.get("mn")
 
-            # Parse air temperature (in Celsius)
-            try:
-                air_temp_c = float(parsed.get("ATMP", "0"))
-            except:
-                air_temp_c = None
+        # Parse wave height (keep in meters, let frontend convert)
+        try:
+            wave_height_m = float(parsed.get("WVHT", "0"))
+        except:
+            wave_height_m = None
 
-            # Parse wind direction (in degrees)
-            try:
-                wind_dir = float(parsed.get("WDIR", "0"))
-                if wind_dir == 999 or wind_dir == 0:  # NDBC uses 999 for missing data
-                    wind_dir = None
-            except:
+        # Parse water temperature (in Celsius)
+        try:
+            water_temp_c = float(parsed.get("WTMP", "0"))
+        except:
+            water_temp_c = None
+
+        # Parse air temperature (in Celsius)
+        try:
+            air_temp_c = float(parsed.get("ATMP", "0"))
+        except:
+            air_temp_c = None
+
+        # Parse wind direction (in degrees)
+        try:
+            wind_dir = float(parsed.get("WDIR", "0"))
+            if wind_dir == 999 or wind_dir == 0:  # NDBC uses 999 for missing data
                 wind_dir = None
+        except:
+            wind_dir = None
 
-            # Parse wind speed (in m/s)
-            try:
-                wind_speed_ms = float(parsed.get("WSPD", "0"))
-                if wind_speed_ms == 99:  # NDBC uses 99 for missing data
-                    wind_speed_ms = None
-            except:
+        # Parse wind speed (in m/s)
+        try:
+            wind_speed_ms = float(parsed.get("WSPD", "0"))
+            if wind_speed_ms == 99:  # NDBC uses 99 for missing data
                 wind_speed_ms = None
+        except:
+            wind_speed_ms = None
 
-            # Parse wind gust (in m/s)
-            try:
-                wind_gust_ms = float(parsed.get("GST", "0"))
-                if wind_gust_ms == 99:  # NDBC uses 99 for missing data
-                    wind_gust_ms = None
-            except:
+        # Parse wind gust (in m/s)
+        try:
+            wind_gust_ms = float(parsed.get("GST", "0"))
+            if wind_gust_ms == 99:  # NDBC uses 99 for missing data
                 wind_gust_ms = None
+        except:
+            wind_gust_ms = None
 
-            # Format timestamp in ISO format (UTC) for easy frontend parsing
-            timestamp_utc = f"{year}-{month.zfill(2)}-{day.zfill(2)}T{hour.zfill(2)}:{minute.zfill(2)}:00Z"
+        # Format timestamp in ISO format (UTC) for easy frontend parsing
+        timestamp_utc = f"{year}-{month.zfill(2)}-{day.zfill(2)}T{hour.zfill(2)}:{minute.zfill(2)}:00Z"
 
-            result = {
-                "station": buoy_id,
-                "timestamp_utc": timestamp_utc,
-                "wave_height_m": wave_height_m,
-                "dominant_period_sec": parsed.get("DPD", "N/A"),
-                "mean_wave_dir": parsed.get("MWD", "N/A"),
-                "water_temp_c": water_temp_c,
-                "air_temp_c": air_temp_c,
-                "wind_dir": wind_dir,
-                "wind_speed_ms": wind_speed_ms,
-                "wind_gust_ms": wind_gust_ms,
-                "wind_source": "buoy"
-            }
-            
-            # If wind data is missing and we have a fallback station, try to fetch from it
-            if (wind_dir is None or wind_speed_ms is None) and wind_fallback_station:
-                fallback_wind = await fetch_wind_from_station(wind_fallback_station)
-                result["wind_dir"] = fallback_wind.get("wind_dir")
-                result["wind_speed_ms"] = fallback_wind.get("wind_speed_ms")
-                result["wind_gust_ms"] = fallback_wind.get("wind_gust_ms")
-                result["wind_source"] = fallback_wind.get("wind_source") or "N/A"
-            
-            # Cache the successful result
-            cache[buoy_id] = {
-                "data": result,
-                "cached_at": datetime.now()
-            }
-            
-            return result
-
-        error_result = {"station": buoy_id, "error": "No valid data rows found"}
-        return error_result
+        result = {
+            "station": buoy_id,
+            "timestamp_utc": timestamp_utc,
+            "wave_height_m": wave_height_m,
+            "wave_trend": wave_trend,
+            "dominant_period_sec": parsed.get("DPD", "N/A"),
+            "mean_wave_dir": parsed.get("MWD", "N/A"),
+            "water_temp_c": water_temp_c,
+            "air_temp_c": air_temp_c,
+            "wind_dir": wind_dir,
+            "wind_speed_ms": wind_speed_ms,
+            "wind_gust_ms": wind_gust_ms,
+            "wind_source": "buoy"
+        }
+        
+        # If wind data is missing and we have a fallback station, try to fetch from it
+        if (wind_dir is None or wind_speed_ms is None) and wind_fallback_station:
+            fallback_wind = await fetch_wind_from_station(wind_fallback_station)
+            result["wind_dir"] = fallback_wind.get("wind_dir")
+            result["wind_speed_ms"] = fallback_wind.get("wind_speed_ms")
+            result["wind_gust_ms"] = fallback_wind.get("wind_gust_ms")
+            result["wind_source"] = fallback_wind.get("wind_source") or "N/A"
+        
+        # Cache the successful result
+        cache[buoy_id] = {
+            "data": result,
+            "cached_at": datetime.now()
+        }
+        
+        return result
         
     except httpx.TimeoutException:
         return {"station": buoy_id, "error": "Request timeout"}
