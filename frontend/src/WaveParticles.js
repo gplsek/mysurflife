@@ -33,12 +33,26 @@ const WaveParticles = ({ swellData, visible = true }) => {
     // Create canvas overlay directly in map container
     let canvas = canvasRef.current;
     
+    // Check if canvas still exists in DOM
+    if (canvas && !document.body.contains(canvas)) {
+      console.warn('WaveParticles: Canvas was removed from DOM! Recreating...');
+      canvas = null;
+      canvasRef.current = null;
+    }
+    
     if (!canvas) {
       canvas = document.createElement('canvas');
-      canvas.id = 'wave-particle-canvas';
+      canvas.id = 'wave-particle-canvas-' + Date.now();
+      canvas.className = 'particle-overlay-canvas';
       canvasRef.current = canvas;
       mapContainer.appendChild(canvas);
-      console.log('WaveParticles: Canvas created and appended');
+      console.log('WaveParticles: NEW Canvas created and appended', {
+        id: canvas.id,
+        parentTag: mapContainer.tagName,
+        parentClass: mapContainer.className
+      });
+    } else {
+      console.log('WaveParticles: Reusing existing canvas', { id: canvas.id });
     }
 
     // Set canvas dimensions and styling

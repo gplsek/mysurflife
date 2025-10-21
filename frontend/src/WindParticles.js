@@ -78,25 +78,11 @@ const WindParticles = ({ windData, visible = true }) => {
     });
 
     const ctx = canvas.getContext('2d');
-    console.log('Canvas context:', ctx ? 'valid' : 'INVALID');
-    
-    // Fill canvas with semi-transparent blue to confirm it's visible
-    ctx.fillStyle = 'rgba(0, 100, 200, 0.3)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw large visible test markers
-    ctx.fillStyle = 'red';
-    ctx.fillRect(50, 50, 200, 100);
-    ctx.fillRect(canvas.width - 250, 50, 200, 100);
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 24px Arial';
-    ctx.fillText('WIND TEST', 60, 110);
-    ctx.fillText('OVERLAY ACTIVE', canvas.width - 240, 110);
-    console.log('WindParticles: Test rectangles drawn, canvas filled with blue');
     
     const particles = [];
-    const numParticles = 500; // Fewer, larger particles for testing
-    const maxAge = 100;
+    const numParticles = 2000; // Beautiful flowing particles
+    const maxAge = 80;
+    const fadeOpacity = 0.02; // Subtle trail effect
 
     // Color scheme (like Windy)
     const getWindColor = (speed) => {
@@ -165,11 +151,8 @@ const WindParticles = ({ windData, visible = true }) => {
         console.log(`WindParticles animate frame ${frameCount}, particles: ${particles.length}`);
       }
       
-      // Clear canvas completely for testing (no fade effect)
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw a visible background so we know canvas is rendering
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      // Fade effect for smooth trails
+      ctx.fillStyle = `rgba(0, 0, 0, ${fadeOpacity})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
@@ -201,10 +184,12 @@ const WindParticles = ({ windData, visible = true }) => {
           particle.age = 0;
         }
 
-        // Draw particle - make it LARGE and BRIGHT for visibility
-        ctx.fillStyle = 'rgba(255, 255, 0, 0.9)'; // Bright yellow, very visible
+        // Draw particle with color based on wind speed
+        const opacity = 1 - (particle.age / maxAge);
+        const color = getWindColor(wind.speed);
+        ctx.fillStyle = color.replace('0.5', opacity * 0.8);
         ctx.beginPath();
-        ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2); // 3px radius circle
+        ctx.arc(particle.x, particle.y, 1.5, 0, Math.PI * 2); // Small particle
         ctx.fill();
         drawnCount++;
       });
