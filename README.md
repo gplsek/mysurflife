@@ -21,6 +21,7 @@ A real-time surf conditions dashboard tracking 14 California buoys with live wav
 - **Endpoints**:
   - `/api/buoy-status` - Single buoy (Del Mar)
   - `/api/buoy-status/all` - All 14 buoys
+  - `/api/buoy-history/{station_id}?hours=48` - Historical time series
   - `/api/cache/clear` - Clear cache
 
 ### ✅ **Frontend (React + Leaflet)**
@@ -33,6 +34,11 @@ A real-time surf conditions dashboard tracking 14 California buoys with live wav
   - Wind speed/direction with fallback station attribution
   - Water and air temperature
   - Timestamp in local or UTC
+  - **📈 Historical Charts** - Expandable 48-hour wave history:
+    - Wave height & face height (dual-line chart)
+    - Period trend
+    - Energy index trend
+    - Lazy-loaded on demand
 - **Smart Scoring** (0-3 scale):
   - Considers surf face height, period, direction, and energy
   - Color-coded markers: Green (3), Orange (2), Red (1), Grey (0)
@@ -78,15 +84,15 @@ A real-time surf conditions dashboard tracking 14 California buoys with live wav
 
 ## 🚀 Next Priorities
 
-### 📈 **1. Historical Wave Charts** (High Priority)
-- [ ] Fetch last 24-48 hours of wave height data from NDBC
-- [ ] Add `/api/buoy-history/{station_id}` endpoint
-- [ ] Integrate Recharts library for visualization
-- [ ] Display line chart in buoy detail panel
-- [ ] Show wave height trend over time
-- [ ] Optional: Overlay period and direction
+### ✅ **1. Historical Wave Charts** (COMPLETED!)
+- ✅ Fetch last 24-48 hours of wave height data from NDBC
+- ✅ Add `/api/buoy-history/{station_id}` endpoint
+- ✅ Integrate Recharts library for visualization
+- ✅ Display 3 line charts in buoy detail panel
+- ✅ Show wave height, period, and energy trends
+- ✅ Lazy-loaded with expand/collapse functionality
 
-### 🌬️ **2. Wind Overlay** (High Priority)
+### 🌬️ **2. Wind Overlay** (Next Priority)
 - [ ] Integrate wind vector overlay on map
 - [ ] Fetch NOAA/Windy wind field data
 - [ ] Animated wind arrows showing current conditions
@@ -163,6 +169,7 @@ npm start
 **Frontend:**
 - React 18
 - Leaflet / react-leaflet - Interactive maps
+- Recharts - Historical data visualization
 - SVG - Custom direction arrows and indicators
 
 **Data Sources:**
@@ -205,4 +212,5 @@ Energy = WVHT² × DPD
 
 **Last Updated:** 2025-10-21  
 **Status:** Active Development  
-**Next Session Focus:** Historical charts, wind overlay, swell overlay
+**Latest Feature:** 📈 Historical wave charts with 48-hour trends  
+**Next Session Focus:** Wind overlay, swell overlay

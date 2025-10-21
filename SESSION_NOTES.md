@@ -40,29 +40,33 @@
 
 ## 🎯 Next Session Priorities
 
-### 1. 📈 Historical Wave Charts (PRIORITY #1)
+### ✅ 1. 📈 Historical Wave Charts (COMPLETED!)
 
 **Goal:** Show 24-48 hour wave height trends
 
 **Backend Tasks:**
-- [ ] Create `/api/buoy-history/{station_id}?hours=48` endpoint
-- [ ] Fetch historical NDBC data (last 2 days)
-- [ ] Parse and return time-series data
-- [ ] Cache historical data (longer TTL, maybe 30 min)
+- ✅ Create `/api/buoy-history/{station_id}?hours=48` endpoint
+- ✅ Fetch historical NDBC data (last 2 days)
+- ✅ Parse and return time-series data
+- ✅ Cache historical data (30 min TTL)
 
 **Frontend Tasks:**
-- [ ] Install Recharts: `npm install recharts`
-- [ ] Create WaveChart component
-- [ ] Display in buoy detail panel (below current data)
-- [ ] Line chart: Wave height vs. time
-- [ ] Optional: Overlay period as secondary axis
-- [ ] Responsive sizing (fits panel width)
+- ✅ Install Recharts: `npm install recharts`
+- ✅ Create WaveChart components (3 charts total!)
+- ✅ Display in buoy detail panel with expand/collapse
+- ✅ Line chart: Wave height & face height (dual-line)
+- ✅ Period chart with trend
+- ✅ Energy index chart
+- ✅ Responsive sizing (fits panel width)
+- ✅ Loading states and error handling
 
-**NDBC Historical Data URL:**
-```
-https://www.ndbc.noaa.gov/data/realtime2/{station}.txt
-(Contains ~45 days of data, need to parse last 24-48 hours)
-```
+**Implementation Details:**
+- Endpoint: `/api/buoy-history/{station_id}?hours={24|48|etc}`
+- 3 separate charts: Wave heights, Period, Energy
+- Toggle button: "Show Wave History"
+- Lazy loading: only fetches when user clicks
+- Scrollable detail panel for long content
+- Unit conversion support (imperial/metric)
 
 ---
 
