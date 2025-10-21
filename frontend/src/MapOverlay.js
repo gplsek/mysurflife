@@ -517,130 +517,18 @@ export default function MapOverlay() {
             </select>
           </div>
 
-          {/* Overlay Controls */}
+          {/* Overlay Controls - DISABLED FOR NOW */}
+          {false && (
           <div style={{ 
             marginTop: '12px', 
             paddingTop: '12px', 
             borderTop: '2px solid #eee' 
           }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-              🌊 Ocean Overlays:
+              🌊 Ocean Overlays: (Coming Soon)
             </label>
-            
-            {/* Overlay Type Selection (Wind or Swell) */}
-            <div style={{ fontSize: '11px', paddingLeft: '4px', marginBottom: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="overlayType"
-                  checked={overlayType === 'wind'}
-                  onChange={() => handleOverlayTypeToggle('wind')}
-                  style={{ marginRight: '6px', cursor: 'pointer' }}
-                />
-                <span style={{ fontWeight: overlayType === 'wind' ? 'bold' : 'normal' }}>
-                  🌬️ Wind <span style={{ color: '#22c55e', fontSize: '10px' }}>✨</span>
-                </span>
-              </label>
-              
-              <label style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="overlayType"
-                  checked={overlayType === 'swell'}
-                  onChange={() => handleOverlayTypeToggle('swell')}
-                  style={{ marginRight: '6px', cursor: 'pointer' }}
-                />
-                <span style={{ fontWeight: overlayType === 'swell' ? 'bold' : 'normal' }}>
-                  🌊 Swell <span style={{ color: '#22c55e', fontSize: '10px' }}>✨</span>
-                </span>
-              </label>
-              
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="overlayType"
-                  checked={overlayType === 'none'}
-                  onChange={() => setOverlayType('none')}
-                  style={{ marginRight: '6px', cursor: 'pointer' }}
-                />
-                <span style={{ fontWeight: overlayType === 'none' ? 'bold' : 'normal', color: '#888' }}>
-                  Off
-                </span>
-              </label>
-            </div>
-
-            {/* Wind Model Selection (only visible when Wind is selected) */}
-            {overlayType === 'wind' && (
-              <div style={{ 
-                paddingLeft: '20px', 
-                marginTop: '8px', 
-                paddingTop: '8px',
-                borderTop: '1px dashed #ddd'
-              }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '6px', color: '#666' }}>
-                  Select Model:
-                </label>
-                <div style={{ fontSize: '11px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="windModel"
-                      checked={selectedWindModel === 'hrrr'}
-                      onChange={() => handleWindModelChange('hrrr')}
-                      style={{ marginRight: '6px', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontWeight: selectedWindModel === 'hrrr' ? 'bold' : 'normal' }}>
-                      HRRR <span style={{ color: '#666', fontSize: '10px' }}>(3km, best)</span>
-                    </span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="windModel"
-                      checked={selectedWindModel === 'gfs'}
-                      onChange={() => handleWindModelChange('gfs')}
-                      style={{ marginRight: '6px', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontWeight: selectedWindModel === 'gfs' ? 'bold' : 'normal' }}>
-                      GFS <span style={{ color: '#666', fontSize: '10px' }}>(25km)</span>
-                    </span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="windModel"
-                      checked={selectedWindModel === 'nam'}
-                      onChange={() => handleWindModelChange('nam')}
-                      style={{ marginRight: '6px', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontWeight: selectedWindModel === 'nam' ? 'bold' : 'normal' }}>
-                      NAM <span style={{ color: '#666', fontSize: '10px' }}>(12km)</span>
-                    </span>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* Overlay Status Display */}
-            {overlayType !== 'none' && (
-              <div style={{ 
-                marginTop: '8px', 
-                padding: '6px', 
-                backgroundColor: '#f0f9ff', 
-                borderRadius: '4px',
-                fontSize: '10px',
-                color: '#0066cc'
-              }}>
-                {overlayType === 'wind' && (
-                  <div>✓ Wind: {selectedWindModel.toUpperCase()}</div>
-                )}
-                {overlayType === 'swell' && <div>✓ Swell: WaveWatch III</div>}
-                <div style={{ color: '#666', fontSize: '9px', marginTop: '4px' }}>
-                  Particle animation active
-                </div>
-              </div>
-            )}
           </div>
+          )}
           
           {lastUpdated && (
               <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
@@ -701,8 +589,8 @@ export default function MapOverlay() {
             </BaseLayer>
           </LayersControl>
           
-          {/* Only show buoys when no overlay is active */}
-          {overlayType === 'none' && buoys.map((buoy) => {
+          {/* Show buoys (overlays disabled for now) */}
+          {buoys.map((buoy) => {
             const score = scoreBuoy(buoy);
             const hasError = buoy.error;
             
@@ -734,8 +622,8 @@ export default function MapOverlay() {
             );
           })}
 
-          {/* Custom Wind Particle Animation */}
-          {overlayType === 'wind' && overlayData.wind?.[selectedWindModel] && (
+          {/* Overlays disabled for now - will be redesigned */}
+          {false && overlayType === 'wind' && overlayData.wind?.[selectedWindModel] && (
             <WindParticles 
               key={`particles-${selectedWindModel}`}
               windData={overlayData.wind[selectedWindModel]}
@@ -743,8 +631,7 @@ export default function MapOverlay() {
             />
           )}
 
-          {/* Custom Wave/Swell Particle Animation */}
-          {overlayType === 'swell' && overlayData.swell && (
+          {false && overlayType === 'swell' && overlayData.swell && (
             <WaveParticles 
               swellData={overlayData.swell}
               visible={true}
