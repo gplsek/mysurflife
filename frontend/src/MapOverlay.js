@@ -183,6 +183,18 @@ export default function MapOverlay() {
   const [forecastData, setForecastData] = useState([]);
   const [forecastLoading, setForecastLoading] = useState(false);
   
+  // Overlay states
+  const [windOverlays, setWindOverlays] = useState({
+    gfs: false,
+    hrrr: false,
+    nam: false
+  });
+  const [swellOverlay, setSwellOverlay] = useState(false);
+  const [overlayData, setOverlayData] = useState({
+    wind: null,
+    swell: null
+  });
+  
   // Load preferences from localStorage or use defaults
   const [units, setUnits] = useState(() => localStorage.getItem('units') || 'imperial');
   const [timezone, setTimezone] = useState(() => localStorage.getItem('timezone') || 'local');
@@ -287,6 +299,48 @@ export default function MapOverlay() {
       setForecastData([]);
     } finally {
       setForecastLoading(false);
+    }
+  };
+
+  const fetchWindOverlay = async (model) => {
+    try {
+      const res = await fetch(`/api/wind-overlay?model=${model}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setOverlayData(prev => ({ ...prev, wind: { ...prev.wind, [model]: data } }));
+    } catch (err) {
+      console.error(`Error fetching ${model} wind overlay:`, err);
+    }
+  };
+
+  const fetchSwellOverlay = async () => {
+    try {
+      const res = await fetch('/api/swell-overlay?model=ww3');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setOverlayData(prev => ({ ...prev, swell: data }));
+    } catch (err) {
+      console.error('Error fetching swell overlay:', err);
+    }
+  };
+
+  // Handle wind overlay toggles
+  const handleWindToggle = (model) => {
+    const newState = !windOverlays[model];
+    setWindOverlays(prev => ({ ...prev, [model]: newState }));
+    
+    if (newState) {
+      fetchWindOverlay(model);
+    }
+  };
+
+  // Handle swell overlay toggle
+  const handleSwellToggle = () => {
+    const newState = !swellOverlay;
+    setSwellOverlay(newState);
+    
+    if (newState) {
+      fetchSwellOverlay();
     }
   };
 
@@ -447,6 +501,93 @@ export default function MapOverlay() {
               <option value="local">Local Time</option>
               <option value="utc">UTC</option>
             </select>
+          </div>
+
+          {/* Overlay Controls */}
+          <div style={{ 
+            marginTop: '12px', 
+            paddingTop: '12px', 
+            borderTop: '2px solid #eee' 
+          }}>
+            {/* Wind Overlays */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+                🌬️ Wind Models:
+              </label>
+              <div style={{ fontSize: '11px', paddingLeft: '4px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={windOverlays.hrrr}
+                    onChange={() => handleWindToggle('hrrr')}
+                    style={{ marginRight: '6px', cursor: 'pointer' }}
+                  />
+                  <span>
+                    HRRR <span style={{ color: '#666', fontSize: '10px' }}>(3km, hourly)</span>
+                  </span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={windOverlays.gfs}
+                    onChange={() => handleWindToggle('gfs')}
+                    style={{ marginRight: '6px', cursor: 'pointer' }}
+                  />
+                  <span>
+                    GFS <span style={{ color: '#666', fontSize: '10px' }}>(25km, 6hr)</span>
+                  </span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={windOverlays.nam}
+                    onChange={() => handleWindToggle('nam')}
+                    style={{ marginRight: '6px', cursor: 'pointer' }}
+                  />
+                  <span>
+                    NAM <span style={{ color: '#666', fontSize: '10px' }}>(12km, 6hr)</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Swell Overlay */}
+            <div style={{ marginTop: '10px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+                🌊 Swell Forecast:
+              </label>
+              <div style={{ fontSize: '11px', paddingLeft: '4px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={swellOverlay}
+                    onChange={handleSwellToggle}
+                    style={{ marginRight: '6px', cursor: 'pointer' }}
+                  />
+                  <span>
+                    WaveWatch III <span style={{ color: '#666', fontSize: '10px' }}>(50km)</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Overlay Status Display */}
+            {(Object.values(windOverlays).some(v => v) || swellOverlay) && (
+              <div style={{ 
+                marginTop: '8px', 
+                padding: '6px', 
+                backgroundColor: '#f0f9ff', 
+                borderRadius: '4px',
+                fontSize: '10px',
+                color: '#0066cc'
+              }}>
+                {Object.entries(windOverlays).filter(([_, enabled]) => enabled).length > 0 && (
+                  <div>✓ Wind: {Object.entries(windOverlays).filter(([_, enabled]) => enabled).map(([model]) => model.toUpperCase()).join(', ')}</div>
+                )}
+                {swellOverlay && <div>✓ Swell: WW3</div>}
+                {overlayData.wind && <div style={{ color: '#666', fontSize: '9px', marginTop: '4px' }}>Phase 1: Model info loaded</div>}
+              </div>
+            )}
           </div>
           
           {lastUpdated && (
