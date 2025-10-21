@@ -27,40 +27,31 @@ const WaveParticles = ({ swellData, visible = true }) => {
 
     console.log('WaveParticles: Creating canvas with', swellData.wave_data.length, 'wave points');
     
-    // Create or get custom Leaflet pane for particles
-    let particlePane = map.getPane('particlePane');
-    if (!particlePane) {
-      particlePane = map.createPane('particlePane');
-      particlePane.style.zIndex = '650'; // Between markers (600) and popups (700)
-      particlePane.style.pointerEvents = 'none';
-      console.log('WaveParticles: Created custom Leaflet pane', { zIndex: particlePane.style.zIndex });
-    }
+    const mapContainer = map.getContainer();
+    const mapSize = map.getSize();
     
-    // Create canvas overlay
+    // Create canvas overlay directly in map container
     let canvas = canvasRef.current;
     
     if (!canvas) {
       canvas = document.createElement('canvas');
-      canvas.style.position = 'absolute';
-      canvas.style.top = '0';
-      canvas.style.left = '0';
-      canvas.style.width = '100%';
-      canvas.style.height = '100%';
-      canvas.style.pointerEvents = 'none';
       canvas.id = 'wave-particle-canvas';
       canvasRef.current = canvas;
-      particlePane.appendChild(canvas);
-      console.log('WaveParticles: Canvas appended to custom pane', {
-        paneZIndex: particlePane.style.zIndex,
-        canvasId: canvas.id
-      });
+      mapContainer.appendChild(canvas);
+      console.log('WaveParticles: Canvas created and appended');
     }
-    
-    const mapContainer = map.getContainer();
 
+    // Set canvas dimensions and styling
+    canvas.width = mapSize.x;
+    canvas.height = mapSize.y;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0px';
+    canvas.style.left = '0px';
+    canvas.style.width = mapSize.x + 'px';
+    canvas.style.height = mapSize.y + 'px';
+    canvas.style.zIndex = '1000'; // Very high to ensure visibility
+    canvas.style.pointerEvents = 'none';
     canvas.style.display = 'block';
-    canvas.width = mapContainer.offsetWidth;
-    canvas.height = mapContainer.offsetHeight;
 
     const ctx = canvas.getContext('2d');
     const particles = [];
@@ -190,8 +181,11 @@ const WaveParticles = ({ swellData, visible = true }) => {
 
     // Update canvas on map move/zoom
     const updateCanvas = () => {
-      canvas.width = mapContainer.offsetWidth;
-      canvas.height = mapContainer.offsetHeight;
+      const size = map.getSize();
+      canvas.width = size.x;
+      canvas.height = size.y;
+      canvas.style.width = size.x + 'px';
+      canvas.style.height = size.y + 'px';
     };
 
     map.on('moveend', updateCanvas);

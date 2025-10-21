@@ -701,7 +701,8 @@ export default function MapOverlay() {
             </BaseLayer>
           </LayersControl>
           
-          {buoys.map((buoy) => {
+          {/* Only show buoys when no overlay is active */}
+          {overlayType === 'none' && buoys.map((buoy) => {
             const score = scoreBuoy(buoy);
             const hasError = buoy.error;
             
