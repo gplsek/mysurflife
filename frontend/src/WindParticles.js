@@ -27,8 +27,16 @@ const WindParticles = ({ windData, visible = true }) => {
 
     console.log('WindParticles: Creating canvas with', windData.vectors.length, 'vectors');
     
+    // Create or get custom Leaflet pane for particles
+    let particlePane = map.getPane('particlePane');
+    if (!particlePane) {
+      particlePane = map.createPane('particlePane');
+      particlePane.style.zIndex = '650'; // Between markers (600) and popups (700)
+      particlePane.style.pointerEvents = 'none';
+      console.log('WindParticles: Created custom Leaflet pane', { zIndex: particlePane.style.zIndex });
+    }
+    
     // Create canvas overlay
-    const mapContainer = map.getContainer();
     let canvas = canvasRef.current;
     
     if (!canvas) {
@@ -39,15 +47,16 @@ const WindParticles = ({ windData, visible = true }) => {
       canvas.style.width = '100%';
       canvas.style.height = '100%';
       canvas.style.pointerEvents = 'none';
-      canvas.style.zIndex = '650'; // Above markers (600) but below popups (700)
       canvas.id = 'wind-particle-canvas';
       canvasRef.current = canvas;
-      mapContainer.appendChild(canvas);
-      console.log('WindParticles: Canvas appended to map container', {
-        parent: mapContainer.className,
+      particlePane.appendChild(canvas);
+      console.log('WindParticles: Canvas appended to custom pane', {
+        paneZIndex: particlePane.style.zIndex,
         canvasId: canvas.id
       });
     }
+    
+    const mapContainer = map.getContainer();
 
     canvas.style.display = 'block';
     canvas.width = mapContainer.offsetWidth;
