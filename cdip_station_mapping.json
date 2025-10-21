@@ -1,0 +1,115 @@
+{
+  "46266": {
+    "cdip_id": "153p1",
+    "name": "Del Mar Nearshore",
+    "lat": 32.920,
+    "lon": -117.293,
+    "cdip_available": true,
+    "notes": "Primary CDIP station, excellent data"
+  },
+  "46225": {
+    "cdip_id": "100p1",
+    "name": "Torrey Pines Outer",
+    "lat": 32.933,
+    "lon": -117.391,
+    "cdip_available": true,
+    "notes": "Offshore monitoring station"
+  },
+  "46232": {
+    "cdip_id": "158p1",
+    "name": "Point Loma South",
+    "lat": 32.567,
+    "lon": -117.434,
+    "cdip_available": true,
+    "notes": "South Bay coverage"
+  },
+  "46236": {
+    "cdip_id": "157p1",
+    "name": "Imperial Beach",
+    "lat": 32.534,
+    "lon": -117.473,
+    "cdip_available": true,
+    "notes": "Mexico border area"
+  },
+  "46258": {
+    "cdip_id": "092p1",
+    "name": "San Pedro Channel",
+    "lat": 33.221,
+    "lon": -119.053,
+    "cdip_available": true,
+    "notes": "LA basin monitoring"
+  },
+  "46086": {
+    "cdip_id": "111p1",
+    "name": "Santa Barbara",
+    "lat": 34.465,
+    "lon": -120.781,
+    "cdip_available": true,
+    "notes": "Central coast coverage"
+  },
+  "46011": {
+    "cdip_id": "071p1",
+    "name": "Santa Maria",
+    "lat": 34.877,
+    "lon": -120.897,
+    "cdip_available": true,
+    "notes": "North of Point Conception"
+  },
+  "46222": {
+    "cdip_id": "191p1",
+    "name": "Santa Monica Basin",
+    "lat": 33.618,
+    "lon": -118.317,
+    "cdip_available": true,
+    "notes": "LA surf forecast zone"
+  },
+  "46259": {
+    "cdip_id": null,
+    "name": "Mission Bay",
+    "lat": 32.754,
+    "lon": -117.473,
+    "cdip_available": false,
+    "notes": "NDBC only, no CDIP equivalent"
+  },
+  "46027": {
+    "cdip_id": "094p1",
+    "name": "Cape Mendocino",
+    "lat": 40.294,
+    "lon": -124.738,
+    "cdip_available": true,
+    "notes": "Northern California boundary"
+  },
+  "46014": {
+    "cdip_id": "029p1",
+    "name": "Point Arena",
+    "lat": 38.227,
+    "lon": -123.967,
+    "cdip_available": true,
+    "notes": "Mendocino coast"
+  },
+  "46026": {
+    "cdip_id": "142p1",
+    "name": "San Francisco Bar",
+    "lat": 37.759,
+    "lon": -122.825,
+    "cdip_available": true,
+    "notes": "SF Bay entrance"
+  },
+  "46012": {
+    "cdip_id": "156p1",
+    "name": "Monterey Bay",
+    "lat": 36.749,
+    "lon": -122.027,
+    "cdip_available": true,
+    "notes": "Central California surf zone"
+  },
+  "46013": {
+    "cdip_id": "029p1",
+    "name": "Bodega Bay",
+    "lat": 38.224,
+    "lon": -123.317,
+    "cdip_available": true,
+    "notes": "North Bay area"
+  }
+}
+

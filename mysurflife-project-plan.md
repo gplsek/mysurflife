@@ -80,27 +80,203 @@ npm start
 
 ---
 
-## 📊 Graphs in Buoy Detail
+## 📊 Historical Charts & CDIP Integration
 
-Add visual charts to each buoy's popup or modal to match visuals like CDIP's site:
+### Goal
+Recreate CDIP-style visualizations showing:
+1. **Wave Height (Hs) over time** - Last 24-48 hours
+2. **Period trends** - DPD over time
+3. **Wave Energy Spectrum** - Frequency distribution (advanced)
+4. **Forecast overlay** - If available from CDIP or NOAA
 
-- [x] Wave Height (Hs) over time
-- [ ] Period + Forecast (dual-line)
-- [ ] Spectral Energy & Density view
+---
 
-### Backend
-- [ ] Add `/api/buoy-history/{station_id}` endpoint
-- [ ] Fetch past 5 days of Hs, Tp, Dp (from NDBC/CDIP feeds)
-- [ ] Parse and return timestamped JSON series
+### 📡 Step 1: Understand Data Sources
 
-### Frontend
-- [ ] Use `Recharts` to render:
-  - Line chart: Wave height (ft) vs time
-  - Dual-line: Period and forecast height
-  - Bar/density: Energy distribution (if spectrum available)
-- [ ] Show on buoy marker click or modal expand
+#### CDIP (Coastal Data Information Program)
+- **Primary Access:** https://cdip.ucsd.edu/data_access/
+- **Station List:** https://cdip.ucsd.edu/m/products/
+- **Data Formats:**
+  - NetCDF files (most complete, requires parsing)
+  - JSON/CSV via REST API (easier integration)
+  - Pre-built graph images (not dynamic enough)
 
-*Consider data caching to avoid repeated fetches on reselect.*
+#### Example: Del Mar Nearshore (CDIP 153)
+- Station ID: `153p1`
+- CDIP URL: `https://cdip.ucsd.edu/m/products/?stn=153p1`
+- Data endpoint: `https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/153p1_rt.nc`
+
+#### NDBC (Current Source)
+- Already integrated for real-time conditions
+- Historical data: `https://www.ndbc.noaa.gov/data/realtime2/{station}.txt`
+- Contains ~45 days of hourly data
+- Fields: `WVHT`, `DPD`, `MWD`, `WSPD`, `WDIR`, `ATMP`, `WTMP`
+
+---
+
+### 🗺️ Step 2: Map CDIP Stations to Our Buoys
+
+Not all NDBC buoys have CDIP equivalents. Priority mapping:
+
+| NDBC ID | CDIP ID | Name | CDIP Available? |
+|---------|---------|------|-----------------|
+| 46266 | 153p1 | Del Mar Nearshore | ✅ Yes |
+| 46225 | 100p1 | Torrey Pines Outer | ✅ Yes |
+| 46232 | 158p1 | Point Loma South | ✅ Yes |
+| 46236 | 157p1 | Imperial Beach | ✅ Yes |
+| 46258 | 092p1 | San Pedro Channel | ✅ Yes |
+| 46086 | 111p1 | Santa Barbara | ✅ Yes |
+| 46011 | 071p1 | Santa Maria | ✅ Yes |
+| 46222 | 191p1 | Santa Monica Basin | ✅ Yes |
+| 46259 | — | Mission Bay | ❌ NDBC only |
+| 46027 | 094p1 | Cape Mendocino | ✅ Yes |
+| 46014 | 029p1 | Pt. Arena | ✅ Yes |
+| 46026 | 142p1 | San Francisco Bar | ✅ Yes |
+| 46012 | 156p1 | Monterey Bay | ✅ Yes |
+| 46013 | 029p1 | Bodega Bay | ✅ Yes |
+
+**Strategy:** Use CDIP for historical charts when available, fall back to NDBC parsing.
+
+---
+
+### ⚙️ Step 3: Backend Implementation
+
+#### Option A: NDBC Historical (Simpler, Already Familiar)
+```python
+# /api/buoy-history/{station_id}?hours=48
+
+async def fetch_ndbc_history(station_id: str, hours: int = 48):
+    url = f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
+    # Parse all rows, filter last N hours
+    # Return: [{ "timestamp": "...", "wvht": 2.3, "dpd": 14, "mwd": 285 }, ...]
+```
+
+**Pros:**
+- Already parsing NDBC format
+- No new API integration
+- Works for all 14 buoys
+
+**Cons:**
+- Limited to 45 days history
+- No spectral data
+- No forecasts
+
+#### Option B: CDIP Integration (More Features)
+```python
+# Fetch from CDIP JSON endpoint
+async def fetch_cdip_history(cdip_id: str, hours: int = 48):
+    # CDIP API endpoint (if available)
+    url = f"https://cdip.ucsd.edu/data_access/json/{cdip_id}"
+    # Parse waveHs, waveDp, waveEnergy
+    # Return structured time series
+```
+
+**Pros:**
+- Spectral energy data
+- Better wave period resolution
+- Forecast models (some stations)
+- Higher data quality
+
+**Cons:**
+- Need to parse NetCDF or find JSON endpoint
+- Not all buoys have CDIP equivalents
+- More complex integration
+
+#### Option C: Hybrid Approach (Recommended)
+1. Try CDIP first (for supported stations)
+2. Fall back to NDBC if CDIP unavailable
+3. Cache aggressively (30-60 min TTL for historical data)
+
+---
+
+### 🎨 Step 4: Frontend Charts with Recharts
+
+#### Install Dependencies
+```bash
+npm install recharts
+```
+
+#### Component Structure
+```jsx
+// WaveHistoryChart.jsx
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+
+const WaveHistoryChart = ({ data, units }) => {
+  return (
+    <LineChart width={500} height={300} data={data}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="time" />
+      <YAxis label={{ value: units === 'imperial' ? 'Height (ft)' : 'Height (m)', angle: -90 }} />
+      <Tooltip />
+      <Legend />
+      <Line type="monotone" dataKey="wvht" stroke="#0066cc" name="Wave Height" />
+      <Line type="monotone" dataKey="dpd" stroke="#22c55e" name="Period (sec)" />
+    </LineChart>
+  );
+};
+```
+
+#### Display Location
+Add chart below current conditions in the **Buoy Detail Panel**:
+```jsx
+{selectedBuoy && (
+  <div style={{ marginTop: '20px' }}>
+    <h4>📈 Last 48 Hours</h4>
+    <WaveHistoryChart 
+      data={historyData} 
+      units={units} 
+    />
+  </div>
+)}
+```
+
+---
+
+### 📋 Step 5: Implementation Checklist
+
+#### Backend Tasks
+- [ ] Create `/api/buoy-history/{station_id}?hours=48` endpoint
+- [ ] Parse NDBC historical `.txt` file (all rows, not just latest)
+- [ ] Filter to last N hours based on timestamp
+- [ ] Return JSON array: `[{ timestamp, wvht, dpd, mwd, wspd, wdir }, ...]`
+- [ ] Add caching (30-60 min TTL)
+- [ ] Optional: Add CDIP integration for supported stations
+
+#### Frontend Tasks
+- [ ] Install `recharts`: `npm install recharts`
+- [ ] Create `WaveHistoryChart.jsx` component
+- [ ] Fetch history data when buoy is selected
+- [ ] Display chart in buoy detail panel (below current data)
+- [ ] Add loading state for chart
+- [ ] Responsive sizing (fits panel width)
+- [ ] Toggle between 24h/48h/7d views
+- [ ] Optional: Add period as secondary Y-axis
+
+#### Advanced Features (Future)
+- [ ] Wave energy spectrum visualization (bar chart)
+- [ ] Forecast overlay (if CDIP provides)
+- [ ] Download chart as PNG
+- [ ] Compare multiple buoys side-by-side
+
+---
+
+### 🔗 Useful CDIP Resources
+
+- **Data Access Portal:** https://cdip.ucsd.edu/data_access/
+- **Station Map:** https://cdip.ucsd.edu/m/products/
+- **THREDDS Server:** https://thredds.cdip.ucsd.edu/thredds/catalog/cdip/realtime/catalog.html
+- **Documentation:** https://cdip.ucsd.edu/m/documents/
+- **Python Library:** `cdippy` (if available) or manual NetCDF parsing
+
+---
+
+### 📝 Notes
+
+- Start with **NDBC historical** (simpler, works for all buoys)
+- CDIP integration can be Phase 2 once basic charts are working
+- Cache historical data aggressively (it doesn't change)
+- Consider lazy-loading charts (only fetch when buoy is clicked)
+- Mobile: Make charts responsive, possibly collapsible
 
 
 
