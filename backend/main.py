@@ -784,3 +784,231 @@ async def get_buoy_forecast(station_id: str, hours: int = 120):
             "station_id": station_id,
             "data": []
         }
+
+@app.get("/api/wind-overlay")
+async def get_wind_overlay(
+    model: str = "gfs",  # gfs, hrrr, nam
+    bounds: Optional[str] = None  # Format: "min_lat,min_lon,max_lat,max_lon"
+):
+    """
+    Get wind overlay data for the map.
+    Supports multiple forecast models: GFS, HRRR, NAM
+    Returns wind vectors for visualization.
+    """
+    # Default to California bounds if not specified
+    if not bounds:
+        # California coastal area
+        bounds = "32.5,-120.5,40.0,-117.0"
+    
+    try:
+        min_lat, min_lon, max_lat, max_lon = map(float, bounds.split(','))
+    except:
+        return {"error": "Invalid bounds format. Use: min_lat,min_lon,max_lat,max_lon"}
+    
+    cache_key = f"wind_{model}_{bounds}"
+    
+    # Check cache (10 minute TTL for wind data)
+    if cache_key in cache:
+        cached_time = cache[cache_key].get("cached_at")
+        if cached_time and datetime.now() - cached_time < timedelta(minutes=10):
+            return cache[cache_key]["data"]
+    
+    # NOAA wind data URLs (GRIB2 format)
+    model_configs = {
+        "gfs": {
+            "name": "Global Forecast System",
+            "url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl",
+            "resolution": "0.25 degree (~25km)",
+            "update_frequency": "6 hours",
+            "forecast_range": "384 hours"
+        },
+        "hrrr": {
+            "name": "High-Resolution Rapid Refresh",
+            "url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_hrrr_2d.pl",
+            "resolution": "3 km",
+            "update_frequency": "1 hour",
+            "forecast_range": "48 hours"
+        },
+        "nam": {
+            "name": "North American Mesoscale",
+            "url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_nam.pl",
+            "resolution": "12 km",
+            "update_frequency": "6 hours",
+            "forecast_range": "84 hours"
+        }
+    }
+    
+    if model not in model_configs:
+        return {"error": f"Invalid model. Choose from: {', '.join(model_configs.keys())}"}
+    
+    config = model_configs[model]
+    
+    # For Phase 1, return model info and sample data
+    # Phase 2 will fetch actual GRIB2 data
+    result = {
+        "model": model,
+        "model_name": config["name"],
+        "resolution": config["resolution"],
+        "bounds": {
+            "min_lat": min_lat,
+            "min_lon": min_lon,
+            "max_lat": max_lat,
+            "max_lon": max_lon
+        },
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "note": "Phase 1: Model info ready. Phase 2: Fetch actual GRIB2 wind data",
+        "vectors": [
+            # Sample wind vectors (will be replaced with real data)
+            {
+                "lat": 33.0,
+                "lon": -118.0,
+                "speed_kts": 12,
+                "direction_deg": 270,  # From west
+                "u_component": -12.0,  # East-west
+                "v_component": 0.0     # North-south
+            },
+            {
+                "lat": 34.0,
+                "lon": -119.0,
+                "speed_kts": 15,
+                "direction_deg": 315,  # From northwest
+                "u_component": -10.6,
+                "v_component": 10.6
+            }
+        ]
+    }
+    
+    # Cache the result
+    cache[cache_key] = {
+        "cached_at": datetime.now(),
+        "data": result
+    }
+    
+    return result
+
+@app.get("/api/swell-overlay")
+async def get_swell_overlay(
+    model: str = "ww3",  # wavewatch3
+    bounds: Optional[str] = None
+):
+    """
+    Get swell/wave overlay data for the map.
+    Uses NOAA WaveWatch III model for global wave forecasts.
+    """
+    # Default to California bounds
+    if not bounds:
+        bounds = "32.5,-120.5,40.0,-117.0"
+    
+    try:
+        min_lat, min_lon, max_lat, max_lon = map(float, bounds.split(','))
+    except:
+        return {"error": "Invalid bounds format"}
+    
+    cache_key = f"swell_{model}_{bounds}"
+    
+    # Check cache (30 minute TTL for swell data)
+    if cache_key in cache:
+        cached_time = cache[cache_key].get("cached_at")
+        if cached_time and datetime.now() - cached_time < timedelta(minutes=30):
+            return cache[cache_key]["data"]
+    
+    # NOAA WaveWatch III configuration
+    ww3_config = {
+        "name": "WaveWatch III",
+        "url": "https://polar.ncep.noaa.gov/waves/",
+        "resolution": "0.5 degree (~50km)",
+        "update_frequency": "6 hours",
+        "forecast_range": "180 hours"
+    }
+    
+    # Phase 1: Return model info and sample data
+    result = {
+        "model": model,
+        "model_name": ww3_config["name"],
+        "resolution": ww3_config["resolution"],
+        "bounds": {
+            "min_lat": min_lat,
+            "min_lon": min_lon,
+            "max_lat": max_lat,
+            "max_lon": max_lon
+        },
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "note": "Phase 1: Model info ready. Phase 2: Fetch actual WW3 wave data",
+        "wave_data": [
+            # Sample wave data (will be replaced with real WW3 data)
+            {
+                "lat": 33.0,
+                "lon": -118.0,
+                "wave_height_m": 1.5,
+                "wave_height_ft": 4.9,
+                "period_sec": 12,
+                "direction_deg": 285,  # From WNW
+                "energy": 27.0
+            },
+            {
+                "lat": 34.0,
+                "lon": -119.0,
+                "wave_height_m": 1.2,
+                "wave_height_ft": 3.9,
+                "period_sec": 14,
+                "direction_deg": 270,
+                "energy": 20.2
+            }
+        ]
+    }
+    
+    # Cache the result
+    cache[cache_key] = {
+        "cached_at": datetime.now(),
+        "data": result
+    }
+    
+    return result
+
+@app.get("/api/overlays/models")
+async def get_available_models():
+    """
+    Get list of available wind and swell forecast models.
+    """
+    return {
+        "wind_models": [
+            {
+                "id": "gfs",
+                "name": "GFS - Global Forecast System",
+                "provider": "NOAA",
+                "resolution": "25 km",
+                "coverage": "Global",
+                "update": "Every 6 hours",
+                "forecast": "16 days"
+            },
+            {
+                "id": "hrrr",
+                "name": "HRRR - High-Res Rapid Refresh",
+                "provider": "NOAA",
+                "resolution": "3 km",
+                "coverage": "Continental US",
+                "update": "Every hour",
+                "forecast": "48 hours"
+            },
+            {
+                "id": "nam",
+                "name": "NAM - North American Mesoscale",
+                "provider": "NOAA",
+                "resolution": "12 km",
+                "coverage": "North America",
+                "update": "Every 6 hours",
+                "forecast": "84 hours"
+            }
+        ],
+        "swell_models": [
+            {
+                "id": "ww3",
+                "name": "WaveWatch III",
+                "provider": "NOAA",
+                "resolution": "50 km",
+                "coverage": "Global",
+                "update": "Every 6 hours",
+                "forecast": "180 hours (7.5 days)"
+            }
+        ]
+    }
