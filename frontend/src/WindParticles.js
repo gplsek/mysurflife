@@ -63,9 +63,10 @@ const WindParticles = ({ windData, visible = true }) => {
     canvas.style.left = '0px';
     canvas.style.width = mapSize.x + 'px';
     canvas.style.height = mapSize.y + 'px';
-    canvas.style.zIndex = '1000'; // Very high to ensure visibility
+    canvas.style.zIndex = '400'; // Above map tiles (200) but below markers (600) and UI (1000)
     canvas.style.pointerEvents = 'none';
     canvas.style.display = 'block';
+    canvas.style.opacity = '0.8'; // Slightly transparent so map shows through
     
     console.log('WindParticles: Canvas created/shown', { 
       width: canvas.width, 
@@ -80,9 +81,9 @@ const WindParticles = ({ windData, visible = true }) => {
     const ctx = canvas.getContext('2d');
     
     const particles = [];
-    const numParticles = 2000; // Beautiful flowing particles
-    const maxAge = 80;
-    const fadeOpacity = 0.02; // Subtle trail effect
+    const numParticles = 1500; // Beautiful flowing particles
+    const maxAge = 60; // Shorter trails
+    const fadeOpacity = 0.05; // Faster fade for clearer view
 
     // Color scheme (like Windy)
     const getWindColor = (speed) => {
@@ -144,19 +145,13 @@ const WindParticles = ({ windData, visible = true }) => {
     };
 
     // Animation loop
-    let frameCount = 0;
     const animate = () => {
-      frameCount++;
-      if (frameCount === 1 || frameCount % 60 === 0) {
-        console.log(`WindParticles animate frame ${frameCount}, particles: ${particles.length}`);
-      }
       
-      // Fade effect for smooth trails
-      ctx.fillStyle = `rgba(0, 0, 0, ${fadeOpacity})`;
+      // Fade effect for smooth trails (use semi-transparent white to fade, not black)
+      ctx.fillStyle = `rgba(255, 255, 255, ${fadeOpacity})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
-      let drawnCount = 0;
       particles.forEach(particle => {
         // Get lat/lon of particle
         const latLng = pixelToLatLng(particle.x, particle.y);
@@ -191,17 +186,7 @@ const WindParticles = ({ windData, visible = true }) => {
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, 1.5, 0, Math.PI * 2); // Small particle
         ctx.fill();
-        drawnCount++;
       });
-      
-      if (frameCount === 1 || frameCount % 60 === 0) {
-        console.log(`  Drew ${drawnCount} particles, sample particle:`, {
-          x: particles[0].x.toFixed(1),
-          y: particles[0].y.toFixed(1),
-          age: particles[0].age,
-          canvasSize: `${canvas.width}x${canvas.height}`
-        });
-      }
 
       animationRef.current = requestAnimationFrame(animate);
     };

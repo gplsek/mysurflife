@@ -63,9 +63,10 @@ const WaveParticles = ({ swellData, visible = true }) => {
     canvas.style.left = '0px';
     canvas.style.width = mapSize.x + 'px';
     canvas.style.height = mapSize.y + 'px';
-    canvas.style.zIndex = '1000'; // Very high to ensure visibility
+    canvas.style.zIndex = '400'; // Above map tiles (200) but below markers (600) and UI (1000)
     canvas.style.pointerEvents = 'none';
     canvas.style.display = 'block';
+    canvas.style.opacity = '0.8'; // Slightly transparent so map shows through
 
     const ctx = canvas.getContext('2d');
     const particles = [];
