@@ -464,3 +464,156 @@ async def get_buoy_history(station_id: str, hours: int = 48):
     }
     
     return result
+
+@app.get("/api/buoy-forecast/{station_id}")
+async def get_buoy_forecast(station_id: str, hours: int = 120):
+    """
+    Fetch forecast wave data for a buoy from CDIP/model sources.
+    Returns forecasted wave conditions for next 5 days (120 hours by default).
+    """
+    cache_key = f"forecast_{station_id}_{hours}"
+    
+    # Check cache (longer TTL for forecast - 3 hours)
+    if cache_key in cache:
+        cached_time = cache[cache_key].get("cached_at")
+        if cached_time and datetime.now() - cached_time < timedelta(hours=3):
+            return cache[cache_key]["data"]
+    
+    # Load CDIP mapping
+    cdip_mapping_file = Path(__file__).parent.parent / "cdip_station_mapping.json"
+    try:
+        with open(cdip_mapping_file, 'r') as f:
+            cdip_map = json.load(f)
+    except FileNotFoundError:
+        cdip_map = {}
+    
+    # Check if this station has CDIP equivalent
+    station_info = cdip_map.get(station_id, {})
+    cdip_id = station_info.get("cdip_id")
+    
+    if not cdip_id:
+        return {
+            "error": f"No CDIP forecast available for station {station_id}",
+            "station_id": station_id,
+            "cdip_available": False,
+            "data": []
+        }
+    
+    # Try to fetch from CDIP's public model data endpoint
+    # CDIP provides model data via their web interface - we'll parse their public JSON endpoint
+    # Format: https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/model/MOP_validation/{cdip_id}p1/{cdip_id}p1_historic.nc
+    
+    # For now, implement a simplified forecast using NDBC's latest data with trend projection
+    # This is a placeholder - Phase 2 will integrate actual CDIP model data
+    
+    try:
+        # Fetch current NDBC data to establish baseline
+        ndbc_url = f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(ndbc_url)
+            response.raise_for_status()
+            text = response.text
+        
+        lines = text.strip().split("\n")
+        headers = None
+        recent_readings = []
+        
+        for line in lines[:20]:  # Get recent readings
+            if line.startswith("#"):
+                if not headers:
+                    headers = line.lstrip("#").split()
+                continue
+            
+            if not line.strip():
+                continue
+            
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            
+            try:
+                def safe_float(val):
+                    try:
+                        f = float(val)
+                        return None if f in [99.0, 999.0, 9999.0] else f
+                    except:
+                        return None
+                
+                data_dict = {}
+                for i, header in enumerate(headers):
+                    if i < len(parts):
+                        data_dict[header] = parts[i]
+                
+                wvht_m = safe_float(data_dict.get("WVHT"))
+                dpd_sec = safe_float(data_dict.get("DPD"))
+                
+                if wvht_m and dpd_sec:
+                    recent_readings.append({"wvht": wvht_m, "period": dpd_sec})
+                
+                if len(recent_readings) >= 5:
+                    break
+                    
+            except (ValueError, IndexError):
+                continue
+        
+        if not recent_readings:
+            return {
+                "error": "Insufficient data for forecast",
+                "station_id": station_id,
+                "data": []
+            }
+        
+        # Calculate simple trend-based forecast (placeholder)
+        avg_wvht = sum(r["wvht"] for r in recent_readings) / len(recent_readings)
+        avg_period = sum(r["period"] for r in recent_readings) / len(recent_readings)
+        
+        # Generate forecast points (simplified - will be replaced with CDIP model data)
+        forecast_points = []
+        now = datetime.utcnow()
+        
+        for i in range(0, hours, 3):  # Every 3 hours
+            forecast_time = now + timedelta(hours=i)
+            
+            # Simple sine wave variation for demonstration
+            # Real implementation will use CDIP ECMWF model data
+            variation = 0.1 * math.sin(i / 12.0)
+            forecast_wvht = avg_wvht * (1 + variation)
+            forecast_period = avg_period * (1 + variation * 0.5)
+            
+            forecast_point = {
+                "timestamp": forecast_time.isoformat() + "Z",
+                "wvht_m": round(forecast_wvht, 2),
+                "wvht_ft": round(forecast_wvht * 3.28084, 2),
+                "dpd_sec": round(forecast_period, 1),
+                "surf_height_m": round(0.7 * forecast_wvht * math.sqrt(forecast_period), 2) if forecast_wvht and forecast_period else None,
+                "wave_energy": round(forecast_wvht ** 2 * forecast_period, 1) if forecast_wvht and forecast_period else None,
+                "source": "trend_projection",  # Will be "CDIP_ECMWF" when real data integrated
+                "confidence": "low"  # Placeholder
+            }
+            
+            forecast_points.append(forecast_point)
+        
+        result = {
+            "station_id": station_id,
+            "cdip_id": cdip_id,
+            "cdip_available": True,
+            "forecast_hours": hours,
+            "data_points": len(forecast_points),
+            "note": "Simplified trend projection - Full CDIP ECMWF integration coming in Phase 2",
+            "data": forecast_points
+        }
+        
+        # Cache the result
+        cache[cache_key] = {
+            "cached_at": datetime.now(),
+            "data": result
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "error": f"Failed to generate forecast: {str(e)}",
+            "station_id": station_id,
+            "data": []
+        }

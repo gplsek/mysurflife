@@ -179,6 +179,9 @@ export default function MapOverlay() {
   const [historicalData, setHistoricalData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState(null);
+  const [showForecast, setShowForecast] = useState(false);
+  const [forecastData, setForecastData] = useState([]);
+  const [forecastLoading, setForecastLoading] = useState(false);
   
   // Load preferences from localStorage or use defaults
   const [units, setUnits] = useState(() => localStorage.getItem('units') || 'imperial');
@@ -249,11 +252,51 @@ export default function MapOverlay() {
     }
   };
 
+  const fetchForecastData = async (stationId, hours = 120) => {
+    try {
+      setForecastLoading(true);
+      const res = await fetch(`/api/buoy-forecast/${stationId}?hours=${hours}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json();
+      
+      if (result.error) {
+        console.warn('Forecast error:', result.error);
+        setForecastData([]);
+        return;
+      }
+      
+      // Transform forecast data for Recharts
+      const chartData = result.data.map(point => ({
+        time: new Date(point.timestamp).toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit'
+        }),
+        waveHeight: units === 'imperial' ? point.wvht_ft : point.wvht_m,
+        period: point.dpd_sec,
+        surfHeight: units === 'imperial' ? 
+          (point.surf_height_m ? point.surf_height_m * 3.28084 : null) : 
+          point.surf_height_m,
+        energy: point.wave_energy,
+        isForecast: true
+      }));
+      
+      setForecastData(chartData);
+    } catch (err) {
+      console.error('Error fetching forecast data:', err);
+      setForecastData([]);
+    } finally {
+      setForecastLoading(false);
+    }
+  };
+
   // Reset chart state when buoy changes
   useEffect(() => {
     setShowChart(false);
     setHistoricalData([]);
     setChartError(null);
+    setShowForecast(false);
+    setForecastData([]);
   }, [selectedBuoy?.station]);
 
   useEffect(() => {
@@ -559,16 +602,18 @@ export default function MapOverlay() {
                 <table style={{ width: '100%', fontSize: '13px' }}>
                   <tbody>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>🏄 Face Height:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Swell Height:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold', color: '#0066cc', fontSize: '14px' }}>
-                        {formatSurfSize(selectedBuoy.surf_height_m)}
+                      {formatWaveHeight(selectedBuoy.wave_height_m)}
+                        
                         <TrendIndicator trend={selectedBuoy.wave_trend} />
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666', fontSize: '11px' }}>Wave Height:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666', fontSize: '11px' }}>Max Face Height:</td>
                       <td style={{ padding: '4px 0', fontSize: '11px' }}>
-                        {formatWaveHeight(selectedBuoy.wave_height_m)}
+                      {formatSurfSize(selectedBuoy.surf_height_m)}
+                        
                       </td>
                     </tr>
                     <tr>
@@ -705,9 +750,33 @@ export default function MapOverlay() {
                 {/* Historical Charts */}
                 {showChart && (
                   <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #eee' }}>
-                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#333' }}>
-                      📈 Last 48 Hours
-                    </h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>
+                        📈 Wave History & Forecast
+                      </h4>
+                      <label style={{ 
+                        fontSize: '11px', 
+                        color: '#666', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '4px',
+                        cursor: 'pointer'
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={showForecast}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setShowForecast(checked);
+                            if (checked && forecastData.length === 0 && !forecastLoading) {
+                              fetchForecastData(selectedBuoy.station);
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        5-day forecast
+                      </label>
+                    </div>
                     
                     {chartLoading && (
                       <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
@@ -727,9 +796,10 @@ export default function MapOverlay() {
                         <div style={{ marginBottom: '20px' }}>
                           <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
                             Wave Height & Face Height
+                            {forecastLoading && <span style={{ color: '#999', fontWeight: 'normal', marginLeft: '8px' }}>(Loading forecast...)</span>}
                           </div>
                           <ResponsiveContainer width="100%" height={200}>
-                            <LineChart data={historicalData}>
+                            <LineChart data={showForecast ? [...historicalData, ...forecastData] : historicalData}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                               <XAxis 
                                 dataKey="time" 
@@ -747,25 +817,54 @@ export default function MapOverlay() {
                               />
                               <Tooltip 
                                 contentStyle={{ fontSize: '11px' }}
-                                formatter={(value) => value ? value.toFixed(2) : 'N/A'}
+                                formatter={(value, name) => {
+                                  const formatted = value ? value.toFixed(2) : 'N/A';
+                                  return [formatted, name];
+                                }}
                               />
                               <Legend wrapperStyle={{ fontSize: '11px' }} />
                               <Line 
                                 type="monotone" 
                                 dataKey="waveHeight" 
                                 stroke="#0066cc" 
-                                name="Wave Height"
+                                name="Wave Height (Obs)"
                                 strokeWidth={2}
                                 dot={{ r: 2 }}
+                                connectNulls
                               />
                               <Line 
                                 type="monotone" 
                                 dataKey="surfHeight" 
                                 stroke="#22c55e" 
-                                name="Face Height"
+                                name="Face Height (Obs)"
                                 strokeWidth={2}
                                 dot={{ r: 2 }}
+                                connectNulls
                               />
+                              {showForecast && forecastData.length > 0 && (
+                                <>
+                                  <Line 
+                                    type="monotone" 
+                                    dataKey="waveHeight" 
+                                    stroke="#6ba3ff" 
+                                    name="Wave Height (Fcst)"
+                                    strokeWidth={2}
+                                    strokeDasharray="5 5"
+                                    dot={{ r: 1 }}
+                                    connectNulls
+                                  />
+                                  <Line 
+                                    type="monotone" 
+                                    dataKey="surfHeight" 
+                                    stroke="#7cdb8e" 
+                                    name="Face Height (Fcst)"
+                                    strokeWidth={2}
+                                    strokeDasharray="5 5"
+                                    dot={{ r: 1 }}
+                                    connectNulls
+                                  />
+                                </>
+                              )}
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
@@ -776,7 +875,7 @@ export default function MapOverlay() {
                             Wave Period
                           </div>
                           <ResponsiveContainer width="100%" height={150}>
-                            <LineChart data={historicalData}>
+                            <LineChart data={showForecast ? [...historicalData, ...forecastData] : historicalData}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                               <XAxis 
                                 dataKey="time" 
@@ -801,10 +900,23 @@ export default function MapOverlay() {
                                 type="monotone" 
                                 dataKey="period" 
                                 stroke="#f59e0b" 
-                                name="Period"
+                                name="Period (Obs)"
                                 strokeWidth={2}
                                 dot={{ r: 2 }}
+                                connectNulls
                               />
+                              {showForecast && forecastData.length > 0 && (
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="period" 
+                                  stroke="#ffc266" 
+                                  name="Period (Fcst)"
+                                  strokeWidth={2}
+                                  strokeDasharray="5 5"
+                                  dot={{ r: 1 }}
+                                  connectNulls
+                                />
+                              )}
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
@@ -815,7 +927,7 @@ export default function MapOverlay() {
                             Wave Energy Index
                           </div>
                           <ResponsiveContainer width="100%" height={150}>
-                            <LineChart data={historicalData}>
+                            <LineChart data={showForecast ? [...historicalData, ...forecastData] : historicalData}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                               <XAxis 
                                 dataKey="time" 
@@ -840,10 +952,23 @@ export default function MapOverlay() {
                                 type="monotone" 
                                 dataKey="energy" 
                                 stroke="#ef4444" 
-                                name="Energy"
+                                name="Energy (Obs)"
                                 strokeWidth={2}
                                 dot={{ r: 2 }}
+                                connectNulls
                               />
+                              {showForecast && forecastData.length > 0 && (
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="energy" 
+                                  stroke="#ff8888" 
+                                  name="Energy (Fcst)"
+                                  strokeWidth={2}
+                                  strokeDasharray="5 5"
+                                  dot={{ r: 1 }}
+                                  connectNulls
+                                />
+                              )}
                             </LineChart>
                           </ResponsiveContainer>
                         </div>
