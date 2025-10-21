@@ -36,10 +36,17 @@ const WindParticles = ({ windData, visible = true }) => {
       canvas.style.position = 'absolute';
       canvas.style.top = '0';
       canvas.style.left = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
       canvas.style.pointerEvents = 'none';
-      canvas.style.zIndex = '600';
+      canvas.style.zIndex = '650'; // Above markers (600) but below popups (700)
+      canvas.id = 'wind-particle-canvas';
       canvasRef.current = canvas;
       mapContainer.appendChild(canvas);
+      console.log('WindParticles: Canvas appended to map container', {
+        parent: mapContainer.className,
+        canvasId: canvas.id
+      });
     }
 
     canvas.style.display = 'block';
@@ -49,6 +56,14 @@ const WindParticles = ({ windData, visible = true }) => {
     console.log('WindParticles: Canvas created/shown', { width: canvas.width, height: canvas.height, zIndex: canvas.style.zIndex });
 
     const ctx = canvas.getContext('2d');
+    
+    // TEST: Draw a visible test rectangle to confirm canvas is visible
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Semi-transparent red
+    ctx.fillRect(50, 50, 200, 100);
+    ctx.fillStyle = 'white';
+    ctx.font = '20px Arial';
+    ctx.fillText('WIND OVERLAY TEST', 60, 110);
+    console.log('WindParticles: Test rectangle drawn at (50,50) 200x100');
     const particles = [];
     const numParticles = 3000;
     const maxAge = 100;
@@ -159,7 +174,17 @@ const WindParticles = ({ windData, visible = true }) => {
         const color = getWindColor(wind.speed);
         ctx.fillStyle = color.replace('0.5', opacity * 0.7);
         ctx.fillRect(particle.x, particle.y, 1.5, 1.5);
+        drawnCount++;
       });
+      
+      if (frameCount === 1 || frameCount % 60 === 0) {
+        console.log(`  Drew ${drawnCount} particles, sample particle:`, {
+          x: particles[0].x.toFixed(1),
+          y: particles[0].y.toFixed(1),
+          age: particles[0].age,
+          canvasSize: `${canvas.width}x${canvas.height}`
+        });
+      }
 
       animationRef.current = requestAnimationFrame(animate);
     };
