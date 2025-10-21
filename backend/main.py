@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncio
+import json
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -10,6 +12,14 @@ app = FastAPI()
 # Simple in-memory cache
 cache: Dict[str, Dict] = {}
 CACHE_DURATION = timedelta(minutes=5)  # NDBC updates every ~10 min, cache for 5
+
+# Load wind station mapping
+WIND_MAPPING_FILE = Path(__file__).parent.parent / "buoy_to_wind_station_map.json"
+try:
+    with open(WIND_MAPPING_FILE, 'r') as f:
+        WIND_STATION_MAP = json.load(f)
+except FileNotFoundError:
+    WIND_STATION_MAP = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,23 +30,82 @@ app.add_middleware(
 )
 
 BUOY_LIST = [
-    {"id": "46266", "lat": 32.933, "lon": -117.317, "name": "Del Mar Nearshore"},
-    {"id": "46225", "lat": 32.866, "lon": -117.283, "name": "Torrey Pines Outer"},
-    {"id": "46259", "lat": 32.749, "lon": -117.258, "name": "Mission Bay"},
-    {"id": "46232", "lat": 32.65,  "lon": -117.3,   "name": "Point Loma South"},
-    {"id": "46236", "lat": 32.55,  "lon": -117.15,  "name": "Imperial Beach"},
-    {"id": "46258", "lat": 33.475, "lon": -118.533, "name": "San Pedro Channel"},
-    {"id": "46222", "lat": 33.75,  "lon": -118.833, "name": "Santa Monica Basin"},
-    {"id": "46086", "lat": 34.25,  "lon": -120.45,  "name": "Pt. Dume / Santa Barbara"},
-    {"id": "46011", "lat": 34.935, "lon": -121.93,  "name": "Santa Maria"},
-    {"id": "46027", "lat": 40.75,  "lon": -124.5,   "name": "Cape Mendocino"},
-    {"id": "46014", "lat": 39.22,  "lon": -123.97,  "name": "Pt. Arena"},
-    {"id": "46026", "lat": 37.75,  "lon": -122.83,  "name": "San Francisco Bar"},
-    {"id": "46012", "lat": 36.75,  "lon": -122.43,  "name": "Monterey Bay"},
-    {"id": "46013", "lat": 38.24,  "lon": -123.31,  "name": "Bodega Bay"}
+    {"id": "46266", "lat": 32.933, "lon": -117.317, "name": "Del Mar Nearshore", "wind_fallback": "LJAC1"},
+    {"id": "46225", "lat": 32.866, "lon": -117.283, "name": "Torrey Pines Outer", "wind_fallback": "LJAC1"},
+    {"id": "46259", "lat": 32.749, "lon": -117.258, "name": "Mission Bay", "wind_fallback": "SDBC1"},
+    {"id": "46232", "lat": 32.65,  "lon": -117.3,   "name": "Point Loma South", "wind_fallback": "SDBC1"},
+    {"id": "46236", "lat": 32.55,  "lon": -117.15,  "name": "Imperial Beach", "wind_fallback": "TIXC1"},
+    {"id": "46258", "lat": 33.475, "lon": -118.533, "name": "San Pedro Channel", "wind_fallback": "LJAC1"},
+    {"id": "46222", "lat": 33.75,  "lon": -118.833, "name": "Santa Monica Basin", "wind_fallback": "AGXC1"},
+    {"id": "46086", "lat": 34.25,  "lon": -120.45,  "name": "Pt. Dume / Santa Barbara", "wind_fallback": None},
+    {"id": "46011", "lat": 34.935, "lon": -121.93,  "name": "Santa Maria", "wind_fallback": None},
+    {"id": "46027", "lat": 40.75,  "lon": -124.5,   "name": "Cape Mendocino", "wind_fallback": None},
+    {"id": "46014", "lat": 39.22,  "lon": -123.97,  "name": "Pt. Arena", "wind_fallback": None},
+    {"id": "46026", "lat": 37.75,  "lon": -122.83,  "name": "San Francisco Bar", "wind_fallback": "FTPC1"},
+    {"id": "46012", "lat": 36.75,  "lon": -122.43,  "name": "Monterey Bay", "wind_fallback": "MEYC1"},
+    {"id": "46013", "lat": 38.24,  "lon": -123.31,  "name": "Bodega Bay", "wind_fallback": "PRYC1"}
 ]
 
-async def fetch_buoy_data(buoy_id: str, use_cache: bool = True) -> Dict:
+async def fetch_wind_from_station(station_id: str) -> Dict:
+    """Fetch wind data from a fallback station (NOS CO-OPS)."""
+    try:
+        url = f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            lines = response.text.splitlines()
+
+        headers = []
+        for line in lines:
+            if line.startswith("#"):
+                if not headers and "WDIR" in line and "WSPD" in line:
+                    headers = line.lstrip("#").split()
+                continue
+
+            if not line.strip():
+                continue
+
+            values = line.split()
+            if len(headers) == 0 or len(values) != len(headers):
+                continue
+
+            parsed = dict(zip(headers, values))
+
+            # Parse wind data
+            try:
+                wind_dir = float(parsed.get("WDIR", "0"))
+                if wind_dir == 999 or wind_dir == 0:
+                    wind_dir = None
+            except:
+                wind_dir = None
+
+            try:
+                wind_speed_ms = float(parsed.get("WSPD", "0"))
+                if wind_speed_ms == 99:
+                    wind_speed_ms = None
+            except:
+                wind_speed_ms = None
+
+            try:
+                wind_gust_ms = float(parsed.get("GST", "0"))
+                if wind_gust_ms == 99:
+                    wind_gust_ms = None
+            except:
+                wind_gust_ms = None
+
+            return {
+                "wind_dir": wind_dir,
+                "wind_speed_ms": wind_speed_ms,
+                "wind_gust_ms": wind_gust_ms,
+                "wind_source": station_id
+            }
+
+        return {"wind_dir": None, "wind_speed_ms": None, "wind_gust_ms": None, "wind_source": None}
+    except:
+        return {"wind_dir": None, "wind_speed_ms": None, "wind_gust_ms": None, "wind_source": None}
+
+
+async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_station: Optional[str] = None) -> Dict:
     """Fetch buoy data from NDBC with caching and timeout handling."""
     
     # Check cache first
@@ -138,7 +207,16 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True) -> Dict:
                 "wind_dir": wind_dir,
                 "wind_speed_ms": wind_speed_ms,
                 "wind_gust_ms": wind_gust_ms,
+                "wind_source": "buoy"
             }
+            
+            # If wind data is missing and we have a fallback station, try to fetch from it
+            if (wind_dir is None or wind_speed_ms is None) and wind_fallback_station:
+                fallback_wind = await fetch_wind_from_station(wind_fallback_station)
+                result["wind_dir"] = fallback_wind.get("wind_dir")
+                result["wind_speed_ms"] = fallback_wind.get("wind_speed_ms")
+                result["wind_gust_ms"] = fallback_wind.get("wind_gust_ms")
+                result["wind_source"] = fallback_wind.get("wind_source") or "N/A"
             
             # Cache the successful result
             cache[buoy_id] = {
@@ -161,13 +239,18 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True) -> Dict:
 @app.get("/api/buoy-status")
 async def get_primary_buoy():
     """Get data for the primary buoy (Del Mar Nearshore)."""
-    return await fetch_buoy_data("46266")
+    primary_buoy = next((b for b in BUOY_LIST if b["id"] == "46266"), None)
+    wind_fallback = primary_buoy.get("wind_fallback") if primary_buoy else None
+    return await fetch_buoy_data("46266", wind_fallback_station=wind_fallback)
 
 @app.get("/api/buoy-status/all")
 async def get_all_buoys():
-    """Get data for all buoys concurrently with caching."""
-    # Fetch all buoys concurrently instead of sequentially
-    tasks = [fetch_buoy_data(buoy["id"]) for buoy in BUOY_LIST]
+    """Get data for all buoys concurrently with caching and wind fallback."""
+    # Fetch all buoys concurrently with their wind fallback stations
+    tasks = [
+        fetch_buoy_data(buoy["id"], wind_fallback_station=buoy.get("wind_fallback")) 
+        for buoy in BUOY_LIST
+    ]
     results = await asyncio.gather(*tasks)
     
     # Merge with buoy metadata

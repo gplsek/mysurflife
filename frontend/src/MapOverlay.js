@@ -249,7 +249,7 @@ export default function MapOverlay() {
 
         {/* Map Container */}
         <MapContainer center={mapCenter} zoom={6.5} style={{ height: '100%', width: '100%' }}>
-          <LayersControl position="topright">
+          <LayersControl position="bottomleft">
             <BaseLayer checked name="OpenStreetMap">
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -392,6 +392,11 @@ export default function MapOverlay() {
                       <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>💨 Wind Speed:</td>
                       <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold' }}>
                         {formatWindSpeed(selectedBuoy.wind_speed_ms)}
+                        {selectedBuoy.wind_source && selectedBuoy.wind_source !== 'buoy' && selectedBuoy.wind_source !== 'N/A' && (
+                          <div style={{ fontSize: '10px', color: '#888', fontWeight: 'normal' }}>
+                            via {selectedBuoy.wind_source}
+                          </div>
+                        )}
                       </td>
                     </tr>
                     <tr>
