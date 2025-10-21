@@ -100,6 +100,30 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True) -> Dict:
             except:
                 air_temp_c = None
 
+            # Parse wind direction (in degrees)
+            try:
+                wind_dir = float(parsed.get("WDIR", "0"))
+                if wind_dir == 999 or wind_dir == 0:  # NDBC uses 999 for missing data
+                    wind_dir = None
+            except:
+                wind_dir = None
+
+            # Parse wind speed (in m/s)
+            try:
+                wind_speed_ms = float(parsed.get("WSPD", "0"))
+                if wind_speed_ms == 99:  # NDBC uses 99 for missing data
+                    wind_speed_ms = None
+            except:
+                wind_speed_ms = None
+
+            # Parse wind gust (in m/s)
+            try:
+                wind_gust_ms = float(parsed.get("GST", "0"))
+                if wind_gust_ms == 99:  # NDBC uses 99 for missing data
+                    wind_gust_ms = None
+            except:
+                wind_gust_ms = None
+
             # Format timestamp in ISO format (UTC) for easy frontend parsing
             timestamp_utc = f"{year}-{month.zfill(2)}-{day.zfill(2)}T{hour.zfill(2)}:{minute.zfill(2)}:00Z"
 
@@ -111,6 +135,9 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True) -> Dict:
                 "mean_wave_dir": parsed.get("MWD", "N/A"),
                 "water_temp_c": water_temp_c,
                 "air_temp_c": air_temp_c,
+                "wind_dir": wind_dir,
+                "wind_speed_ms": wind_speed_ms,
+                "wind_gust_ms": wind_gust_ms,
             }
             
             # Cache the successful result

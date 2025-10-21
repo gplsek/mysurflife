@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+const { BaseLayer } = LayersControl;
 
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -35,6 +37,9 @@ const getIcon = (score) => {
 // Conversion functions
 const metersToFeet = (m) => m * 3.28084;
 const celsiusToFahrenheit = (c) => (c * 9/5) + 32;
+const msToMph = (ms) => ms * 2.23694;
+const msToKph = (ms) => ms * 3.6;
+const msToKnots = (ms) => ms * 1.94384;
 
 const scoreBuoy = (b) => {
   const wave = b.wave_height_m;
@@ -124,6 +129,21 @@ export default function MapOverlay() {
       return date.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
     }
     return date.toLocaleString();
+  };
+
+  const formatWindSpeed = (windMs) => {
+    if (!windMs) return 'N/A';
+    if (units === 'imperial') {
+      return `${msToMph(windMs).toFixed(1)} mph`;
+    }
+    return `${msToKph(windMs).toFixed(1)} km/h`;
+  };
+
+  const getWindDirection = (degrees) => {
+    if (!degrees) return 'N/A';
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(degrees / 22.5) % 16;
+    return `${directions[index]} (${Math.round(degrees)}°)`;
   };
 
   return (
@@ -229,10 +249,36 @@ export default function MapOverlay() {
 
         {/* Map Container */}
         <MapContainer center={mapCenter} zoom={6.5} style={{ height: '100%', width: '100%' }}>
-          <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="&copy; OpenStreetMap contributors"
-          />
+          <LayersControl position="topright">
+            <BaseLayer checked name="OpenStreetMap">
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+            </BaseLayer>
+            
+            <BaseLayer name="Satellite">
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+              />
+            </BaseLayer>
+            
+            <BaseLayer name="Terrain">
+              <TileLayer
+                url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a> contributors'
+              />
+            </BaseLayer>
+            
+            <BaseLayer name="Ocean">
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}"
+                attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+              />
+            </BaseLayer>
+          </LayersControl>
+          
           {buoys.map((buoy) => {
             const score = scoreBuoy(buoy);
             const hasError = buoy.error;
@@ -337,11 +383,31 @@ export default function MapOverlay() {
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Direction:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Dir:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {selectedBuoy.mean_wave_dir}°
                       </td>
                     </tr>
+                    <tr style={{ borderTop: '1px solid #eee' }}>
+                      <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>💨 Wind Speed:</td>
+                      <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold' }}>
+                        {formatWindSpeed(selectedBuoy.wind_speed_ms)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wind Dir:</td>
+                      <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
+                        {getWindDirection(selectedBuoy.wind_dir)}
+                      </td>
+                    </tr>
+                    {selectedBuoy.wind_gust_ms && (
+                      <tr>
+                        <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wind Gust:</td>
+                        <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
+                          {formatWindSpeed(selectedBuoy.wind_gust_ms)}
+                        </td>
+                      </tr>
+                    )}
                     <tr style={{ borderTop: '1px solid #eee' }}>
                       <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>Water Temp:</td>
                       <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold' }}>
