@@ -231,6 +231,56 @@ Convert m/s to knots or mph as needed.
 - For mobile performance, don’t fetch wind until popup is opened
 
 
+
+---
+
+## 🌊 Surf Wave Height Estimation from Buoy Data
+
+### Key Inputs from Buoy
+- `WVHT`: Significant Wave Height (in feet)
+- `DPD`: Dominant Wave Period (in seconds)
+
+### Rule of Thumb Formula
+To estimate wave face height (surfable wave size at shore):
+
+```
+Estimated Wave Height (ft) ≈ 0.7 × WVHT × sqrt(DPD)
+```
+
+This provides a good face-height estimate based on the energy in the swell.
+
+#### Example:
+- `WVHT = 3.0 ft`
+- `DPD = 14 sec`
+
+```
+≈ 0.7 × 3 × sqrt(14) ≈ 7.8 ft face height
+```
+
+> If displaying “Hawaiian scale” (back of wave), divide face height by ~2.
+
+### Additional Metric: Wave Energy Index
+
+```
+Energy Index = WVHT² × DPD
+```
+
+Useful for scoring, comparisons, or heatmap overlays.
+
+### Implementation Snippet (Python)
+
+```python
+import math
+
+def estimate_wave_face_height(wvht_ft: float, dpd_sec: float) -> float:
+    if wvht_ft and dpd_sec:
+        return round(0.7 * wvht_ft * math.sqrt(dpd_sec), 1)
+    return None
+```
+
+Use this for scoring, tooltip insights, or predictive surf height at a location.
+
+
 ---
 
 _Last updated: 2025-10-21 15:53_

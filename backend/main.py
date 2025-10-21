@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncio
 import json
+import math
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Optional
@@ -192,6 +193,25 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
             wave_height_m = float(parsed.get("WVHT", "0"))
         except:
             wave_height_m = None
+        
+        # Parse dominant period for calculations
+        try:
+            dpd_sec = float(parsed.get("DPD", "0"))
+            if dpd_sec == 0:
+                dpd_sec = None
+        except:
+            dpd_sec = None
+        
+        # Calculate surf face height and wave energy
+        surf_height_m = None
+        wave_energy = None
+        
+        if wave_height_m and dpd_sec:
+            # Surf face height: 0.7 × WVHT × √DPD
+            surf_height_m = round(0.7 * wave_height_m * math.sqrt(dpd_sec), 2)
+            
+            # Wave Energy Index: WVHT² × DPD
+            wave_energy = round(wave_height_m ** 2 * dpd_sec, 1)
 
         # Parse water temperature (in Celsius)
         try:
@@ -237,7 +257,9 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
             "timestamp_utc": timestamp_utc,
             "wave_height_m": wave_height_m,
             "wave_trend": wave_trend,
-            "dominant_period_sec": parsed.get("DPD", "N/A"),
+            "surf_height_m": surf_height_m,
+            "wave_energy": wave_energy,
+            "dominant_period_sec": dpd_sec or parsed.get("DPD", "N/A"),
             "mean_wave_dir": parsed.get("MWD", "N/A"),
             "water_temp_c": water_temp_c,
             "air_temp_c": air_temp_c,

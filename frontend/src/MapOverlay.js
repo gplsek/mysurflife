@@ -134,19 +134,38 @@ const TrendIndicator = ({ trend }) => {
 };
 
 const scoreBuoy = (b) => {
-  const wave = b.wave_height_m;
+  const surfHeight = b.surf_height_m;
   const period = parseFloat(b.dominant_period_sec);
   const dir = parseFloat(b.mean_wave_dir);
+  const energy = b.wave_energy;
 
-  if (!wave || isNaN(wave) || isNaN(period) || isNaN(dir)) return 0;
+  if (!surfHeight || isNaN(period) || isNaN(dir)) return 0;
   
-  // Convert to feet for scoring
-  const waveFt = metersToFeet(wave);
+  // Convert surf face height to feet for scoring
+  const surfFt = metersToFeet(surfHeight);
   
-  if (waveFt > 4 && period > 12 && dir >= 250 && dir <= 310) return 3;
-  if (waveFt >= 2 && waveFt <= 4 && period > 10) return 2;
-  if (waveFt < 2 || period < 10) return 1;
-  return 0;
+  // Enhanced scoring with energy consideration
+  let score = 0;
+  
+  // Base score on surf face height and period
+  if (surfFt >= 6 && period >= 14 && dir >= 250 && dir <= 310) {
+    score = 3; // Epic - Large, long period, good direction
+  } else if (surfFt >= 4 && period >= 12 && dir >= 240 && dir <= 320) {
+    score = 3; // Excellent - Good size, period, and direction
+  } else if (surfFt >= 3 && period >= 10 && dir >= 230 && dir <= 330) {
+    score = 2; // Good - Decent size and period
+  } else if (surfFt >= 2 && period >= 8) {
+    score = 1; // Fair - Small but rideable
+  } else {
+    score = 0; // Poor - Too small or short period
+  }
+  
+  // Boost score if high energy (powerful waves)
+  if (energy && energy > 100 && score > 0) {
+    score = Math.min(3, score + 0.5); // Can boost by half a point
+  }
+  
+  return Math.floor(score);
 };
 
 export default function MapOverlay() {
@@ -204,6 +223,14 @@ export default function MapOverlay() {
       return `${metersToFeet(waveM).toFixed(1)} ft`;
     }
     return `${waveM.toFixed(2)} m`;
+  };
+
+  const formatSurfSize = (surfM) => {
+    if (!surfM) return 'N/A';
+    if (units === 'imperial') {
+      return `${metersToFeet(surfM).toFixed(1)} ft`;
+    }
+    return `${surfM.toFixed(2)} m`;
   };
 
   const formatTemp = (tempC) => {
@@ -463,10 +490,16 @@ export default function MapOverlay() {
                 <table style={{ width: '100%', fontSize: '13px' }}>
                   <tbody>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Height:</td>
-                      <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
-                        {formatWaveHeight(selectedBuoy.wave_height_m)}
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>🏄 Surf Size:</td>
+                      <td style={{ padding: '4px 0', fontWeight: 'bold', color: '#0066cc', fontSize: '14px' }}>
+                        {formatSurfSize(selectedBuoy.surf_height_m)}
                         <TrendIndicator trend={selectedBuoy.wave_trend} />
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '4px 8px 4px 0', color: '#666', fontSize: '11px' }}>Wave Height:</td>
+                      <td style={{ padding: '4px 0', fontSize: '11px' }}>
+                        {formatWaveHeight(selectedBuoy.wave_height_m)}
                       </td>
                     </tr>
                     <tr>
@@ -482,6 +515,14 @@ export default function MapOverlay() {
                         <DirectionArrow degrees={parseFloat(selectedBuoy.mean_wave_dir)} color="#0066cc" />
                       </td>
                     </tr>
+                    {selectedBuoy.wave_energy && (
+                      <tr>
+                        <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Energy Index:</td>
+                        <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
+                          {selectedBuoy.wave_energy.toFixed(1)}
+                        </td>
+                      </tr>
+                    )}
                     <tr style={{ borderTop: '1px solid #eee' }}>
                       <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>💨 Wind Speed:</td>
                       <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold' }}>
