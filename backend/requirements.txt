@@ -2,3 +2,5 @@ fastapi
 uvicorn
 httpx
 netCDF4
+xarray
+numpy
