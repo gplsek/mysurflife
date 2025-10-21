@@ -11,56 +11,30 @@ This project is a FastAPI + React-based surf conditions dashboard that fetches l
 - ✅ React frontend using Leaflet to display buoys on a map
 - ✅ Convert NOAA WVHT (meters) to feet
 - ✅ Marker icon + shadow fixed in Leaflet
-- ✅ Includes full California coast (14 buoys)
-
----
-
-## ✅ Completed Features
-
-### Surf Scoring
-- ✅ Calculate surf score based on:
-  - Wave height (ft)
-  - Period (sec)
-  - Direction (degrees)
-- ✅ Color-coded markers (green/orange/red/grey) based on score
-- ✅ Score legend in control panel
-
-### UI Improvements
-- ✅ Auto-refresh buoy data every 5 minutes
-- ✅ Display detailed buoy report in dedicated panel
-- ✅ Unit selector (Imperial/Metric) with localStorage persistence
-- ✅ Timezone selector (Local/UTC)
-- ✅ Basemap switcher (OpenStreetMap, Satellite, Terrain, Ocean)
-- ✅ Clean marker popups (name only)
-- ✅ Floating control panel with refresh button
-
-### Backend Enhancements
-- ✅ Cache buoy data (5-minute TTL)
-- ✅ Concurrent API calls using asyncio.gather()
-- ✅ Proper error handling with timeouts
-- ✅ Wind data parsing (speed, direction, gusts)
-- ✅ Temperature data (water & air)
-- ✅ ISO format timestamps for easy parsing
-
-### Data Features
-- ✅ Wave height, period, direction
-- ✅ Wind speed, direction, and gusts
-- ✅ Water and air temperature
-- ✅ Automatic unit conversion (ft/m, mph/km/h, °F/°C)
-- ✅ Compass direction labels (N, NE, E, etc.)
+- ✅ Includes full California coast + south of Scripps Pier
 
 ---
 
 ## 🧠 Planned Features (Next)
 
+### Surf Scoring
+- [ ] Calculate surf score based on:
+  - Wave height (ft)
+  - Period (sec)
+  - Direction (degrees)
+- [ ] Color-coded markers based on score
+- [ ] Score legend and tooltips
+
 ### UI Improvements
-- [ ] Filter markers by region (when expanding beyond California)
-- [ ] Filter by surf conditions (e.g., "Show only good surf")
+- [ ] Filter markers by region or conditions
+- [ ] Auto-refresh buoy data every 10 minutes
+- [ ] Add user-selectable overlays (e.g. swell, tide, wind)
+- [ ] Display detailed buoy report modal/popup
 
 ### Backend Enhancements
+- [ ] Save recent buoy data (cache or DB)
 - [ ] Add historical trend endpoint
 - [ ] Slack/webhook alerts for certain surf conditions
-- [ ] Database storage for long-term historical data
 
 ---
 
@@ -135,12 +109,12 @@ Add visual charts to each buoy's popup or modal to match visuals like CDIP's sit
 ## 🗺️ Map Layers & Overlays
 
 ### 1. Basemap Layer Switching
-- ✅ Toggle between different basemaps:
-  - ✅ OpenStreetMap (default)
-  - ✅ Satellite
-  - ✅ Terrain
-  - ✅ Ocean
-- ✅ Implemented via `<LayersControl>` in `react-leaflet`
+- [ ] Toggle between different basemaps:
+  - OpenStreetMap (default)
+  - Satellite
+  - Terrain
+  - Dark/Light UI themes
+- [ ] Implement via `<TileLayer>` in `react-leaflet`
 
 ### 2. Wind Overlay (Live + Forecast)
 - [ ] Integrate Windy API or NOAA wind field data
@@ -153,29 +127,110 @@ Add visual charts to each buoy's popup or modal to match visuals like CDIP's sit
 - [ ] Optional: heatmap, contour lines, or icon vectors
 
 ### 4. Live Wind Data Per Buoy
-- ✅ Wind data parsed from NDBC buoy files
-- ✅ Fetch wind speed, direction, and gusts in backend
-- ✅ Display wind speed and direction in the buoy detail panel
-- ✅ Compass direction labels (N, NE, ESE, etc.)
-- ✅ Unit conversion (mph for Imperial, km/h for Metric)
+- [ ] Match each buoy with a nearby wind station (from NDBC/CDIP)
+- [ ] Fetch wind speed and direction in backend
+- [ ] Display wind arrow, speed, and direction in the buoy detail popup
+- [ ] Prioritize nearshore stations where available
+
+
+
+---
+
+## 🌬️ Wind Influence on Surf Scoring
+
+### Wind Speed & Texture Thresholds
+- **0–2 knots**: Glassy, ideal
+- **2–5 knots**: Rippled but still clean — surf remains good
+- **6–10 knots**: Light texture, may affect surf shape
+- **11+ knots**: Choppy or blown out conditions, unless offshore
+
+### Directional Wind Influence (West Coast Surf Logic)
+- **Easterly (E, ENE, ESE)**: ✅ Offshore — improves quality at almost any speed
+- **Southeasterly / Northeasterly (SE, NE)**: ⚠️ Starts to cross-blow and deteriorate quality
+- **Southerly or Northerly (S, N)**: ❌ Degrades surf due to direct sidewinds
+- **Westerly sector (SW, W, NW)**: ❌ Onshore — worst for clean conditions
+
+### Scoring Integration
+- [ ] Incorporate wind score into overall surf score
+- [ ] Weight wind direction + speed relative to swell direction
+- [ ] Tag spots as:
+  - `Glassy` (< 3 knots)
+  - `Clean` (< 6 knots, offshore or variable)
+  - `Textured` (6–10 knots, side)
+  - `Blown out` (> 10 knots or onshore)
+
 
 
 ---
 
----
+## 📡 Wind Data Integration – Instructions for Claude
 
-## 🎯 Current Focus
-
-### High Priority (Next Sprint)
-1. **24-Hour Wave Height Charts** - Show wave height trends over the last 24-48 hours
-2. **Surf Condition Filters** - Filter buoys by quality (e.g., "Show only good surf")
-3. **Forecast Integration** - Add 5-day forecast data from NOAA/Surfline
-
-### Medium Priority
-1. **Historical Trends API** - Endpoint to fetch data from past weeks
-2. **Surf Alerts** - Email/push notifications for preferred conditions
-3. **Swell Overlay** - Animated wave height forecast on map
+### 🔍 Goal:
+Augment buoy data with **live wind speed + direction**, especially for **nearshore buoys**, using the closest available land-based or marine wind sensor.
 
 ---
 
-_Last updated: 2025-10-21 (Latest: Added wind data + basemap switcher)_
+### 🧭 Step 1: Nearest Wind Stations
+
+- **Use NOAA NDBC** station list:
+  https://www.ndbc.noaa.gov/to_station_table.shtml
+- OR use their JSON/GeoJSON endpoint for marine and coastal stations:
+  - https://www.ndbc.noaa.gov/data/stations/station_table.txt
+  - [CDIP station map](https://cdip.ucsd.edu/?nav=historic&sub=stn)
+
+For each buoy:
+- Find the **nearest wind-reporting station** within ~15–25 miles.
+- Prefer **land-based coastal stations** if buoy has no wind.
+- Save the mapping like:
+
+```json
+{
+  "46266": "L13",  // Del Mar Nearshore → Point Loma wind station
+  "46225": "L14",  // Torrey Pines Outer → Camp Pendleton
+  ...
+}
+```
+
+---
+
+### 🌬️ Step 2: Fetch Live Wind
+
+Use NOAA’s standard data endpoint:
+```
+https://www.ndbc.noaa.gov/data/latest_obs/{station}.txt
+```
+
+Parse:
+- `WDIR` = wind direction (deg)
+- `WSPD` = wind speed (m/s)
+- `GST`  = wind gust
+
+Convert m/s to knots or mph as needed.
+
+---
+
+### ⚙️ Step 3: FastAPI Enhancement
+
+- Add `nearest_wind_station` to each buoy in the `BUOY_LIST`
+- Update `/api/buoy-status/all` to fetch wind from that station
+- Include fields in response:
+  ```json
+  {
+    "wind_speed_kts": 6,
+    "wind_dir_deg": 85,
+    "wind_text": "E @ 6 kts"
+  }
+  ```
+
+---
+
+### 📌 Notes
+
+- Cache wind results for ~10 minutes to avoid rate limits
+- Handle failures gracefully: `wind: N/A`
+- For mobile performance, don’t fetch wind until popup is opened
+
+
+---
+
+_Last updated: 2025-10-21 15:53_
