@@ -540,30 +540,18 @@ export default function MapOverlay() {
             </select>
           </div>
 
-          {/* Wind Overlay Control - MVP */}
+          {/* Wind Overlay - Disabled for now (needs more work) */}
+          {false && (
           <div style={{ 
             marginTop: '12px', 
             paddingTop: '12px', 
             borderTop: '2px solid #eee' 
           }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-              🌬️ Wind Overlay
+              🌬️ Wind Overlay (Coming Soon)
             </label>
-            <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={windOverlayEnabled}
-                onChange={(e) => setWindOverlayEnabled(e.target.checked)}
-                style={{ marginRight: '6px' }}
-              />
-              Show Wind (GFS Model)
-            </label>
-            {windOverlayEnabled && (
-              <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', marginLeft: '20px' }}>
-                Real-time NOAA data
-              </div>
-            )}
           </div>
+          )}
           
           {lastUpdated && (
               <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
