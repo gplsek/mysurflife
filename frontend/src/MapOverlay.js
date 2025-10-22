@@ -189,6 +189,10 @@ export default function MapOverlay() {
   const [windOverlayEnabled, setWindOverlayEnabled] = useState(false);
   const [windData, setWindData] = useState(null);
   
+  // Mobile view state
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
+  
   // Load preferences from localStorage or use defaults
   const [units, setUnits] = useState(() => localStorage.getItem('units') || 'imperial');
   const [timezone, setTimezone] = useState(() => localStorage.getItem('timezone') || 'local');
@@ -399,6 +403,35 @@ export default function MapOverlay() {
     }
   }, [windOverlayEnabled]);
 
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // If switching to desktop, ensure detail view is hidden
+      if (!mobile) {
+        setShowMobileDetail(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Handle buoy selection on mobile
+  const handleBuoyClick = (buoy) => {
+    setSelectedBuoy(buoy);
+    if (isMobile) {
+      setShowMobileDetail(true);
+    }
+  };
+
+  // Handle closing mobile detail view
+  const handleCloseMobileDetail = () => {
+    setShowMobileDetail(false);
+    // Don't clear selectedBuoy, just hide the detail view
+  };
+
   const mapCenter = [33.0, -118.0];
 
   // Format functions
@@ -468,7 +501,8 @@ export default function MapOverlay() {
 
   return (
       <div style={{ position: 'relative', height: 'calc(100vh - 80px)', width: '100%' }}>
-        {/* Control Panel */}
+        {/* Control Panel - Hide on mobile when detail view is shown */}
+        {!(isMobile && showMobileDetail) && (
         <div style={{
           position: 'absolute',
           top: '10px',
@@ -579,8 +613,10 @@ export default function MapOverlay() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* Map Container */}
+        {/* Map Container - Hide on mobile when detail view is shown */}
+        {!(isMobile && showMobileDetail) && (
         <MapContainer center={mapCenter} zoom={6.5} style={{ height: '100%', width: '100%' }}>
           <LayersControl position="bottomleft">
             <BaseLayer checked name="OpenStreetMap">
@@ -623,7 +659,7 @@ export default function MapOverlay() {
                     position={[buoy.lat, buoy.lon]}
                     icon={getIcon(hasError ? 0 : score)}
                     eventHandlers={{
-                      click: () => setSelectedBuoy(buoy)
+                      click: () => handleBuoyClick(buoy)
                     }}
                 >
                   <Popup>
@@ -654,47 +690,84 @@ export default function MapOverlay() {
             />
           )}
         </MapContainer>
+        )}
 
-        {/* Buoy Details Panel */}
-        {selectedBuoy && (
+        {/* Buoy Details Panel - Full screen on mobile */}
+        {selectedBuoy && (isMobile ? showMobileDetail : true) && (
           <div style={{
             position: 'absolute',
-            top: '10px',
-            left: '10px',
+            top: isMobile ? '0' : '10px',
+            left: isMobile ? '0' : '10px',
+            right: isMobile ? '0' : 'auto',
+            bottom: isMobile ? '0' : 'auto',
             zIndex: 1000,
             backgroundColor: 'white',
             padding: '16px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            minWidth: '280px',
-            maxWidth: '320px',
-            maxHeight: 'calc(100vh - 20px)',
+            borderRadius: isMobile ? '0' : '8px',
+            boxShadow: isMobile ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
+            minWidth: isMobile ? 'auto' : '280px',
+            maxWidth: isMobile ? 'none' : '320px',
+            width: isMobile ? '100%' : 'auto',
+            height: isMobile ? '100%' : 'auto',
+            maxHeight: isMobile ? 'none' : 'calc(100vh - 20px)',
             overflowY: 'auto'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#0066cc' }}>
+              <h3 style={{ margin: 0, fontSize: isMobile ? '20px' : '16px', color: '#0066cc' }}>
                 {selectedBuoy.name || `Buoy ${selectedBuoy.station}`}
               </h3>
               <button
-                onClick={() => setSelectedBuoy(null)}
+                onClick={() => isMobile ? handleCloseMobileDetail() : setSelectedBuoy(null)}
                 style={{
                   background: 'none',
                   border: 'none',
-                  fontSize: '20px',
+                  fontSize: isMobile ? '28px' : '20px',
                   cursor: 'pointer',
                   color: '#666',
                   padding: '0',
-                  width: '24px',
-                  height: '24px',
+                  width: isMobile ? '32px' : '24px',
+                  height: isMobile ? '32px' : '24px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
-                title="Close"
+                title={isMobile ? "Back to Map" : "Close"}
               >
                 ✕
               </button>
             </div>
+            
+            {/* Buoy Selector - Mobile Only */}
+            {isMobile && buoys.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '6px' }}>
+                  Switch Buoy:
+                </label>
+                <select
+                  value={selectedBuoy.station}
+                  onChange={(e) => {
+                    const buoy = buoys.find(b => b.station === e.target.value);
+                    if (buoy) {
+                      setSelectedBuoy(buoy);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    fontSize: '14px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  {buoys.map(buoy => (
+                    <option key={buoy.station} value={buoy.station}>
+                      {buoy.name || `Buoy ${buoy.station}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             
             {selectedBuoy.error ? (
               <div style={{ color: '#d32f2f', fontSize: '14px' }}>
