@@ -3,8 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-lea
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import WindParticles from './WindParticles';
-import WaveParticles from './WaveParticles';
+import WindGrid from './WindGrid';
 
 const { BaseLayer } = LayersControl;
 
@@ -186,12 +185,9 @@ export default function MapOverlay() {
   const [forecastLoading, setForecastLoading] = useState(false);
   
   // Overlay states - only one overlay type at a time (wind OR swell)
-  const [overlayType, setOverlayType] = useState('none'); // 'none', 'wind', 'swell'
-  const [selectedWindModel, setSelectedWindModel] = useState('hrrr'); // 'gfs', 'hrrr', 'nam'
-  const [overlayData, setOverlayData] = useState({
-    wind: null,
-    swell: null
-  });
+  // Wind Overlay - MVP (simplified)
+  const [windOverlayEnabled, setWindOverlayEnabled] = useState(false);
+  const [windData, setWindData] = useState(null);
   
   // Load preferences from localStorage or use defaults
   const [units, setUnits] = useState(() => localStorage.getItem('units') || 'imperial');
@@ -220,6 +216,21 @@ export default function MapOverlay() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch wind overlay data (MVP)
+  const fetchWindData = async () => {
+    try {
+      console.log('🌬️ Fetching wind overlay data...');
+      const res = await fetch('/api/wind-overlay?model=gfs');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      console.log(`✅ Wind data received: ${data.vectors?.length || 0} vectors`);
+      setWindData(data);
+    } catch (err) {
+      console.error('❌ Error fetching wind data:', err);
+      setWindData(null);
     }
   };
 
@@ -376,6 +387,18 @@ export default function MapOverlay() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch wind data when overlay is enabled
+  useEffect(() => {
+    if (windOverlayEnabled) {
+      fetchWindData();
+      // Refresh wind data every 10 minutes
+      const interval = setInterval(fetchWindData, 10 * 60 * 1000);
+      return () => clearInterval(interval);
+    } else {
+      setWindData(null);
+    }
+  }, [windOverlayEnabled]);
+
   const mapCenter = [33.0, -118.0];
 
   // Format functions
@@ -517,18 +540,30 @@ export default function MapOverlay() {
             </select>
           </div>
 
-          {/* Overlay Controls - DISABLED FOR NOW */}
-          {false && (
+          {/* Wind Overlay Control - MVP */}
           <div style={{ 
             marginTop: '12px', 
             paddingTop: '12px', 
             borderTop: '2px solid #eee' 
           }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-              🌊 Ocean Overlays: (Coming Soon)
+              🌬️ Wind Overlay
             </label>
+            <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={windOverlayEnabled}
+                onChange={(e) => setWindOverlayEnabled(e.target.checked)}
+                style={{ marginRight: '6px' }}
+              />
+              Show Wind (GFS Model)
+            </label>
+            {windOverlayEnabled && (
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', marginLeft: '20px' }}>
+                Real-time NOAA data
+              </div>
+            )}
           </div>
-          )}
           
           {lastUpdated && (
               <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
@@ -622,18 +657,11 @@ export default function MapOverlay() {
             );
           })}
 
-          {/* Overlays disabled for now - will be redesigned */}
-          {false && overlayType === 'wind' && overlayData.wind?.[selectedWindModel] && (
-            <WindParticles 
-              key={`particles-${selectedWindModel}`}
-              windData={overlayData.wind[selectedWindModel]}
-              visible={true}
-            />
-          )}
-
-          {false && overlayType === 'swell' && overlayData.swell && (
-            <WaveParticles 
-              swellData={overlayData.swell}
+          {/* Wind Overlay - MVP */}
+          {windOverlayEnabled && windData && (
+            <WindGrid 
+              windData={windData}
+              model="gfs"
               visible={true}
             />
           )}

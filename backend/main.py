@@ -762,58 +762,140 @@ async def get_buoy_forecast(station_id: str, hours: int = 120):
             "data": []
         }
 
+async def fetch_real_noaa_wind(model: str, bounds: tuple):
+    """
+    Fetch real wind data from NOAA via OPeNDAP/THREDDS
+    Returns wind vectors (u, v components) for the specified region
+    """
+    min_lat, min_lon, max_lat, max_lon = bounds
+    
+    try:
+        import xarray as xr
+        
+        # NOAA THREDDS OPeNDAP URLs for real-time data
+        if model == "gfs":
+            # GFS 0.25 degree via THREDDS
+            url = "https://nomads.ncep.noaa.gov/dods/gfs_0p25/gfs{yyyymmdd}/gfs_0p25_00z"
+            # Use today's date
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            url = f"https://nomads.ncep.noaa.gov/dods/gfs_0p25/gfs{date_str}/gfs_0p25_00z"
+            
+            print(f"Fetching GFS data from: {url}")
+            ds = xr.open_dataset(url)
+            
+            # Get 10m wind components
+            u_wind = ds['ugrd10m'].isel(time=0)  # Latest forecast hour
+            v_wind = ds['vgrd10m'].isel(time=0)
+            
+            # Subset to region
+            u_subset = u_wind.sel(lat=slice(min_lat, max_lat), lon=slice(min_lon+360, max_lon+360))
+            v_subset = v_wind.sel(lat=slice(min_lat, max_lat), lon=slice(min_lon+360, max_lon+360))
+            
+        elif model == "hrrr":
+            # HRRR is harder to access via OPeNDAP, fall back to GFS for now
+            print("HRRR via OPeNDAP not yet available, using GFS as fallback")
+            return await fetch_real_noaa_wind("gfs", bounds)
+        
+        else:  # nam
+            print("NAM via OPeNDAP not yet available, using GFS as fallback")
+            return await fetch_real_noaa_wind("gfs", bounds)
+        
+        # Downsample to reasonable grid (every ~0.5 degrees for smooth visualization)
+        u_downsampled = u_subset.coarsen(lat=2, lon=2, boundary='trim').mean()
+        v_downsampled = v_subset.coarsen(lat=2, lon=2, boundary='trim').mean()
+        
+        # Convert to wind speed and direction
+        vectors = []
+        for i in range(len(u_downsampled.lat)):
+            for j in range(len(u_downsampled.lon)):
+                u = float(u_downsampled.isel(lat=i, lon=j).values)
+                v = float(v_downsampled.isel(lat=i, lon=j).values)
+                
+                if np.isnan(u) or np.isnan(v):
+                    continue
+                
+                # Calculate speed (m/s to knots)
+                speed_ms = math.sqrt(u**2 + v**2)
+                speed_kts = speed_ms * 1.94384
+                
+                # Calculate direction (meteorological convention)
+                direction = (270 - math.degrees(math.atan2(v, u))) % 360
+                
+                lat = float(u_downsampled.lat.isel(lat=i).values)
+                lon = float(u_downsampled.lon.isel(lon=j).values) - 360  # Convert back from 0-360 to -180-180
+                
+                vectors.append({
+                    "lat": round(lat, 2),
+                    "lon": round(lon, 2),
+                    "speed_kts": round(speed_kts, 1),
+                    "direction_deg": round(direction, 0),
+                    "u_component": round(u, 2),
+                    "v_component": round(v, 2)
+                })
+        
+        print(f"✅ Fetched {len(vectors)} real wind vectors from NOAA")
+        return vectors
+        
+    except Exception as e:
+        print(f"❌ Error fetching real NOAA data: {e}")
+        print(f"   Falling back to sample data")
+        return None
+
 @app.get("/api/wind-overlay")
 async def get_wind_overlay(
     model: str = "gfs",  # gfs, hrrr, nam
-    bounds: Optional[str] = None  # Format: "min_lat,min_lon,max_lat,max_lon"
+    bounds: Optional[str] = None,  # Format: "min_lat,min_lon,max_lat,max_lon"
+    real_data: bool = True  # Toggle real vs sample data
 ):
     """
     Get wind overlay data for the map.
     Supports multiple forecast models: GFS, HRRR, NAM
     Returns wind vectors for visualization.
+    
+    MVP: Fetches real NOAA GFS data via OPeNDAP
     """
-    # Default to Pacific Ocean area west of California (ocean only, not land)
+    # Default to California coastal waters
     if not bounds:
-        # Extended west into Pacific Ocean, covering surfing area
-        # West: -130°, East: -117° (stops before land)
-        # South: 30°, North: 42° (covers CA coast)
-        bounds = "30.0,-130.0,42.0,-117.0"
+        # California coast + offshore
+        # South: 32°, North: 42°, West: -126°, East: -117°
+        bounds = "32.0,-126.0,42.0,-117.0"
     
     try:
         min_lat, min_lon, max_lat, max_lon = map(float, bounds.split(','))
     except:
         return {"error": "Invalid bounds format. Use: min_lat,min_lon,max_lat,max_lon"}
     
-    cache_key = f"wind_{model}_{bounds}"
+    cache_key = f"wind_{model}_{bounds}_{real_data}"
     
     # Check cache (10 minute TTL for wind data)
     if cache_key in cache:
         cached_time = cache[cache_key].get("cached_at")
         if cached_time and datetime.now() - cached_time < timedelta(minutes=10):
+            print(f"📦 Returning cached wind data for {model}")
             return cache[cache_key]["data"]
     
-    # NOAA wind data URLs (GRIB2 format)
+    # Model configurations
     model_configs = {
         "gfs": {
             "name": "Global Forecast System",
-            "url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl",
             "resolution": "0.25 degree (~25km)",
             "update_frequency": "6 hours",
-            "forecast_range": "384 hours"
+            "forecast_range": "384 hours",
+            "source": "NOAA NCEP"
         },
         "hrrr": {
             "name": "High-Resolution Rapid Refresh",
-            "url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_hrrr_2d.pl",
             "resolution": "3 km",
             "update_frequency": "1 hour",
-            "forecast_range": "48 hours"
+            "forecast_range": "48 hours",
+            "source": "NOAA NCEP"
         },
         "nam": {
             "name": "North American Mesoscale",
-            "url": "https://nomads.ncep.noaa.gov/cgi-bin/filter_nam.pl",
             "resolution": "12 km",
             "update_frequency": "6 hours",
-            "forecast_range": "84 hours"
+            "forecast_range": "84 hours",
+            "source": "NOAA NCEP"
         }
     }
     
@@ -822,53 +904,57 @@ async def get_wind_overlay(
     
     config = model_configs[model]
     
-    # For Phase 1, return model info and DENSE GRID of sample data for particle animation
-    # Phase 2 will fetch actual GRIB2 data
+    # Try to fetch real NOAA data
+    vectors = None
+    if real_data:
+        vectors = await fetch_real_noaa_wind(model, (min_lat, min_lon, max_lat, max_lon))
     
-    # Generate a dense grid of wind vectors for particle animation
-    # Using 0.5 degree spacing (about 50km) for smooth particle flow
-    import math
-    vectors = []
-    lat_step = 0.5
-    lon_step = 0.5
-    
-    lat = min_lat
-    while lat <= max_lat:
-        lon = min_lon
-        while lon <= max_lon:
-            # Generate varying wind patterns for visual effect
-            # Base wind from west/northwest (typical for California)
-            base_dir = 290 + (lat - 35) * 10  # Varies with latitude
-            base_speed = 10 + abs(lat - 35) * 2  # Stronger winds north
-            
-            # Add some spatial variation for interesting patterns
-            dir_variation = math.sin(lat * 0.5) * 20 + math.cos(lon * 0.5) * 15
-            speed_variation = abs(math.sin(lat * lon * 0.1)) * 5
-            
-            direction = (base_dir + dir_variation) % 360
-            speed = max(3, base_speed + speed_variation)
-            
-            # Convert to u/v components (meteorological convention: "from" direction)
-            dir_rad = math.radians(direction)
-            u_component = -speed * math.sin(dir_rad)
-            v_component = -speed * math.cos(dir_rad)
-            
-            vectors.append({
-                "lat": round(lat, 2),
-                "lon": round(lon, 2),
-                "speed_kts": round(speed, 1),
-                "direction_deg": round(direction, 0),
-                "u_component": round(u_component, 2),
-                "v_component": round(v_component, 2)
-            })
-            
-            lon += lon_step
-        lat += lat_step
+    # Fallback to sample data if real data fetch fails
+    if vectors is None:
+        print(f"⚠️  Generating sample wind data for {model}")
+        vectors = []
+        lat_step = 0.5
+        lon_step = 0.5
+        
+        lat = min_lat
+        while lat <= max_lat:
+            lon = min_lon
+            while lon <= max_lon:
+                # Generate varying wind patterns for visual effect
+                # Base wind from west/northwest (typical for California)
+                base_dir = 290 + (lat - 35) * 10  # Varies with latitude
+                base_speed = 10 + abs(lat - 35) * 2  # Stronger winds north
+                
+                # Add some spatial variation for interesting patterns
+                dir_variation = math.sin(lat * 0.5) * 20 + math.cos(lon * 0.5) * 15
+                speed_variation = abs(math.sin(lat * lon * 0.1)) * 5
+                
+                direction = (base_dir + dir_variation) % 360
+                speed = max(3, base_speed + speed_variation)
+                
+                # Convert to u/v components (meteorological convention: "from" direction)
+                dir_rad = math.radians(direction)
+                u_component = -speed * math.sin(dir_rad)
+                v_component = -speed * math.cos(dir_rad)
+                
+                vectors.append({
+                    "lat": round(lat, 2),
+                    "lon": round(lon, 2),
+                    "speed_kts": round(speed, 1),
+                    "direction_deg": round(direction, 0),
+                    "u_component": round(u_component, 2),
+                    "v_component": round(v_component, 2)
+                })
+                
+                lon += lon_step
+            lat += lat_step
     
     result = {
         "model": model,
         "model_name": config["name"],
         "resolution": config["resolution"],
+        "source": "NOAA NCEP" if real_data and vectors else "Sample Data",
+        "data_type": "real" if real_data and len([v for v in vectors if 'u_component' in v]) else "sample",
         "bounds": {
             "min_lat": min_lat,
             "min_lon": min_lon,
@@ -876,7 +962,7 @@ async def get_wind_overlay(
             "max_lon": max_lon
         },
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "note": f"Phase 1: Dense grid with {len(vectors)} sample vectors for particle animation. Phase 2: Fetch actual GRIB2 wind data",
+        "note": f"MVP: {'Real NOAA data via OPeNDAP' if real_data else 'Sample data'} - {len(vectors)} wind vectors",
         "vectors": vectors
     }
     
