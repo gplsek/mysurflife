@@ -1,0 +1,44 @@
+# Systemd Service File for MySurfLife Backend
+# File location: /etc/systemd/system/mysurflife-backend.service
+# 
+# Commands:
+#   sudo systemctl enable mysurflife-backend  # Enable on boot
+#   sudo systemctl start mysurflife-backend   # Start service
+#   sudo systemctl stop mysurflife-backend    # Stop service
+#   sudo systemctl restart mysurflife-backend # Restart service
+#   sudo systemctl status mysurflife-backend  # Check status
+#   sudo journalctl -u mysurflife-backend -f  # View logs
+
+[Unit]
+Description=MySurfLife FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/mysurflife/backend
+Environment="PATH=/var/www/mysurflife/backend/venv/bin"
+
+# Start command
+ExecStart=/var/www/mysurflife/backend/venv/bin/uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 4 \
+    --log-level info
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
