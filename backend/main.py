@@ -800,9 +800,10 @@ async def fetch_real_noaa_wind(model: str, bounds: tuple):
             print("NAM via OPeNDAP not yet available, using GFS as fallback")
             return await fetch_real_noaa_wind("gfs", bounds)
         
-        # Downsample to reasonable grid (every ~0.5 degrees for smooth visualization)
-        u_downsampled = u_subset.coarsen(lat=2, lon=2, boundary='trim').mean()
-        v_downsampled = v_subset.coarsen(lat=2, lon=2, boundary='trim').mean()
+        # Use native GFS 0.25° resolution for dense, smooth coverage
+        # No downsampling needed - provides ~4 data points per degree
+        u_downsampled = u_subset
+        v_downsampled = v_subset
         
         # Convert to wind speed and direction
         vectors = []
@@ -854,11 +855,11 @@ async def get_wind_overlay(
     
     MVP: Fetches real NOAA GFS data via OPeNDAP
     """
-    # Default to California coastal waters
+    # Default to larger area to cover entire map view
     if not bounds:
-        # California coast + offshore
-        # South: 32°, North: 42°, West: -126°, East: -117°
-        bounds = "32.0,-126.0,42.0,-117.0"
+        # Expanded to cover full Pacific coast view
+        # South: 28°, North: 48°, West: -135°, East: -110°
+        bounds = "28.0,-135.0,48.0,-110.0"
     
     try:
         min_lat, min_lon, max_lat, max_lon = map(float, bounds.split(','))
@@ -913,8 +914,9 @@ async def get_wind_overlay(
     if vectors is None:
         print(f"⚠️  Generating sample wind data for {model}")
         vectors = []
-        lat_step = 0.5
-        lon_step = 0.5
+        # Denser grid for smooth coverage
+        lat_step = 0.3
+        lon_step = 0.3
         
         lat = min_lat
         while lat <= max_lat:

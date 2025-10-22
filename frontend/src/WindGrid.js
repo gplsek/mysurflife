@@ -108,8 +108,9 @@ const WindGrid = ({ windData, model, visible }) => {
 
       ctx.save();
       ctx.translate(x, y);
-      // Rotate to wind direction (where it's going, not coming from)
-      ctx.rotate((direction) * Math.PI / 180);
+      // Rotate to wind direction - ADD 180° because meteorological convention is "FROM" direction
+      // We want to show where wind is GOING (opposite of where it's coming from)
+      ctx.rotate((direction + 180) * Math.PI / 180);
 
       // Arrow shaft
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
@@ -133,7 +134,7 @@ const WindGrid = ({ windData, model, visible }) => {
     }
 
     /**
-     * Draw smooth wind grid
+     * Draw smooth wind grid (iWindsurf style - no visible grid lines)
      */
     function drawWindGrid() {
       // Clear canvas
@@ -142,61 +143,88 @@ const WindGrid = ({ windData, model, visible }) => {
       const bounds = map.getBounds();
       const zoom = map.getZoom();
       
-      // Adaptive cell size based on zoom level
-      const cellSize = zoom < 6 ? 60 : zoom < 8 ? 50 : 40;
+      // Adaptive cell size - LARGER for smoother appearance
+      const cellSize = zoom < 6 ? 80 : zoom < 8 ? 70 : 60;
 
-      // Group vectors by cell for smoother rendering
-      const cellMap = new Map();
-
+      // Build spatial index of wind data
+      const spatialIndex = new Map();
+      
       windData.vectors.forEach(vector => {
         const point = map.latLngToContainerPoint([vector.lat, vector.lon]);
-
-        // Skip if out of bounds
-        if (point.x < -cellSize || point.x > canvas.width + cellSize ||
-            point.y < -cellSize || point.y > canvas.height + cellSize) {
-          return;
+        
+        // Store in spatial index
+        const gridX = Math.floor(point.x / cellSize);
+        const gridY = Math.floor(point.y / cellSize);
+        const key = `${gridX},${gridY}`;
+        
+        if (!spatialIndex.has(key)) {
+          spatialIndex.set(key, []);
         }
-
-        // Snap to grid
-        const cellX = Math.floor(point.x / cellSize) * cellSize;
-        const cellY = Math.floor(point.y / cellSize) * cellSize;
-        const cellKey = `${cellX},${cellY}`;
-
-        if (!cellMap.has(cellKey)) {
-          cellMap.set(cellKey, []);
-        }
-        cellMap.get(cellKey).push({
+        spatialIndex.get(key).push({
           ...vector,
           x: point.x,
           y: point.y
         });
       });
 
-      // Draw cells
-      cellMap.forEach((vectors, cellKey) => {
+      // Fill entire canvas with smooth gradient
+      // Cover ENTIRE visible area, not just where we have data
+      for (let x = -cellSize; x < canvas.width + cellSize; x += cellSize) {
+        for (let y = -cellSize; y < canvas.height + cellSize; y += cellSize) {
+          const gridX = Math.floor(x / cellSize);
+          const gridY = Math.floor(y / cellSize);
+          
+          // Find nearest wind data (search in surrounding cells)
+          let nearestVector = null;
+          let minDist = Infinity;
+          
+          // Search in 3x3 grid around this cell
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              const key = `${gridX + dx},${gridY + dy}`;
+              const vectors = spatialIndex.get(key);
+              
+              if (vectors) {
+                vectors.forEach(v => {
+                  const dist = Math.sqrt((v.x - x) ** 2 + (v.y - y) ** 2);
+                  if (dist < minDist) {
+                    minDist = dist;
+                    nearestVector = v;
+                  }
+                });
+              }
+            }
+          }
+          
+          if (nearestVector) {
+            // Draw smooth colored cell (NO BORDERS - fills blend together)
+            const color = getWindSpeedColor(nearestVector.speed_kts);
+            ctx.fillStyle = color;
+            
+            // Draw slightly larger than cell size to eliminate gaps
+            ctx.fillRect(x - 1, y - 1, cellSize + 2, cellSize + 2);
+          }
+        }
+      }
+      
+      // Draw arrows AFTER background (on top layer)
+      spatialIndex.forEach((vectors, key) => {
         if (vectors.length === 0) return;
-
-        // Average wind speed and direction for this cell
+        
+        // Average wind for this cell
         const avgSpeed = vectors.reduce((sum, v) => sum + v.speed_kts, 0) / vectors.length;
         const avgDir = vectors.reduce((sum, v) => sum + v.direction_deg, 0) / vectors.length;
         const centerX = vectors[0].x;
         const centerY = vectors[0].y;
-
-        // Draw colored background cell
-        const color = getWindSpeedColor(avgSpeed);
-        ctx.fillStyle = color;
-        ctx.fillRect(
-          centerX - cellSize / 2,
-          centerY - cellSize / 2,
-          cellSize,
-          cellSize
-        );
-
-        // Draw arrow at cell center
-        drawArrow(ctx, centerX, centerY, avgDir, avgSpeed);
+        
+        // Only draw arrow if in visible area
+        if (centerX >= 0 && centerX <= canvas.width && 
+            centerY >= 0 && centerY <= canvas.height) {
+          drawArrow(ctx, centerX, centerY, avgDir, avgSpeed);
+        }
       });
 
-      console.log(`🎨 WindGrid: Drew ${cellMap.size} grid cells`);
+      console.log(`🎨 WindGrid: Smooth coverage - ${spatialIndex.size} cells filled entire canvas`);
     }
 
     // Initial draw
