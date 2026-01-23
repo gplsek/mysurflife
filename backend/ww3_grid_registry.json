@@ -1,0 +1,256 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-12-19T14:48:41.270015",
+  "source": "NOAA NOMADS GFSWave OPeNDAP + WW3 GitHub Repository",
+  "domains": [
+    {
+      "id": "global_0p16",
+      "name": "Global 0.16\u00b0",
+      "domain": "global",
+      "resolution": {
+        "lat_step": 0.16,
+        "lon_step": 0.16,
+        "lat_step_km": 17.8,
+        "lon_step_km": 17.8
+      },
+      "bounds": {
+        "min_lat": -90.0,
+        "max_lat": 90.0,
+        "min_lon": -180.0,
+        "max_lon": 180.0
+      },
+      "source": "NOAA GFSWave Global",
+      "opendap_pattern": "gfswave.global.0p16_{HH}z",
+      "variables": {
+        "wave_height": {
+          "name": "htsgwsfc",
+          "description": "Significant wave height",
+          "units": "meters",
+          "standard_name": "sea_surface_wave_significant_height"
+        },
+        "wave_direction": {
+          "name": "dirpwsfc",
+          "description": "Mean wave direction",
+          "units": "degrees",
+          "standard_name": "sea_surface_wave_from_direction"
+        },
+        "wave_period": {
+          "name": "perpwsfc",
+          "description": "Peak wave period",
+          "units": "seconds",
+          "standard_name": "sea_surface_wave_period_at_variance_spectral_density_maximum"
+        }
+      },
+      "use_cases": [
+        "global_overview",
+        "zoom_0_6"
+      ],
+      "update_frequency": "6 hours",
+      "forecast_range": "180 hours"
+    },
+    {
+      "id": "epacif_0p16",
+      "name": "Eastern Pacific 0.16\u00b0",
+      "domain": "epacif",
+      "resolution": {
+        "lat_step": 0.16,
+        "lon_step": 0.16,
+        "lat_step_km": 17.8,
+        "lon_step_km": 17.8
+      },
+      "bounds": {
+        "min_lat": 0.0,
+        "max_lat": 60.0,
+        "min_lon": -180.0,
+        "max_lon": -80.0
+      },
+      "source": "NOAA GFSWave Eastern Pacific",
+      "opendap_pattern": "gfswave.epacif.0p16_{HH}z",
+      "variables": {
+        "wave_height": {
+          "name": "htsgwsfc",
+          "description": "Significant wave height",
+          "units": "meters",
+          "standard_name": "sea_surface_wave_significant_height"
+        },
+        "wave_direction": {
+          "name": "dirpwsfc",
+          "description": "Mean wave direction",
+          "units": "degrees",
+          "standard_name": "sea_surface_wave_from_direction"
+        },
+        "wave_period": {
+          "name": "perpwsfc",
+          "description": "Peak wave period",
+          "units": "seconds",
+          "standard_name": "sea_surface_wave_period_at_variance_spectral_density_maximum"
+        }
+      },
+      "use_cases": [
+        "california_coast",
+        "pacific_northwest",
+        "zoom_7_9"
+      ],
+      "update_frequency": "6 hours",
+      "forecast_range": "180 hours"
+    },
+    {
+      "id": "atlocn_0p16",
+      "name": "Atlantic 0.16\u00b0",
+      "domain": "atlocn",
+      "resolution": {
+        "lat_step": 0.16,
+        "lon_step": 0.16,
+        "lat_step_km": 17.8,
+        "lon_step_km": 17.8
+      },
+      "bounds": {
+        "min_lat": 0.0,
+        "max_lat": 60.0,
+        "min_lon": -100.0,
+        "max_lon": 20.0
+      },
+      "source": "NOAA GFSWave Atlantic",
+      "opendap_pattern": "gfswave.atlocn.0p16_{HH}z",
+      "variables": {
+        "wave_height": {
+          "name": "htsgwsfc",
+          "description": "Significant wave height",
+          "units": "meters",
+          "standard_name": "sea_surface_wave_significant_height"
+        },
+        "wave_direction": {
+          "name": "dirpwsfc",
+          "description": "Mean wave direction",
+          "units": "degrees",
+          "standard_name": "sea_surface_wave_from_direction"
+        },
+        "wave_period": {
+          "name": "perpwsfc",
+          "description": "Peak wave period",
+          "units": "seconds",
+          "standard_name": "sea_surface_wave_period_at_variance_spectral_density_maximum"
+        }
+      },
+      "use_cases": [
+        "east_coast",
+        "gulf_of_mexico",
+        "zoom_7_9"
+      ],
+      "update_frequency": "6 hours",
+      "forecast_range": "180 hours"
+    },
+    {
+      "id": "wcoast_0p08",
+      "name": "West Coast 0.08\u00b0 (Future)",
+      "domain": "wcoast",
+      "resolution": {
+        "lat_step": 0.08,
+        "lon_step": 0.08,
+        "lat_step_km": 8.9,
+        "lon_step_km": 8.9
+      },
+      "bounds": {
+        "min_lat": 25.0,
+        "max_lat": 50.0,
+        "min_lon": -130.0,
+        "max_lon": -110.0
+      },
+      "source": "NOAA GFSWave West Coast Regional (Future)",
+      "opendap_pattern": "gfswave.wcoast.0p08_{HH}z",
+      "variables": {
+        "wave_height": {
+          "name": "htsgwsfc",
+          "description": "Significant wave height",
+          "units": "meters",
+          "standard_name": "sea_surface_wave_significant_height"
+        },
+        "wave_direction": {
+          "name": "dirpwsfc",
+          "description": "Mean wave direction",
+          "units": "degrees",
+          "standard_name": "sea_surface_wave_from_direction"
+        },
+        "wave_period": {
+          "name": "perpwsfc",
+          "description": "Peak wave period",
+          "units": "seconds",
+          "standard_name": "sea_surface_wave_period_at_variance_spectral_density_maximum"
+        }
+      },
+      "use_cases": [
+        "california_nearshore",
+        "zoom_10_plus"
+      ],
+      "update_frequency": "6 hours",
+      "forecast_range": "180 hours",
+      "status": "planned"
+    }
+  ],
+  "resolution_map": {
+    "0.16": [
+      "global_0p16",
+      "epacif_0p16",
+      "atlocn_0p16"
+    ],
+    "0.08": [
+      "wcoast_0p08"
+    ]
+  },
+  "zoom_selection": {
+    "0-6": {
+      "recommended": "global_0p16",
+      "alternatives": []
+    },
+    "7-9": {
+      "recommended": "epacif_0p16",
+      "alternatives": [
+        "global_0p16"
+      ]
+    },
+    "10+": {
+      "recommended": "wcoast_0p08",
+      "alternatives": [
+        "epacif_0p16"
+      ]
+    }
+  },
+  "bbox_selection": {
+    "california": {
+      "bbox": [
+        30.0,
+        -130.0,
+        42.0,
+        -117.0
+      ],
+      "recommended": "epacif_0p16",
+      "alternatives": [
+        "global_0p16"
+      ]
+    },
+    "pacific_northwest": {
+      "bbox": [
+        42.0,
+        -130.0,
+        50.0,
+        -120.0
+      ],
+      "recommended": "epacif_0p16",
+      "alternatives": [
+        "global_0p16"
+      ]
+    },
+    "east_coast": {
+      "bbox": [
+        25.0,
+        -85.0,
+        45.0,
+        -65.0
+      ],
+      "recommended": "atlocn_0p16",
+      "alternatives": [
+        "global_0p16"
+      ]
+    }
+  }
+}
