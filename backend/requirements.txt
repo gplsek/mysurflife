@@ -4,3 +4,5 @@ httpx
 netCDF4
 xarray
 numpy
+pytest
+redis>=7.0.0

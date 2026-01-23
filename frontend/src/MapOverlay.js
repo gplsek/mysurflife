@@ -1,9 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMap, Pane, useMapEvents } from 'react-leaflet';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import WindGrid from './WindGrid';
+import WindCanvasLayer from './WindCanvasLayer';
+import WindParticlesLayer from './WindParticlesLayer';
+import WindSpeedLegend from './WindSpeedLegend';
+import WindField from './WindField';
+import WaveCanvasLayer from './WaveCanvasLayer';
+import WaveParticlesLayer from './WaveParticlesLayer';
+import WaveHeightLegend from './WaveHeightLegend';
+import WaveField from './WaveField';
 
 const { BaseLayer } = LayersControl;
 
@@ -170,6 +178,19 @@ const scoreBuoy = (b) => {
   return Math.floor(score);
 };
 
+// Component to get map instance and expose it to parent
+function MapRefExposer({ onMapReady }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (map && onMapReady) {
+      onMapReady(map);
+    }
+  }, [map, onMapReady]);
+  
+  return null;
+}
+
 export default function MapOverlay() {
   const [buoys, setBuoys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -185,9 +206,284 @@ export default function MapOverlay() {
   const [forecastLoading, setForecastLoading] = useState(false);
   
   // Overlay states - only one overlay type at a time (wind OR swell)
-  // Wind Overlay - MVP (simplified)
+  // Wind Overlay - MVP (simplified) - default OFF on page load
   const [windOverlayEnabled, setWindOverlayEnabled] = useState(false);
   const [windData, setWindData] = useState(null);
+  
+  // Overlay type management
+  const [overlayType, setOverlayType] = useState('none'); // 'none', 'wind', 'waves' (default to none - buoys only)
+  const [currentZoom, setCurrentZoom] = useState(6); // Track current map zoom for UI updates
+  const [selectedWindModel, setSelectedWindModel] = useState('gfs');
+  const [overlayData, setOverlayData] = useState({});
+  const [showWindParticles, setShowWindParticles] = useState(true); // Toggle for particle layer
+  const [windProbe, setWindProbe] = useState(null); // { lat, lng } for wind probe popup
+  const windFieldRef = useRef(null); // Cached WindField instance for probe
+  
+  // Wave overlay state
+  const [waveData, setWaveData] = useState(null);
+  const [showWaveParticles, setShowWaveParticles] = useState(false); // Default off
+  const [waveProbe, setWaveProbe] = useState(null); // { lat, lng } for wave probe popup
+  const waveFieldRef = useRef(null); // Cached WaveField instance for probe
+
+  // Wave frames (time slider) state
+  const [waveFrames, setWaveFrames] = useState(null); // {model, run, date, cycle, hours, times_utc}
+  const [waveFramesLoading, setWaveFramesLoading] = useState(false);
+  const [waveFramesCache, setWaveFramesCache] = useState(null); // Client-side cache: {data, cachedAt}
+  const waveFramesCacheRef = useRef(null); // Ref to track cache without triggering re-renders
+  const [selectedWaveFrameIndex, setSelectedWaveFrameIndex] = useState(0);
+  const [isWavePlaying, setIsWavePlaying] = useState(false);
+  const [hoveredWaveFrameIndex, setHoveredWaveFrameIndex] = useState(null);
+  const wavePlayTimerRef = useRef(null);
+
+  // PERFORMANCE: Debounce and cancellation refs for wave slider
+  const waveSliderDebounceRef = useRef(null);
+  const waveRenderTokenRef = useRef(0);
+
+  // Wind frames (time slider) state
+  const [windFrames, setWindFrames] = useState(null); // {model, run, date, cycle, hours, cadence_note}
+  const [windFramesLoading, setWindFramesLoading] = useState(false);
+  const [windFramesCache, setWindFramesCache] = useState(null); // Client-side cache: {data, cachedAt, model}
+  const windFramesCacheRef = useRef(null); // Ref to track cache without triggering re-renders
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hoveredFrameIndex, setHoveredFrameIndex] = useState(null);
+  
+  // Derived: selected forecast hour and timestamp from frames
+  const selectedForecastHour = windFrames?.hours?.[selectedFrameIndex];
+  const selectedTimeUtc = windFrames?.times_utc?.[selectedFrameIndex] ?? null;
+  
+  // Format timestamps for display
+  const forecastDate = selectedTimeUtc ? new Date(selectedTimeUtc) : null;
+  const forecastUtcLabel = forecastDate ? forecastDate.toUTCString() : "—";
+  const forecastLocalLabel = forecastDate ? forecastDate.toLocaleString() : "—";
+  
+  // Compute daily tick metadata for footer timeline (Windy-style)
+  const timesUtc = windFrames?.times_utc ?? [];
+  let lastDay = null;
+  const dailyTicks = timesUtc
+    .map((t, idx) => {
+      const d = new Date(t);
+      const dayKey = d.toISOString().split('T')[0]; // YYYY-MM-DD
+      const isNewDay = dayKey !== lastDay;
+      lastDay = dayKey;
+      
+      return isNewDay ? {
+        idx,
+        label: d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit' }),
+        date: d
+      } : null;
+    })
+    .filter(t => t !== null); // Only keep day boundaries
+
+  // Derived: selected forecast hour and timestamp from wave frames
+  const selectedWaveForecastHour = waveFrames?.hours?.[selectedWaveFrameIndex] ?? 0;
+  const selectedWaveTimeUtc = waveFrames?.times_utc?.[selectedWaveFrameIndex] ?? null;
+
+  // Format timestamps for display (wave)
+  const waveForecastDate = selectedWaveTimeUtc ? new Date(selectedWaveTimeUtc) : null;
+  const waveForecastUtcLabel = waveForecastDate ? waveForecastDate.toUTCString() : "—";
+  const waveForecastLocalLabel = waveForecastDate ? waveForecastDate.toLocaleString() : "—";
+
+  // Compute daily tick metadata for wave timeline
+  const waveTimesUtc = waveFrames?.times_utc ?? [];
+  let lastWaveDay = null;
+  const waveDailyTicks = waveTimesUtc
+    .map((t, idx) => {
+      const d = new Date(t);
+      const dayKey = d.toISOString().split('T')[0]; // YYYY-MM-DD
+      const isNewDay = dayKey !== lastWaveDay;
+      lastWaveDay = dayKey;
+
+      return isNewDay ? {
+        idx,
+        label: d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit' }),
+        date: d
+      } : null;
+    })
+    .filter(t => t !== null); // Only keep day boundaries
+
+  // Timeline time formatting helpers
+  const formatTimelineDayTime = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const day = d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit' });
+    if (timezone === 'utc') {
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      return `${day} ${hh}:00Z`;
+    }
+    return `${day} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const formatTimelineHourOnly = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (timezone === 'utc') {
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      return `${hh}:00Z`;
+    }
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  };
+  
+  // Map reference
+  const mapRef = useRef(null);
+  
+  // Animation and caching refs
+  const playTimerRef = useRef(null);
+  const windDataCacheRef = useRef(new Map()); // key: `${model}|${bbox}|${hour}`
+  const waveDataCacheRef = useRef(new Map()); // key: `${model}|${bbox}|${hour}`
+
+  // Round bbox to 0.25° grid (matches backend rounding for cache sharing)
+  // This dramatically improves cache hit rates during zoom
+  const roundBbox = useCallback((bbox) => {
+    const parts = bbox.split(',').map(Number);
+    if (parts.length !== 4) return bbox;
+
+    const [minLat, minLon, maxLat, maxLon] = parts;
+    const gridSize = 0.25;
+
+    const roundedMinLat = Math.floor(minLat / gridSize) * gridSize;
+    const roundedMinLon = Math.floor(minLon / gridSize) * gridSize;
+    const roundedMaxLat = Math.ceil(maxLat / gridSize) * gridSize;
+    const roundedMaxLon = Math.ceil(maxLon / gridSize) * gridSize;
+
+    return `${roundedMinLat},${roundedMinLon},${roundedMaxLat},${roundedMaxLon}`;
+  }, []);
+
+  // Helper to build cache keys
+  const makeWindKey = useCallback(({ model, bbox, hour }) => `${model}|${bbox}|${hour}`, []);
+  const makeWaveKey = useCallback(({ model, bbox, hour, source = 'global' }) => {
+    const roundedBbox = roundBbox(bbox); // Round to match backend cache key
+    return `${model}|${roundedBbox}|${hour}|${source}`;
+  }, [roundBbox]);
+  
+  // Fetch wind frame with caching
+  const fetchWindFrame = useCallback(async ({ model, bbox, hour }) => {
+    const key = makeWindKey({ model, bbox, hour });
+    
+    // Return cached data if available
+    if (windDataCacheRef.current.has(key)) {
+      console.log(`📦 Using cached wind data for ${model} hour ${hour}`);
+      return windDataCacheRef.current.get(key);
+    }
+    
+    // Fetch new data
+    const url = `/api/wind-overlay?model=${model}&forecast_hour=${hour}&bounds=${bbox}&real_data=true`;
+    console.log(`🌬️ Fetching wind overlay: forecast_hour=${hour}, bounds=${bbox}`);
+    
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      
+      // Cache the result
+      windDataCacheRef.current.set(key, data);
+      console.log(`✅ Cached wind overlay frame: +${hour}h, vectors: ${data.vectors?.length ?? 0}`);
+      
+      return data;
+    } catch (err) {
+      console.error(`❌ Error fetching wind frame:`, err);
+      throw err;
+    }
+  }, [makeWindKey]);
+  
+  // Fetch wave data with caching and zoom-based source selection
+  const fetchWaveData = useCallback(async ({ model, bbox, hour = 0, zoom = null }) => {
+    // Minimum zoom level check - prevent massive bbox requests at low zoom
+    // At zoom < 4, the bbox becomes too large (entire Pacific) and causes:
+    // 1. OPeNDAP timeouts or very slow responses
+    // 2. Too much data to render (tens of thousands of vectors)
+    // 3. Poor user experience (nothing renders for many seconds)
+    const MIN_ZOOM = 4;
+    if (zoom !== null && zoom < MIN_ZOOM) {
+      console.warn(`⚠️ Wave overlay requires zoom ≥ ${MIN_ZOOM} (current: ${zoom}). Zoom in to see wave data.`);
+      return { vectors: [], debug: { message: `Zoom in to see wave data (minimum zoom: ${MIN_ZOOM})` } };
+    }
+
+    // Determine source based on zoom level (like Windy.com)
+    // Zoom ≤ 6: global (WW3/GFSWave for offshore context)
+    // Zoom 7-9: regional (future: higher-res regional model)
+    // Zoom ≥ 10: nearshore (future: coastal detail model)
+    let source = 'global';
+    if (zoom !== null) {
+      if (zoom >= 10) {
+        source = 'nearshore';
+      } else if (zoom >= 7) {
+        source = 'regional';
+      } else {
+        source = 'global';
+      }
+    }
+    
+    const key = makeWaveKey({ model, bbox, hour, source });
+    
+    // Return cached data if available
+    if (waveDataCacheRef.current.has(key)) {
+      console.log(`📦 Using cached wave data for ${model} hour ${hour} source ${source}`);
+      return waveDataCacheRef.current.get(key);
+    }
+    
+    // Fetch new data with source parameter
+    const url = `/api/waves-overlay?model=${model}&forecast_hour=${hour}&bounds=${bbox}&source=${source}`;
+    console.log(`🌊 Fetching wave overlay: forecast_hour=${hour}, bounds=${bbox}, source=${source} (zoom=${zoom})`);
+    
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const rawData = await res.json();
+      
+      // Normalize and validate vectors (Task S2)
+      if (rawData.vectors && Array.isArray(rawData.vectors)) {
+        const normalizedVectors = rawData.vectors.map(v => {
+          // Normalize property names
+          const normalized = {
+            lat: v.lat ?? v.latitude,
+            lon: v.lon ?? v.lng ?? v.longitude,
+            hs: v.hs ?? v.wave_height_m ?? v.height_m ?? v.height,
+            dir_deg: v.dir_deg ?? v.dir ?? v.direction_deg ?? v.direction
+          };
+          
+          // Validate lat/lon ranges
+          if (normalized.lat < -90 || normalized.lat > 90) {
+            console.warn(`Invalid lat: ${normalized.lat}`, v);
+          }
+          if (normalized.lon < -180 || normalized.lon > 180) {
+            console.warn(`Invalid lon: ${normalized.lon}`, v);
+          }
+          
+          return normalized;
+        }).filter(v => 
+          v.lat != null && v.lon != null && 
+          v.hs != null && v.dir_deg != null &&
+          v.lat >= -90 && v.lat <= 90 &&
+          v.lon >= -180 && v.lon <= 180
+        );
+        
+        // Log debug info (Task S2)
+        console.log('🌊 Wave data received:', {
+          rawCount: rawData.vectors.length,
+          normalizedCount: normalizedVectors.length,
+          debug: rawData.debug,
+          first3: normalizedVectors.slice(0, 3)
+        });
+        
+        // Replace vectors with normalized ones
+        rawData.vectors = normalizedVectors;
+      }
+      
+      // Cache the result
+      waveDataCacheRef.current.set(key, rawData);
+      console.log(`✅ Cached wave overlay frame: +${hour}h, vectors: ${rawData.vectors?.length ?? 0}`);
+      
+      return rawData;
+    } catch (err) {
+      console.error(`❌ Error fetching wave data:`, err);
+      throw err;
+    }
+  }, [makeWaveKey]);
   
   // Mobile view state
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -205,6 +501,26 @@ export default function MapOverlay() {
   useEffect(() => {
     localStorage.setItem('timezone', timezone);
   }, [timezone]);
+
+  // Track map zoom level for UI updates (warning messages, etc.)
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    // Set initial zoom
+    setCurrentZoom(map.getZoom());
+
+    // Update zoom on change
+    const handleZoomChange = () => {
+      setCurrentZoom(map.getZoom());
+    };
+
+    map.on('zoomend', handleZoomChange);
+
+    return () => {
+      map.off('zoomend', handleZoomChange);
+    };
+  }, [mapRef.current]);
 
   const fetchBuoyData = async () => {
     try {
@@ -359,8 +675,9 @@ export default function MapOverlay() {
       setOverlayType(type);
       if (type === 'wind') {
         fetchWindOverlay(selectedWindModel);
-      } else if (type === 'swell') {
-        fetchSwellOverlay();
+      } else if (type === 'waves') {
+        // Wave data is fetched via useEffect when overlayType changes
+        // No need to call fetchSwellOverlay here
       }
     }
   };
@@ -370,6 +687,86 @@ export default function MapOverlay() {
     setSelectedWindModel(model);
     if (overlayType === 'wind') {
       fetchWindOverlay(model);
+    }
+  };
+
+  // Time slider handlers
+  const handlePrevFrame = () => {
+    if (windFrames && windFrames.hours && selectedFrameIndex > 0) {
+      setSelectedFrameIndex(prev => prev - 1);
+      setIsPlaying(false); // Stop playing when manually stepping
+    }
+  };
+
+  const handleNextFrame = () => {
+    if (windFrames && windFrames.hours && selectedFrameIndex < windFrames.hours.length - 1) {
+      setSelectedFrameIndex(prev => prev + 1);
+      setIsPlaying(false); // Stop playing when manually stepping
+    }
+  };
+
+  const handlePlayPause = () => {
+    setIsPlaying(prev => !prev);
+  };
+
+  const handleWavePlayPause = () => {
+    setIsWavePlaying(prev => !prev);
+  };
+
+  const handleSliderChange = (e) => {
+    const newIndex = parseInt(e.target.value, 10);
+    setSelectedFrameIndex(newIndex);
+    // Don't stop playing when scrubbing - allow user to scrub while playing
+  };
+
+  // Refresh wind frames (clears cache and fetches fresh data)
+  const handleRefreshWindFrames = async () => {
+    if (overlayType !== 'wind' || !selectedWindModel) return;
+    
+    console.log(`🔄 Refreshing wind frames for ${selectedWindModel}`);
+    
+    // Clear cache to force refresh
+    setWindFramesCache(null);
+    
+    try {
+      setWindFramesLoading(true);
+      const res = await fetch(`/api/wind/frames?model=${selectedWindModel}`);
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
+      const data = await res.json();
+      
+      if (data.error) {
+        console.error(`❌ API returned error: ${data.error}`);
+        setWindFrames(null);
+        return;
+      }
+      
+      if (!data.hours || !Array.isArray(data.hours) || data.hours.length === 0) {
+        console.error(`❌ No forecast hours available`);
+        setWindFrames(null);
+        return;
+      }
+      
+      console.log(`✅ Wind frames refreshed: ${data.hours.length} hours available`);
+      
+      // Update cache with fresh data (both state and ref)
+      const cacheEntry = {
+        data: data,
+        cachedAt: Date.now(),
+        model: selectedWindModel
+      };
+      setWindFramesCache(cacheEntry);
+      windFramesCacheRef.current = cacheEntry;
+      
+      setWindFrames(data);
+      setSelectedFrameIndex(0);
+    } catch (err) {
+      console.error(`❌ Error refreshing wind frames:`, err);
+      setWindFrames(null);
+    } finally {
+      setWindFramesLoading(false);
     }
   };
 
@@ -402,6 +799,596 @@ export default function MapOverlay() {
       setWindData(null);
     }
   }, [windOverlayEnabled]);
+
+  // Fetch wind frames when wind overlay is enabled (with client-side caching)
+  useEffect(() => {
+    if (overlayType !== 'wind') {
+      // When wind mode is disabled, keep cache but clear current frames
+      setWindFrames(null);
+      setSelectedFrameIndex(0);
+      setIsPlaying(false);
+      return;
+    }
+
+    // Check if we have cached frames for this model that are still valid
+    // Use ref to check cache without including it in dependencies
+    const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+    const now = Date.now();
+    const cache = windFramesCacheRef.current || windFramesCache;
+    
+    if (cache && 
+        cache.model === selectedWindModel &&
+        cache.cachedAt &&
+        (now - cache.cachedAt) < CACHE_DURATION_MS &&
+        cache.data) {
+      console.log(`📦 Using cached wind frames for ${selectedWindModel}`);
+      setWindFrames(cache.data);
+      return; // Use cached data, don't fetch
+    }
+    
+    // Fetch frames if we don't have valid cached data
+    let cancelled = false;
+    const fetchFrames = async (model) => {
+      try {
+        setWindFramesLoading(true);
+        console.log(`🕐 Fetching wind frames for model: ${model}`);
+        const res = await fetch(`/api/wind/frames?model=${model}`);
+        if (cancelled) return;
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
+        const data = await res.json();
+        
+        if (cancelled) return;
+        
+        // Check if response has an error field
+        if (data.error) {
+          console.error(`❌ API returned error: ${data.error}`);
+          setWindFrames(null);
+          return;
+        }
+        
+        // Check if hours array exists and has data
+        if (!data.hours || !Array.isArray(data.hours) || data.hours.length === 0) {
+          console.error(`❌ No forecast hours available`);
+          setWindFrames(null);
+          return;
+        }
+        
+        console.log(`✅ Wind frames received: ${data.hours.length} hours available`);
+        
+        // Update cache (both state and ref)
+        const cacheEntry = {
+          data: data,
+          cachedAt: Date.now(),
+          model: model
+        };
+        setWindFramesCache(cacheEntry);
+        windFramesCacheRef.current = cacheEntry;
+        
+        setWindFrames(data);
+        setSelectedFrameIndex(0);
+      } catch (err) {
+        if (!cancelled) {
+          console.error(`❌ Error fetching wind frames:`, err);
+          setWindFrames(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setWindFramesLoading(false);
+        }
+      }
+    };
+    
+    fetchFrames(selectedWindModel);
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayType, selectedWindModel]);
+
+  // Fetch wave frames (forecast hours) when wave overlay is active
+  useEffect(() => {
+    if (overlayType !== 'waves') return;
+
+    // Check if we have cached frames that are still valid
+    const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+    const now = Date.now();
+    const cache = waveFramesCacheRef.current || waveFramesCache;
+
+    if (cache &&
+        cache.cachedAt &&
+        (now - cache.cachedAt) < CACHE_DURATION_MS &&
+        cache.data) {
+      console.log(`📦 Using cached wave frames`);
+      setWaveFrames(cache.data);
+      return; // Use cached data, don't fetch
+    }
+
+    // Fetch frames if we don't have valid cached data
+    let cancelled = false;
+    const fetchFrames = async () => {
+      try {
+        setWaveFramesLoading(true);
+        console.log(`🌊 Fetching wave frames (forecast hours)...`);
+        const res = await fetch(`/api/waves/run-availability`);
+        if (cancelled) return;
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        // Check if response has an error field
+        if (data.error) {
+          console.error(`❌ API returned error: ${data.error}`);
+          setWaveFrames(null);
+          return;
+        }
+
+        // Check if hours array exists and has data
+        if (!data.hours || !Array.isArray(data.hours) || data.hours.length === 0) {
+          console.error(`❌ No wave forecast hours available`);
+          setWaveFrames(null);
+          return;
+        }
+
+        console.log(`✅ Wave frames received: ${data.hours.length} hours available (0-${data.hours[data.hours.length - 1]}h)`);
+
+        // Update cache (both state and ref)
+        const cacheEntry = {
+          data: data,
+          cachedAt: Date.now()
+        };
+        setWaveFramesCache(cacheEntry);
+        waveFramesCacheRef.current = cacheEntry;
+
+        setWaveFrames(data);
+        setSelectedWaveFrameIndex(0);
+      } catch (err) {
+        if (!cancelled) {
+          console.error(`❌ Error fetching wave frames:`, err);
+          setWaveFrames(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setWaveFramesLoading(false);
+        }
+      }
+    };
+
+    fetchFrames();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayType]);
+
+  // Handle wave play/pause animation
+  useEffect(() => {
+    if (!isWavePlaying) {
+      // Clear timer if not playing
+      if (wavePlayTimerRef.current) {
+        clearInterval(wavePlayTimerRef.current);
+        wavePlayTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (overlayType !== 'waves') {
+      return;
+    }
+
+    if (!waveFrames?.hours?.length) {
+      return;
+    }
+
+    // Start animation loop
+    wavePlayTimerRef.current = setInterval(() => {
+      setSelectedWaveFrameIndex(prev => {
+        const next = prev + 1;
+        if (next >= waveFrames.hours.length) {
+          setIsWavePlaying(false); // Stop at end
+          return prev;
+        }
+        return next;
+      });
+    }, 500); // 500ms per frame (2 frames/sec, similar to wind)
+
+    return () => {
+      if (wavePlayTimerRef.current) {
+        clearInterval(wavePlayTimerRef.current);
+        wavePlayTimerRef.current = null;
+      }
+    };
+  }, [isWavePlaying, overlayType, waveFrames]);
+
+  // PERFORMANCE: Debounced handler for wave frame changes
+  // Prevents multiple overlapping fetches/renders when scrubbing slider
+  const handleWaveFrameChange = useCallback((newIndex) => {
+    // Cancel any pending debounced fetch
+    if (waveSliderDebounceRef.current) {
+      clearTimeout(waveSliderDebounceRef.current);
+    }
+
+    // Update UI immediately for responsive feedback
+    setSelectedWaveFrameIndex(newIndex);
+
+    // Increment render token to invalidate any in-flight renders
+    waveRenderTokenRef.current++;
+    const currentToken = waveRenderTokenRef.current;
+
+    // Debounce the actual data fetch/render (150ms)
+    waveSliderDebounceRef.current = setTimeout(() => {
+      console.log(`🎬 Wave frame changed to index ${newIndex} (token=${currentToken})`);
+      // The useEffect watching selectedWaveForecastHour will trigger fetch
+      // No need to manually fetch here - just let the effect handle it
+    }, 150);
+  }, []);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (waveSliderDebounceRef.current) {
+        clearTimeout(waveSliderDebounceRef.current);
+      }
+    };
+  }, []);
+
+  // Handle wind play/pause animation
+  useEffect(() => {
+    if (!isPlaying) {
+      // Clear timer if not playing
+      if (playTimerRef.current) {
+        clearInterval(playTimerRef.current);
+        playTimerRef.current = null;
+      }
+      return;
+    }
+    
+    if (overlayType !== 'wind') {
+      return;
+    }
+    
+    if (!windFrames?.hours?.length) {
+      return;
+    }
+    
+    // Start animation loop
+    playTimerRef.current = setInterval(() => {
+      setSelectedFrameIndex(prev => {
+        const last = windFrames.hours.length - 1;
+        // Wrap to beginning when reaching the end
+        return prev >= last ? 0 : prev + 1;
+      });
+    }, 700); // 700ms per frame (tunable)
+    
+    return () => {
+      if (playTimerRef.current) {
+        clearInterval(playTimerRef.current);
+        playTimerRef.current = null;
+      }
+    };
+  }, [isPlaying, overlayType, windFrames]);
+
+  // Fetch wind overlay data when forecast hour or map bounds change (with caching and prefetching)
+  useEffect(() => {
+    if (overlayType !== 'wind') {
+      setWindData(null);
+      return;
+    }
+    
+    if (selectedForecastHour == null) {
+      setWindData(null);
+      return;
+    }
+    
+    if (!mapRef.current) {
+      return;
+    }
+    
+    // Get map bounds
+    const bounds = mapRef.current.getBounds();
+    const bbox = [
+      bounds.getSouth(),
+      bounds.getWest(),
+      bounds.getNorth(),
+      bounds.getEast()
+    ].join(',');
+    
+    let cancelled = false;
+    
+    // Fetch current frame and prefetch next
+    (async () => {
+      try {
+        // Fetch current frame (uses cache if available)
+        const data = await fetchWindFrame({ 
+          model: selectedWindModel, 
+          bbox, 
+          hour: selectedForecastHour 
+        });
+        
+        if (!cancelled) {
+          setWindData(data);
+        }
+        
+        // Prefetch next frame
+        const nextIndex = Math.min(selectedFrameIndex + 1, (windFrames?.hours?.length ?? 1) - 1);
+        const nextHour = windFrames?.hours?.[nextIndex];
+        if (nextHour != null && nextHour !== selectedForecastHour && !cancelled) {
+          // Prefetch in background (don't await, just cache it)
+          fetchWindFrame({ 
+            model: selectedWindModel, 
+            bbox, 
+            hour: nextHour 
+          }).catch(() => {
+            // Silently fail prefetch - not critical
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error(`❌ Error fetching wind overlay:`, err);
+          setWindData(null);
+        }
+      }
+    })();
+    
+    // Also listen for map move/zoom events to refetch with new bounds
+    let mapChangeTimeout = null;
+    const map = mapRef.current;
+    const handleMapChange = () => {
+      // Clear existing timeout
+      if (mapChangeTimeout) {
+        clearTimeout(mapChangeTimeout);
+      }
+      
+      // Debounce map changes (wait 300ms after last movement)
+      mapChangeTimeout = setTimeout(() => {
+        if (overlayType === 'wind' && selectedForecastHour != null && mapRef.current && !cancelled) {
+          const newBounds = mapRef.current.getBounds();
+          const newBbox = [
+            newBounds.getSouth(),
+            newBounds.getWest(),
+            newBounds.getNorth(),
+            newBounds.getEast()
+          ].join(',');
+          
+          // Use fetchWindFrame for map changes too (with caching)
+          fetchWindFrame({ 
+            model: selectedWindModel, 
+            bbox: newBbox, 
+            hour: selectedForecastHour 
+          }).then(data => {
+            if (!cancelled) {
+              console.log(`✅ Wind overlay updated (map moved): +${selectedForecastHour}h, vectors: ${data.vectors?.length ?? 0}`);
+              setWindData(data);
+            }
+          }).catch(err => {
+            if (!cancelled) {
+              console.error(`❌ Error updating wind overlay:`, err);
+            }
+          });
+        }
+      }, 300);
+    };
+    
+    map.on('moveend', handleMapChange);
+    map.on('zoomend', handleMapChange);
+    
+    return () => {
+      cancelled = true;
+      if (mapChangeTimeout) {
+        clearTimeout(mapChangeTimeout);
+      }
+      map.off('moveend', handleMapChange);
+      map.off('zoomend', handleMapChange);
+    };
+  }, [overlayType, selectedForecastHour, selectedWindModel, selectedFrameIndex, windFrames, fetchWindFrame]);
+
+  // Rebuild WindField when windData changes (for probe)
+  useEffect(() => {
+    if (overlayType === 'wind' && windData?.vectors?.length) {
+      const wf = new WindField(windData.vectors);
+      windFieldRef.current = wf?.valid ? wf : null;
+    } else {
+      windFieldRef.current = null;
+    }
+  }, [overlayType, windData]);
+  
+  // Rebuild WaveField when waveData changes (for probe)
+  useEffect(() => {
+    if (overlayType === 'waves' && waveData?.vectors?.length) {
+      const wf = new WaveField(waveData.vectors);
+      waveFieldRef.current = wf?.valid ? wf : null;
+    } else {
+      waveFieldRef.current = null;
+    }
+  }, [overlayType, waveData]);
+  
+  // Fetch wave data when waves overlay is enabled OR when map bounds change (zoom/pan)
+  useEffect(() => {
+    if (overlayType !== 'waves') {
+      setWaveData(null);
+      return;
+    }
+    
+    let cancelled = false;
+    let mapChangeTimeout = null;
+    
+    // Function to fetch wave data for current map bounds
+    const fetchWaveDataForBounds = async (retryCount = 0) => {
+      // Prevent infinite retries
+      if (retryCount > 50) {
+        console.warn('🌊 Wave data fetch: Max retries reached, map may not be ready');
+        return;
+      }
+      
+      // Wait for map to be initialized
+      if (!mapRef.current) {
+        console.log(`🌊 Wave data fetch: Map not ready, retry ${retryCount + 1}`);
+        setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        return;
+      }
+      
+      // Ensure map has loaded and has valid bounds
+      const map = mapRef.current;
+      
+      // Check if map has valid bounds (this works even if load event hasn't fired)
+      let bounds;
+      try {
+        bounds = map.getBounds();
+      } catch (e) {
+        console.log(`🌊 Wave data fetch: Cannot get bounds yet, retry ${retryCount + 1}`);
+        setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        return;
+      }
+      
+      if (!bounds || !bounds.isValid()) {
+        console.log(`🌊 Wave data fetch: Bounds not valid, retry ${retryCount + 1}`);
+        // If map hasn't loaded, wait for load event; otherwise retry
+        if (!map.loaded) {
+          console.log('🌊 Wave data fetch: Waiting for map load event');
+          map.once('load', () => {
+            if (!cancelled) {
+              fetchWaveDataForBounds(retryCount);
+            }
+          });
+        } else {
+          setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        }
+        return;
+      }
+      
+      try {
+        
+        const bbox = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()].join(',');
+        const zoom = map.getZoom();
+        console.log('🌊 Wave data fetch: Map ready, fetching data...');
+
+        const data = await fetchWaveData({ model: 'ww3', bbox, hour: selectedWaveForecastHour, zoom });
+        if (!cancelled) {
+          setWaveData(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error fetching wave data:', err);
+        }
+      }
+    };
+    
+    fetchWaveDataForBounds();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [overlayType, fetchWaveData, selectedWaveForecastHour]);
+  
+  // Update wave data on map move/zoom (similar to wind)
+  useEffect(() => {
+    if (overlayType !== 'waves') return;
+    
+    let cancelled = false;
+    let mapChangeTimeout = null;
+    const map = mapRef.current;
+    const handleMapChange = () => {
+      if (mapChangeTimeout) {
+        clearTimeout(mapChangeTimeout);
+      }
+      
+      // Use a shorter timeout for zoomend to ensure we fetch data quickly after zoom completes
+      // This is critical when zooming out - we need data for the expanded area immediately
+      mapChangeTimeout = setTimeout(() => {
+        if (overlayType === 'waves' && mapRef.current && !cancelled) {
+          // Get bounds after a small delay to ensure they're fully updated
+          requestAnimationFrame(() => {
+            const newBounds = mapRef.current.getBounds();
+            if (!newBounds || !newBounds.isValid()) {
+              return;
+            }
+            
+            const newBbox = [
+              newBounds.getSouth(),
+              newBounds.getWest(),
+              newBounds.getNorth(),
+              newBounds.getEast()
+            ].join(',');
+            
+            const currentZoom = mapRef.current.getZoom();
+            
+            // Always fetch on map change (zoom or pan) to ensure data covers new bounds
+            // This is critical when zooming out - we need data for the expanded area
+            console.log(`🌊 Map changed (zoom/pan), fetching wave data for new bounds (zoom=${currentZoom}, bbox=${newBbox}, hour=${selectedWaveForecastHour})...`);
+            fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom }).then(data => {
+              if (!cancelled) {
+                console.log(`✅ Wave overlay updated (map moved/zoomed): vectors: ${data.vectors?.length ?? 0}`);
+                setWaveData(data);
+              }
+            }).catch(err => {
+              if (!cancelled) {
+                console.error(`❌ Error updating wave overlay:`, err);
+              }
+            });
+          });
+        }
+      }, 100); // Shorter debounce for better responsiveness on zoom
+    };
+    
+    // Separate handler for zoomend to fetch data immediately with updated bounds
+    // CRITICAL: On zoom out, bounds expand, so we need to fetch data for the expanded area
+    // zoomend fires after bounds are fully updated, so we get the correct expanded bounds
+    const handleZoomEnd = () => {
+      // Clear any pending timeout from moveend handler
+      if (mapChangeTimeout) {
+        clearTimeout(mapChangeTimeout);
+        mapChangeTimeout = null;
+      }
+      // Fetch immediately on zoomend (bounds are fully updated by now)
+      if (overlayType === 'waves' && mapRef.current && !cancelled) {
+        const newBounds = mapRef.current.getBounds();
+        if (newBounds && newBounds.isValid()) {
+          const newBbox = [
+            newBounds.getSouth(),
+            newBounds.getWest(),
+            newBounds.getNorth(),
+            newBounds.getEast()
+          ].join(',');
+          const currentZoom = mapRef.current.getZoom();
+          console.log(`🌊 Zoom ended, fetching wave data for expanded bounds (zoom=${currentZoom}, bbox=${newBbox}, hour=${selectedWaveForecastHour})...`);
+          fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom }).then(data => {
+            if (!cancelled) {
+              console.log(`✅ Wave overlay updated (zoom ended): vectors: ${data.vectors?.length ?? 0}`);
+              setWaveData(data);
+            }
+          }).catch(err => {
+            if (!cancelled) {
+              console.error(`❌ Error updating wave overlay:`, err);
+            }
+          });
+        }
+      }
+    };
+    
+    if (map) {
+      map.on('moveend', handleMapChange);
+      map.on('zoomend', handleZoomEnd); // Separate handler for immediate fetch on zoom
+    }
+    
+    return () => {
+      cancelled = true;
+      if (mapChangeTimeout) {
+        clearTimeout(mapChangeTimeout);
+      }
+      if (map) {
+        map.off('moveend', handleMapChange);
+        map.off('zoomend', handleZoomEnd);
+      }
+    };
+  }, [overlayType, fetchWaveData, selectedWaveForecastHour]);
 
   // Handle window resize for mobile detection
   useEffect(() => {
@@ -499,8 +1486,774 @@ export default function MapOverlay() {
     return `${directions[index]} (${Math.round(degrees)}°)`;
   };
 
+  // Helper for compass direction (16-point)
+  const degToCompass16 = (deg) => {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return dirs[Math.round(deg / 22.5) % 16];
+  };
+
+  // Wind Probe Click Handler Component
+  function WindProbeClickHandler({ enabled, onPick }) {
+    useMapEvents({
+      click(e) {
+        if (!enabled) return;
+        
+        const target = e.originalEvent?.target;
+        if (!target) {
+          onPick(e.latlng);
+          return;
+        }
+        
+        // Check if clicking on interactive UI elements (buttons, controls, etc.)
+        if (target.closest('button') || 
+            target.closest('.leaflet-control') ||
+            target.closest('.leaflet-popup') ||
+            target.closest('[role="button"]') ||
+            target.closest('input') ||
+            target.closest('select') ||
+            target.closest('textarea')) {
+          return;
+        }
+        
+        // Check if clicking on the probe popup itself (more specific - check for our popup structure)
+        const popupContainer = target.closest('div[style*="z-index: 1200"]');
+        if (popupContainer) {
+          // Only prevent if it's actually our wind probe popup (has the wind data structure)
+          const hasWindContent = popupContainer.querySelector('[style*="font-weight: bold"]');
+          if (hasWindContent) {
+            return; // Don't create new probe when clicking on existing popup
+          }
+        }
+        
+        // Allow the click to create a new probe
+        onPick(e.latlng);
+      }
+    });
+    return null;
+  }
+
+  // Wind Probe Overlay Component
+  function WindProbeOverlay({ probe, setProbe, windField, units }) {
+    const map = useMap();
+    const elRef = useRef(null);
+    const draggingRef = useRef(false);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const [screenPos, setScreenPos] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const dragHandlersRef = useRef({ move: null, up: null, leave: null });
+    const animationFrameRef = useRef(null);
+    const pendingUpdateRef = useRef(null);
+
+    // Update screen position on map move/zoom (but not during drag)
+    useEffect(() => {
+      if (!probe) return;
+      // Don't update screen position if we're currently dragging (we're updating DOM directly)
+      if (draggingRef.current) return;
+      
+      const update = () => {
+        // Don't update if dragging
+        if (draggingRef.current) return;
+        const pt = map.latLngToContainerPoint([probe.lat, probe.lng]);
+        setScreenPos({ x: pt.x, y: pt.y });
+      };
+      update();
+      map.on('move zoom resize', update);
+      return () => {
+        map.off('move zoom resize', update);
+      };
+    }, [map, probe]);
+
+
+    if (!probe || !windField) return null;
+
+    // Compute wind at probe
+    const vec = windField.getVector(probe.lat, probe.lng);
+    const speedMs = vec ? Math.sqrt(vec.u * vec.u + vec.v * vec.v) : null;
+
+    // Convert to display units
+    const speed = speedMs == null ? null : (units === 'imperial' ? msToMph(speedMs) : msToKph(speedMs));
+    const speedLabel = speed == null ? '—' : `${Math.round(speed)} ${units === 'imperial' ? 'mph' : 'km/h'}`;
+
+    // Compute meteorological "from" direction and "to" direction (for arrow)
+    let dirDeg = null; // "from" direction for display
+    let arrowDeg = null; // "to" direction for arrow (where wind is going)
+    if (vec) {
+      const degTo = (Math.atan2(vec.u, vec.v) * 180 / Math.PI + 360) % 360;
+      dirDeg = (degTo + 180) % 360; // "from" direction
+      arrowDeg = degTo; // "to" direction (where wind is going)
+    }
+
+    const compass = dirDeg == null ? '—' : degToCompass16(dirDeg);
+
+    // Cleanup effect to ensure drag state is reset and listeners are removed
+    useEffect(() => {
+      return () => {
+        // Reset drag state on unmount or probe change
+        if (draggingRef.current) {
+          draggingRef.current = false;
+          setIsDragging(false);
+        }
+        // Clean up any lingering event listeners
+        const handlers = dragHandlersRef.current;
+        if (handlers.move) {
+          window.removeEventListener('mousemove', handlers.move, { capture: true });
+          document.removeEventListener('mousemove', handlers.move, { capture: true });
+        }
+        if (handlers.up) {
+          window.removeEventListener('mouseup', handlers.up, { capture: true });
+          document.removeEventListener('mouseup', handlers.up, { capture: true });
+        }
+        if (handlers.leave) {
+          window.removeEventListener('mouseleave', handlers.leave, { capture: true });
+        }
+        dragHandlersRef.current = { move: null, up: null, leave: null };
+        // Cancel any pending animation frame
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        pendingUpdateRef.current = null;
+        setDragOffset({ x: 0, y: 0 });
+        // Ensure map dragging is re-enabled
+        if (map && map.dragging) {
+          map.dragging.enable();
+        }
+      };
+    }, [probe, map]);
+
+    const onMouseDown = useCallback((e) => {
+      // Don't start drag if clicking the close button
+      if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+        return;
+      }
+      
+      // Use Leaflet's event handling to stop propagation
+      L.DomEvent.stop(e);
+      L.DomEvent.disableClickPropagation(elRef.current);
+      
+      // Disable map dragging while we drag the popup
+      map.dragging.disable();
+      
+      // Clean up any existing listeners first
+      const oldHandlers = dragHandlersRef.current;
+      if (oldHandlers.move) {
+        window.removeEventListener('mousemove', oldHandlers.move, { capture: true });
+        document.removeEventListener('mousemove', oldHandlers.move, { capture: true });
+      }
+      if (oldHandlers.up) {
+        window.removeEventListener('mouseup', oldHandlers.up, { capture: true });
+        document.removeEventListener('mouseup', oldHandlers.up, { capture: true });
+      }
+      if (oldHandlers.leave) {
+        window.removeEventListener('mouseleave', oldHandlers.leave, { capture: true });
+      }
+      
+      draggingRef.current = true;
+      setIsDragging(true);
+      const rect = elRef.current.getBoundingClientRect();
+      const mapRect = map.getContainer().getBoundingClientRect();
+      // Store initial screen position at drag start
+      const initialScreenX = screenPos.x;
+      const initialScreenY = screenPos.y;
+      // Calculate offset from mouse to popup top-left corner
+      dragOffsetRef.current = { 
+        x: e.clientX - rect.left, 
+        y: e.clientY - rect.top,
+        initialScreenX,
+        initialScreenY
+      };
+
+      const handleMouseMove = (moveEvent) => {
+        if (!draggingRef.current) return;
+        // Stop propagation to prevent map from moving
+        L.DomEvent.stop(moveEvent);
+        
+        // Store the pending update
+        const mapRect = map.getContainer().getBoundingClientRect();
+        const x = moveEvent.clientX - mapRect.left - dragOffsetRef.current.x;
+        const y = moveEvent.clientY - mapRect.top - dragOffsetRef.current.y;
+        pendingUpdateRef.current = { x, y };
+        
+        // Use requestAnimationFrame for smooth updates
+        if (!animationFrameRef.current) {
+          animationFrameRef.current = requestAnimationFrame(() => {
+            if (!draggingRef.current || !pendingUpdateRef.current || !elRef.current) {
+              animationFrameRef.current = null;
+              return;
+            }
+            
+            const { x, y } = pendingUpdateRef.current;
+            const { initialScreenX, initialScreenY } = dragOffsetRef.current;
+            
+            // Calculate drag offset from the initial drag position
+            const offsetX = x - initialScreenX;
+            const offsetY = y - initialScreenY;
+            setDragOffset({ x: offsetX, y: offsetY });
+            
+            // Convert to lat/lng and update probe state (throttled)
+            const ll = map.containerPointToLatLng([x, y]);
+            setProbe({ lat: ll.lat, lng: ll.lng });
+            
+            animationFrameRef.current = null;
+            pendingUpdateRef.current = null;
+          });
+        }
+      };
+
+      const handleMouseUp = (upEvent) => {
+        L.DomEvent.stop(upEvent);
+        draggingRef.current = false;
+        setIsDragging(false);
+        
+        // Cancel any pending animation frame
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        
+        // Reset drag offset
+        setDragOffset({ x: 0, y: 0 });
+        
+        // Final position update if there's a pending update
+        if (pendingUpdateRef.current) {
+          const { x, y } = pendingUpdateRef.current;
+          const ll = map.containerPointToLatLng([x, y]);
+          setProbe({ lat: ll.lat, lng: ll.lng });
+          pendingUpdateRef.current = null;
+        }
+        
+        // Re-enable map dragging
+        map.dragging.enable();
+        // Remove listeners
+        window.removeEventListener('mousemove', handleMouseMove, { capture: true });
+        document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+        window.removeEventListener('mouseup', handleMouseUp, { capture: true });
+        document.removeEventListener('mouseup', handleMouseUp, { capture: true });
+        window.removeEventListener('mouseleave', handleMouseLeave, { capture: true });
+        dragHandlersRef.current = { move: null, up: null, leave: null };
+      };
+
+      const handleMouseLeave = (leaveEvent) => {
+        // Reset drag if mouse leaves window
+        if (draggingRef.current) {
+          draggingRef.current = false;
+          setIsDragging(false);
+          
+          // Cancel any pending animation frame
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          pendingUpdateRef.current = null;
+          setDragOffset({ x: 0, y: 0 });
+          
+          // Re-enable map dragging
+          map.dragging.enable();
+          window.removeEventListener('mousemove', handleMouseMove, { capture: true });
+          document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+          window.removeEventListener('mouseup', handleMouseUp, { capture: true });
+          document.removeEventListener('mouseup', handleMouseUp, { capture: true });
+          window.removeEventListener('mouseleave', handleMouseLeave, { capture: true });
+          dragHandlersRef.current = { move: null, up: null, leave: null };
+        }
+      };
+
+      // Store handlers for cleanup
+      dragHandlersRef.current = { move: handleMouseMove, up: handleMouseUp, leave: handleMouseLeave };
+
+      window.addEventListener('mousemove', handleMouseMove, { passive: false, capture: true });
+      document.addEventListener('mousemove', handleMouseMove, { passive: false, capture: true });
+      window.addEventListener('mouseup', handleMouseUp, { passive: false, capture: true });
+      document.addEventListener('mouseup', handleMouseUp, { passive: false, capture: true });
+      window.addEventListener('mouseleave', handleMouseLeave, { passive: false, capture: true });
+    }, [map, setProbe]);
+
+    // Use Leaflet's event handling on the popup container
+    useEffect(() => {
+      if (!elRef.current) return;
+      // Disable click propagation to map (prevents map click handler from firing)
+      L.DomEvent.disableClickPropagation(elRef.current);
+      // Stop drag propagation but allow clicks within the popup
+      L.DomEvent.on(elRef.current, 'mousedown', (e) => {
+        // Only stop if not clicking a button (buttons need to work)
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+          L.DomEvent.stop(e);
+        }
+      });
+      
+      return () => {
+        if (elRef.current) {
+          L.DomEvent.off(elRef.current);
+        }
+      };
+    }, []);
+
   return (
-      <div style={{ position: 'relative', height: 'calc(100vh - 80px)', width: '100%' }}>
+      <div
+        ref={elRef}
+        style={{
+          position: 'absolute',
+          left: screenPos.x,
+          top: screenPos.y,
+          transform: `translate(calc(-10px + ${dragOffset.x}px), calc(-60px + ${dragOffset.y}px))`,
+          zIndex: 1200,
+          pointerEvents: 'auto',
+          transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+        }}
+        onClick={(e) => {
+          // Stop map click handler from firing
+          L.DomEvent.stop(e);
+        }}
+      >
+        <div
+          onMouseDown={onMouseDown}
+          style={{
+            background: 'rgba(60,60,60,0.9)',
+            color: '#fff',
+            borderRadius: '6px',
+            padding: '8px 10px',
+            minWidth: '140px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            userSelect: 'none'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '12px' }}>Wind</div>
+            <button
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation();
+                e.nativeEvent?.stopImmediatePropagation?.();
+                setProbe(null); 
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.nativeEvent?.stopImmediatePropagation?.();
+                draggingRef.current = false; // Prevent drag
+              }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#fff',
+                fontSize: '18px',
+                cursor: 'pointer',
+                lineHeight: 1,
+                padding: '0 4px',
+                pointerEvents: 'auto',
+                zIndex: 1201,
+                position: 'relative'
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{ marginTop: '6px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {speedLabel}
+            {dirDeg != null && arrowDeg != null && (
+              <>
+                <span style={{ 
+                  display: 'inline-block',
+                  transform: `rotate(${arrowDeg}deg)`,
+                  fontSize: '14px'
+                }}>↑</span>
+                <span style={{ fontSize: '12px', opacity: 0.9 }}>
+                  {compass} ({Math.round(dirDeg)}°)
+                </span>
+              </>
+            )}
+          </div>
+
+          {vec === null && (
+            <div style={{ marginTop: '4px', fontSize: '10px', opacity: 0.7, fontStyle: 'italic' }}>
+              No data here
+            </div>
+          )}
+
+          <div style={{ marginTop: '6px', fontSize: '10px', opacity: 0.8 }}>
+            Click map to move • Drag to reposition
+          </div>
+        </div>
+
+        {/* Anchor dot */}
+        <div style={{
+          width: '8px',
+          height: '8px',
+          background: '#fff',
+          borderRadius: '50%',
+          marginLeft: '10px',
+          marginTop: '6px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)'
+        }} />
+      </div>
+    );
+  }
+
+  // Wave Probe Click Handler Component
+  function WaveProbeClickHandler({ enabled, onPick }) {
+    useMapEvents({
+      click(e) {
+        if (!enabled) return;
+        
+        const target = e.originalEvent?.target;
+        if (!target) {
+          onPick(e.latlng);
+          return;
+        }
+        
+        // Check if clicking on interactive UI elements
+        if (target.closest('button') || 
+            target.closest('.leaflet-control') ||
+            target.closest('.leaflet-popup') ||
+            target.closest('[role="button"]') ||
+            target.closest('input') ||
+            target.closest('select') ||
+            target.closest('textarea')) {
+          return;
+        }
+        
+        // Check if clicking on the probe popup itself
+        const popupContainer = target.closest('div[style*="z-index: 1200"]');
+        if (popupContainer) {
+          const hasWaveContent = popupContainer.querySelector('[style*="font-weight: bold"]');
+          if (hasWaveContent) {
+            return;
+          }
+        }
+        
+        onPick(e.latlng);
+      }
+    });
+    return null;
+  }
+
+  // Wave Probe Overlay Component (similar to WindProbeOverlay but for waves)
+  function WaveProbeOverlay({ probe, setProbe, waveField, units }) {
+    const map = useMap();
+    const elRef = useRef(null);
+    const draggingRef = useRef(false);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const [screenPos, setScreenPos] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const dragHandlersRef = useRef({ move: null, up: null, leave: null });
+    const animationFrameRef = useRef(null);
+    const pendingUpdateRef = useRef(null);
+
+    // Update screen position on map move/zoom (but not during drag)
+    useEffect(() => {
+      if (!probe) return;
+      if (draggingRef.current) return;
+      
+      const update = () => {
+        if (draggingRef.current) return;
+        const pt = map.latLngToContainerPoint([probe.lat, probe.lng]);
+        setScreenPos({ x: pt.x, y: pt.y });
+      };
+      update();
+      map.on('move zoom resize', update);
+      return () => {
+        map.off('move zoom resize', update);
+      };
+    }, [map, probe]);
+
+    if (!probe || !waveField) return null;
+
+    // Compute wave at probe
+    const vec = waveField.getVector(probe.lat, probe.lng);
+    const hsMeters = vec ? vec.hs : null;
+    
+    // Convert to display units
+    const hsFeet = hsMeters == null ? null : hsMeters * 3.28084;
+    const hsLabel = hsMeters == null ? '—' : `${units === 'imperial' ? Math.round(hsFeet) : hsMeters.toFixed(1)} ${units === 'imperial' ? 'ft' : 'm'}`;
+
+    // Wave direction (meteorological - where waves are coming FROM)
+    const dirDeg = vec ? vec.dir_deg : null;
+    const arrowDeg = dirDeg != null ? (dirDeg + 180) % 360 : null; // Show where waves are going TO
+    const compass = dirDeg == null ? '—' : degToCompass16(dirDeg);
+
+    // Cleanup effect (same as WindProbeOverlay)
+    useEffect(() => {
+      return () => {
+        if (draggingRef.current) {
+          draggingRef.current = false;
+          setIsDragging(false);
+        }
+        const handlers = dragHandlersRef.current;
+        if (handlers.move) {
+          window.removeEventListener('mousemove', handlers.move, { capture: true });
+          document.removeEventListener('mousemove', handlers.move, { capture: true });
+        }
+        if (handlers.up) {
+          window.removeEventListener('mouseup', handlers.up, { capture: true });
+          document.removeEventListener('mouseup', handlers.up, { capture: true });
+        }
+        if (handlers.leave) {
+          window.removeEventListener('mouseleave', handlers.leave, { capture: true });
+        }
+        dragHandlersRef.current = { move: null, up: null, leave: null };
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        pendingUpdateRef.current = null;
+        setDragOffset({ x: 0, y: 0 });
+        if (map && map.dragging) {
+          map.dragging.enable();
+        }
+      };
+    }, [probe, map]);
+
+    const onMouseDown = useCallback((e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+        return;
+      }
+      
+      L.DomEvent.stop(e);
+      L.DomEvent.disableClickPropagation(elRef.current);
+      map.dragging.disable();
+      
+      const oldHandlers = dragHandlersRef.current;
+      if (oldHandlers.move) {
+        window.removeEventListener('mousemove', oldHandlers.move, { capture: true });
+        document.removeEventListener('mousemove', oldHandlers.move, { capture: true });
+      }
+      if (oldHandlers.up) {
+        window.removeEventListener('mouseup', oldHandlers.up, { capture: true });
+        document.removeEventListener('mouseup', oldHandlers.up, { capture: true });
+      }
+      if (oldHandlers.leave) {
+        window.removeEventListener('mouseleave', oldHandlers.leave, { capture: true });
+      }
+      
+      draggingRef.current = true;
+      setIsDragging(true);
+      const rect = elRef.current.getBoundingClientRect();
+      const initialScreenX = screenPos.x;
+      const initialScreenY = screenPos.y;
+      dragOffsetRef.current = { 
+        x: e.clientX - rect.left, 
+        y: e.clientY - rect.top,
+        initialScreenX,
+        initialScreenY
+      };
+
+      const handleMouseMove = (moveEvent) => {
+        if (!draggingRef.current) return;
+        L.DomEvent.stop(moveEvent);
+        
+        const mapRect = map.getContainer().getBoundingClientRect();
+        const x = moveEvent.clientX - mapRect.left - dragOffsetRef.current.x;
+        const y = moveEvent.clientY - mapRect.top - dragOffsetRef.current.y;
+        pendingUpdateRef.current = { x, y };
+        
+        if (!animationFrameRef.current) {
+          animationFrameRef.current = requestAnimationFrame(() => {
+            if (!draggingRef.current || !pendingUpdateRef.current || !elRef.current) {
+              animationFrameRef.current = null;
+              return;
+            }
+            
+            const { x, y } = pendingUpdateRef.current;
+            const { initialScreenX, initialScreenY } = dragOffsetRef.current;
+            
+            const offsetX = x - initialScreenX;
+            const offsetY = y - initialScreenY;
+            setDragOffset({ x: offsetX, y: offsetY });
+            
+            const ll = map.containerPointToLatLng([x, y]);
+            setProbe({ lat: ll.lat, lng: ll.lng });
+            
+            animationFrameRef.current = null;
+            pendingUpdateRef.current = null;
+          });
+        }
+      };
+
+      const handleMouseUp = (upEvent) => {
+        L.DomEvent.stop(upEvent);
+        draggingRef.current = false;
+        setIsDragging(false);
+        
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        
+        setDragOffset({ x: 0, y: 0 });
+        
+        if (pendingUpdateRef.current) {
+          const { x, y } = pendingUpdateRef.current;
+          const ll = map.containerPointToLatLng([x, y]);
+          setProbe({ lat: ll.lat, lng: ll.lng });
+          pendingUpdateRef.current = null;
+        }
+        
+        map.dragging.enable();
+        window.removeEventListener('mousemove', handleMouseMove, { capture: true });
+        document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+        window.removeEventListener('mouseup', handleMouseUp, { capture: true });
+        document.removeEventListener('mouseup', handleMouseUp, { capture: true });
+        window.removeEventListener('mouseleave', handleMouseLeave, { capture: true });
+        dragHandlersRef.current = { move: null, up: null, leave: null };
+      };
+
+      const handleMouseLeave = (leaveEvent) => {
+        if (draggingRef.current) {
+          draggingRef.current = false;
+          setIsDragging(false);
+          
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          pendingUpdateRef.current = null;
+          setDragOffset({ x: 0, y: 0 });
+          
+          map.dragging.enable();
+          window.removeEventListener('mousemove', handleMouseMove, { capture: true });
+          document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+          window.removeEventListener('mouseup', handleMouseUp, { capture: true });
+          document.removeEventListener('mouseup', handleMouseUp, { capture: true });
+          window.removeEventListener('mouseleave', handleMouseLeave, { capture: true });
+          dragHandlersRef.current = { move: null, up: null, leave: null };
+        }
+      };
+
+      dragHandlersRef.current = { move: handleMouseMove, up: handleMouseUp, leave: handleMouseLeave };
+
+      window.addEventListener('mousemove', handleMouseMove, { passive: false, capture: true });
+      document.addEventListener('mousemove', handleMouseMove, { passive: false, capture: true });
+      window.addEventListener('mouseup', handleMouseUp, { passive: false, capture: true });
+      document.addEventListener('mouseup', handleMouseUp, { passive: false, capture: true });
+      window.addEventListener('mouseleave', handleMouseLeave, { passive: false, capture: true });
+    }, [map, setProbe, screenPos]);
+
+    // Use Leaflet's event handling on the popup container
+    useEffect(() => {
+      if (!elRef.current) return;
+      L.DomEvent.disableClickPropagation(elRef.current);
+      L.DomEvent.on(elRef.current, 'mousedown', (e) => {
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+          L.DomEvent.stop(e);
+        }
+      });
+      
+      return () => {
+        if (elRef.current) {
+          L.DomEvent.off(elRef.current);
+        }
+      };
+    }, []);
+
+    return (
+      <div
+        ref={elRef}
+        style={{
+          position: 'absolute',
+          left: screenPos.x,
+          top: screenPos.y,
+          transform: `translate(calc(-10px + ${dragOffset.x}px), calc(-60px + ${dragOffset.y}px))`,
+          zIndex: 1200,
+          pointerEvents: 'auto',
+          transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+        }}
+        onClick={(e) => {
+          L.DomEvent.stop(e);
+        }}
+      >
+        <div
+          onMouseDown={onMouseDown}
+          style={{
+            background: 'rgba(60,60,60,0.9)',
+            color: '#fff',
+            borderRadius: '6px',
+            padding: '8px 10px',
+            minWidth: '140px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.25)',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            userSelect: 'none'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '12px' }}>Waves</div>
+            <button
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation();
+                e.nativeEvent?.stopImmediatePropagation?.();
+                setProbe(null); 
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.nativeEvent?.stopImmediatePropagation?.();
+                draggingRef.current = false;
+              }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#fff',
+                fontSize: '18px',
+                cursor: 'pointer',
+                lineHeight: 1,
+                padding: '0 4px',
+                pointerEvents: 'auto',
+                zIndex: 1201,
+                position: 'relative'
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{ marginTop: '6px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {hsLabel}
+            {dirDeg != null && arrowDeg != null && (
+              <>
+                <span style={{ 
+                  display: 'inline-block',
+                  transform: `rotate(${arrowDeg}deg)`,
+                  fontSize: '14px'
+                }}>↑</span>
+                <span style={{ fontSize: '12px', opacity: 0.9 }}>
+                  {compass} ({Math.round(dirDeg)}°)
+                </span>
+              </>
+            )}
+          </div>
+
+          {vec === null && (
+            <div style={{ marginTop: '4px', fontSize: '10px', opacity: 0.7, fontStyle: 'italic' }}>
+              No data here
+            </div>
+          )}
+
+          <div style={{ marginTop: '6px', fontSize: '10px', opacity: 0.8 }}>
+            Click map to move • Drag to reposition
+          </div>
+        </div>
+
+        <div style={{
+          width: '8px',
+          height: '8px',
+          background: '#fff',
+          borderRadius: '50%',
+          marginLeft: '10px',
+          marginTop: '6px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)'
+        }} />
+      </div>
+    );
+  }
+
+  return (
+      <div style={{ position: 'relative', height: 'calc(100vh - 80px)', width: '100%', paddingBottom: overlayType === 'waves' ? '70px' : overlayType === 'wind' ? '92px' : '0px' }}>
         {/* Control Panel - Hide on mobile when detail view is shown */}
         {!(isMobile && showMobileDetail) && (
         <div style={{
@@ -574,17 +2327,205 @@ export default function MapOverlay() {
             </select>
           </div>
 
-          {/* Wind Overlay - Disabled for now (needs more work) */}
-          {false && (
+          {/* Waves Mode Toggle (Default) */}
           <div style={{ 
             marginTop: '12px', 
             paddingTop: '12px', 
             borderTop: '2px solid #eee' 
           }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-              🌬️ Wind Overlay (Coming Soon)
-            </label>
+            <button
+              onClick={() => handleOverlayTypeToggle('waves')}
+              style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: overlayType === 'waves' ? '#0066cc' : '#e0e0e0',
+                color: overlayType === 'waves' ? 'white' : '#333',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}
+            >
+              🌊 {overlayType === 'waves' ? 'Waves Mode (On)' : 'Waves Mode (Off)'}
+            </button>
+            
+            {/* Particle Layer Toggle - Only show when waves mode is active */}
+            {overlayType === 'waves' && (
+              <>
+                <div style={{
+                  marginTop: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  padding: '6px 8px',
+                  backgroundColor: '#f9f9f9',
+                  borderRadius: '4px'
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    width: '100%'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showWaveParticles}
+                      onChange={(e) => setShowWaveParticles(e.target.checked)}
+                      style={{
+                        marginRight: '8px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <span style={{ color: '#333' }}>Show Particles</span>
+                  </label>
+                </div>
+
+                {/* Zoom Warning - Show when zoomed out too far */}
+                {currentZoom < 4 && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px',
+                    backgroundColor: '#fff3cd',
+                    border: '1px solid #ffc107',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    color: '#856404',
+                    lineHeight: '1.4'
+                  }}>
+                    <strong>⚠️ Zoom in to see wave data</strong>
+                    <br />
+                    Wave overlay requires zoom level 4 or higher to prevent performance issues. Current zoom: {currentZoom}
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
+          {/* Wind Mode Toggle */}
+          <div style={{ 
+            marginTop: '12px', 
+            paddingTop: '12px', 
+            borderTop: '2px solid #eee' 
+          }}>
+            <button
+              onClick={() => handleOverlayTypeToggle('wind')}
+              style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: overlayType === 'wind' ? '#0066cc' : '#e0e0e0',
+                color: overlayType === 'wind' ? 'white' : '#333',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}
+            >
+              🌬️ {overlayType === 'wind' ? 'Wind Mode (On)' : 'Wind Mode (Off)'}
+            </button>
+            
+            {/* Particle Layer Toggle - Only show when wind mode is active */}
+            {overlayType === 'wind' && (
+              <div style={{
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+                padding: '6px 8px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '4px'
+              }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  width: '100%'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showWindParticles}
+                    onChange={(e) => setShowWindParticles(e.target.checked)}
+                    style={{
+                      marginRight: '8px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <span style={{ color: '#333' }}>Show Particles</span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Time Slider UI - Only show when wind mode is active */}
+          {overlayType === 'wind' && windFramesLoading && (
+            <div style={{ 
+              marginTop: '12px', 
+              paddingTop: '12px', 
+              borderTop: '2px solid #eee',
+              fontSize: '12px',
+              color: '#666',
+              textAlign: 'center'
+            }}>
+              Loading forecast frames...
+            </div>
+          )}
+          
+          {overlayType === 'wind' && windFrames && windFrames.hours && windFrames.hours.length > 0 && (
+            <div style={{ 
+              marginTop: '12px', 
+              paddingTop: '12px', 
+              borderTop: '2px solid #eee' 
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', color: '#666', lineHeight: '1.5' }}>
+                  <div><strong>Run:</strong> {windFrames.run}</div>
+                  <div><strong>Forecast:</strong> +{windFrames.hours[selectedFrameIndex]}h</div>
+                  <div><strong>UTC:</strong> {forecastUtcLabel}</div>
+                  <div><strong>Local:</strong> {forecastLocalLabel}</div>
+                  <div style={{ marginTop: '8px', fontSize: '10px', color: '#999', fontStyle: 'italic' }}>
+                    Timeline controls are in the footer.
+                  </div>
+                </div>
+                <button
+                  onClick={handleRefreshWindFrames}
+                  disabled={windFramesLoading}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: windFramesLoading ? '#ccc' : '#0066cc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: windFramesLoading ? 'not-allowed' : 'pointer',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    minWidth: '60px'
+                  }}
+                  title="Refresh forecast frames"
+                >
+                  {windFramesLoading ? '...' : '🔄'}
+                </button>
+              </div>
+              
+              {/* Debug UI - temporary */}
+              <div style={{ 
+                fontSize: '10px', 
+                color: '#666', 
+                marginTop: '8px', 
+                padding: '6px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '4px',
+                border: '1px solid #ddd'
+              }}>
+                <div><strong>Debug:</strong></div>
+                <div>Frame: +{selectedForecastHour}h</div>
+                <div>Vectors: {windData?.vectors?.length ?? '—'}</div>
+              </div>
+            </div>
           )}
           
           {lastUpdated && (
@@ -618,11 +2559,59 @@ export default function MapOverlay() {
         {/* Map Container - Hide on mobile when detail view is shown */}
         {!(isMobile && showMobileDetail) && (
         <MapContainer center={mapCenter} zoom={6.5} style={{ height: '100%', width: '100%' }}>
+          <MapRefExposer onMapReady={(map) => { mapRef.current = map; }} />
+          
+          {/* Wind Probe Click Handler */}
+          <WindProbeClickHandler
+            enabled={overlayType === 'wind'}
+            onPick={(latlng) => setWindProbe({ lat: latlng.lat, lng: latlng.lng })}
+          />
+          
+          {/* Wind Probe Overlay */}
+          {overlayType === 'wind' && windProbe && (
+            <WindProbeOverlay
+              probe={windProbe}
+              setProbe={setWindProbe}
+              windField={windFieldRef.current}
+              units={units}
+            />
+          )}
+          
+          {/* Wave Probe Click Handler */}
+          <WaveProbeClickHandler
+            enabled={overlayType === 'waves'}
+            onPick={(latlng) => setWaveProbe({ lat: latlng.lat, lng: latlng.lng })}
+          />
+          
+          {/* Wave Probe Overlay */}
+          {overlayType === 'waves' && waveProbe && (
+            <WaveProbeOverlay
+              probe={waveProbe}
+              setProbe={setWaveProbe}
+              waveField={waveFieldRef.current}
+              units={units}
+            />
+          )}
+          
           <LayersControl position="bottomleft">
-            <BaseLayer checked name="OpenStreetMap">
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            <BaseLayer checked={overlayType === 'none'} name="OpenStreetMap">
+        <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+            </BaseLayer>
+            
+            <BaseLayer checked={overlayType === 'wind' || overlayType === 'waves'} name="Windy Dark">
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                attribution="© OpenStreetMap © CARTO"
+              />
+            </BaseLayer>
+            
+            <BaseLayer name="Carto Voyager">
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                attribution="&copy; OpenStreetMap &copy; CARTO"
               />
             </BaseLayer>
             
@@ -648,21 +2637,32 @@ export default function MapOverlay() {
             </BaseLayer>
           </LayersControl>
           
+          {/* Labels-only layer above heatmaps for readability - show for both wind and waves */}
+          {(overlayType === 'wind' || overlayType === 'waves') && (
+            <Pane name="labels" style={{ zIndex: 650, pointerEvents: 'none' }}>
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
+                attribution="&copy; OpenStreetMap &copy; CARTO"
+                opacity={0.95}
+              />
+            </Pane>
+          )}
+          
           {/* Show buoys (overlays disabled for now) */}
-          {buoys.map((buoy) => {
-            const score = scoreBuoy(buoy);
+        {buoys.map((buoy) => {
+          const score = scoreBuoy(buoy);
             const hasError = buoy.error;
             
-            return (
-                <Marker
-                    key={buoy.station}
-                    position={[buoy.lat, buoy.lon]}
+          return (
+              <Marker
+                  key={buoy.station}
+                  position={[buoy.lat, buoy.lon]}
                     icon={getIcon(hasError ? 0 : score)}
                     eventHandlers={{
                       click: () => handleBuoyClick(buoy)
                     }}
-                >
-                  <Popup>
+              >
+                <Popup>
                     <div style={{ textAlign: 'center' }}>
                       <strong style={{ fontSize: '14px' }}>
                         {buoy.name || `Buoy ${buoy.station}`}
@@ -676,20 +2676,70 @@ export default function MapOverlay() {
                         </>
                       )}
                     </div>
-                  </Popup>
-                </Marker>
-            );
-          })}
+                </Popup>
+              </Marker>
+          );
+        })}
 
-          {/* Wind Overlay - MVP */}
-          {windOverlayEnabled && windData && (
-            <WindGrid 
+          {/* Wind Overlay - Windy-style (heatmap + particles) */}
+          {overlayType === 'wind' && windData && windData.vectors && windData.vectors.length > 0 && (
+            <>
+              <WindCanvasLayer
+                windData={windData}
+                visible={true}
+              />
+              {showWindParticles && (
+                <WindParticlesLayer
+                  windData={windData}
+                  visible={true}
+                />
+              )}
+            </>
+          )}
+          
+          {/* Wave Overlay - Heatmap + optional particles */}
+          {overlayType === 'waves' && waveData && waveData.vectors && waveData.vectors.length > 0 && (
+            <>
+              <WaveCanvasLayer
+                waveData={waveData}
+                visible={true}
+                units={units}
+              />
+              {showWaveParticles && (
+                <WaveParticlesLayer
+                  waveData={waveData}
+                  visible={true}
+                />
+              )}
+            </>
+          )}
+          
+          {/* Optional: Debug vectors (sparse arrows) - uncomment to enable */}
+          {false && overlayType === 'wind' && windData && windData.vectors && windData.vectors.length > 0 && (
+            <WindGrid
               windData={windData}
-              model="gfs"
+              model={selectedWindModel}
               visible={true}
             />
           )}
-        </MapContainer>
+      </MapContainer>
+        )}
+
+        {/* Wind Debug Badge */}
+        {overlayType === 'wind' && (
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            zIndex: 1000,
+            background: 'rgba(0,0,0,0.65)',
+            color: 'white',
+            padding: '6px 10px',
+            borderRadius: '6px',
+            fontSize: '12px'
+          }}>
+            Wind: {selectedWindModel.toUpperCase()} | Frame +{selectedForecastHour ?? '—'}h | Vectors: {windData?.vectors?.length ?? 0}
+          </div>
         )}
 
         {/* Buoy Details Panel - Full screen on mobile */}
@@ -1171,6 +3221,376 @@ export default function MapOverlay() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Windy-style Footer Timeline */}
+        {overlayType === 'wind' && windFrames?.hours?.length > 1 && (
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '92px',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            borderTop: '2px solid #ddd',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 20px',
+            zIndex: 1000,
+            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+          }}>
+            {/* Left: Play/Pause */}
+            <div style={{ width: '80px', display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={handlePlayPause}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: isPlaying ? '#dc3545' : '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {isPlaying ? '⏸' : '▶'}
+              </button>
+            </div>
+
+            {/* Center: Timeline Bar */}
+            <div style={{ 
+              flex: 1, 
+              position: 'relative', 
+              height: '50px',
+              margin: '0 20px',
+              cursor: 'pointer'
+            }}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+              const maxIdx = windFrames.hours.length - 1;
+              const nearestIdx = Math.round((percent / 100) * maxIdx);
+              setHoveredFrameIndex(nearestIdx);
+            }}
+            onMouseLeave={() => setHoveredFrameIndex(null)}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+              const maxIdx = windFrames.hours.length - 1;
+              const nearestIdx = Math.round((percent / 100) * maxIdx);
+              setSelectedFrameIndex(nearestIdx);
+            }}
+            >
+              {/* Daily tick marks */}
+              {dailyTicks.map((tick) => {
+                const maxIdx = windFrames.hours.length - 1;
+                const positionPercent = maxIdx > 0 ? (tick.idx / maxIdx) * 100 : 0;
+                return (
+                  <div
+                    key={tick.idx}
+                    style={{
+                      position: 'absolute',
+                      left: `${positionPercent}%`,
+                      transform: 'translateX(-50%)',
+                      height: '20px',
+                      width: '1px',
+                      backgroundColor: '#333',
+                      top: '0px'
+                    }}
+                  />
+                );
+              })}
+
+              {/* Current time marker (playhead) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${(selectedFrameIndex / (windFrames.hours.length - 1)) * 100}%`,
+                  transform: 'translateX(-50%)',
+                  width: '3px',
+                  height: '30px',
+                  backgroundColor: '#0066cc',
+                  top: '0px',
+                  zIndex: 10,
+                  boxShadow: '0 0 4px rgba(0, 102, 204, 0.6)'
+                }}
+              />
+
+              {/* Time chip above playhead */}
+              {selectedTimeUtc && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${(selectedFrameIndex / (windFrames.hours.length - 1)) * 100}%`,
+                    transform: 'translateX(-50%)',
+                    bottom: '32px',
+                    backgroundColor: '#0066cc',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    whiteSpace: 'nowrap',
+                    zIndex: 11,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  {isPlaying ? formatTimelineHourOnly(selectedTimeUtc) : formatTimelineDayTime(selectedTimeUtc)}
+                </div>
+              )}
+
+              {/* Hover tooltip */}
+              {hoveredFrameIndex !== null && hoveredFrameIndex !== selectedFrameIndex && windFrames?.times_utc?.[hoveredFrameIndex] && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${(hoveredFrameIndex / (windFrames.hours.length - 1)) * 100}%`,
+                    transform: 'translateX(-50%)',
+                    bottom: '32px',
+                    backgroundColor: 'rgba(255, 215, 0, 0.95)',
+                    color: '#111',
+                    padding: '3px 6px',
+                    borderRadius: '3px',
+                    fontSize: '11px',
+                    whiteSpace: 'nowrap',
+                    zIndex: 12,
+                    pointerEvents: 'none',
+                    border: '1px solid rgba(0,0,0,0.2)',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {formatTimelineDayTime(windFrames?.times_utc?.[hoveredFrameIndex])}
+                </div>
+              )}
+
+              {/* Daily labels below */}
+              {dailyTicks.map((tick) => {
+                const maxIdx = windFrames.hours.length - 1;
+                const positionPercent = maxIdx > 0 ? (tick.idx / maxIdx) * 100 : 0;
+                return (
+                  <div
+                    key={`label-${tick.idx}`}
+                    style={{
+                      position: 'absolute',
+                      left: `${positionPercent}%`,
+                      transform: 'translateX(-50%)',
+                      top: '22px',
+                      fontSize: '10px',
+                      color: '#666',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {tick.label}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right: Legend + Labels */}
+            <div style={{
+              width: '520px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '16px'
+            }}>
+              <WindSpeedLegend units="mph" />
+              <div style={{ textAlign: 'right', fontSize: '11px', color: '#666', minWidth: '120px' }}>
+                <div><strong>+{windFrames.hours[selectedFrameIndex]}h</strong></div>
+                <div>{selectedWindModel.toUpperCase()}</div>
+                <div style={{ fontSize: '10px', color: '#999' }}>
+                  {forecastUtcLabel.split(' ')[4] || '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Waves Footer with Timeline */}
+        {overlayType === 'waves' && waveFrames?.hours?.length > 1 && (
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '92px',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            borderTop: '2px solid #ddd',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 20px',
+            zIndex: 1000,
+            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+          }}>
+            {/* Left: Play/Pause */}
+            <div style={{ width: '80px', display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={handleWavePlayPause}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: isWavePlaying ? '#dc3545' : '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {isWavePlaying ? '⏸' : '▶'}
+              </button>
+            </div>
+
+            {/* Center: Timeline Bar */}
+            <div style={{
+              flex: 1,
+              position: 'relative',
+              height: '50px',
+              margin: '0 20px',
+              cursor: 'pointer'
+            }}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+              const maxIdx = waveFrames.hours.length - 1;
+              const nearestIdx = Math.round((percent / 100) * maxIdx);
+              setHoveredWaveFrameIndex(nearestIdx);
+            }}
+            onMouseLeave={() => setHoveredWaveFrameIndex(null)}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+              const maxIdx = waveFrames.hours.length - 1;
+              const nearestIdx = Math.round((percent / 100) * maxIdx);
+              handleWaveFrameChange(nearestIdx);
+            }}
+            >
+              {/* Daily tick marks */}
+              {waveDailyTicks.map((tick) => {
+                const maxIdx = waveFrames.hours.length - 1;
+                const positionPercent = maxIdx > 0 ? (tick.idx / maxIdx) * 100 : 0;
+                return (
+                  <div
+                    key={tick.idx}
+                    style={{
+                      position: 'absolute',
+                      left: `${positionPercent}%`,
+                      transform: 'translateX(-50%)',
+                      height: '20px',
+                      width: '1px',
+                      backgroundColor: '#333',
+                      top: '0px'
+                    }}
+                  />
+                );
+              })}
+
+              {/* Current time marker (playhead) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${(selectedWaveFrameIndex / (waveFrames.hours.length - 1)) * 100}%`,
+                  transform: 'translateX(-50%)',
+                  width: '3px',
+                  height: '30px',
+                  backgroundColor: '#0066cc',
+                  top: '0px',
+                  zIndex: 10,
+                  boxShadow: '0 0 4px rgba(0, 102, 204, 0.6)'
+                }}
+              />
+
+              {/* Time chip above playhead */}
+              {selectedWaveTimeUtc && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${(selectedWaveFrameIndex / (waveFrames.hours.length - 1)) * 100}%`,
+                    transform: 'translateX(-50%)',
+                    bottom: '32px',
+                    backgroundColor: '#0066cc',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    whiteSpace: 'nowrap',
+                    zIndex: 11,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  {isWavePlaying ? formatTimelineHourOnly(selectedWaveTimeUtc) : formatTimelineDayTime(selectedWaveTimeUtc)}
+                </div>
+              )}
+
+              {/* Hover tooltip */}
+              {hoveredWaveFrameIndex !== null && hoveredWaveFrameIndex !== selectedWaveFrameIndex && waveFrames?.times_utc?.[hoveredWaveFrameIndex] && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${(hoveredWaveFrameIndex / (waveFrames.hours.length - 1)) * 100}%`,
+                    transform: 'translateX(-50%)',
+                    bottom: '32px',
+                    backgroundColor: 'rgba(255, 215, 0, 0.95)',
+                    color: '#111',
+                    padding: '3px 6px',
+                    borderRadius: '3px',
+                    fontSize: '11px',
+                    whiteSpace: 'nowrap',
+                    zIndex: 12,
+                    pointerEvents: 'none',
+                    border: '1px solid rgba(0,0,0,0.2)',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {formatTimelineDayTime(waveFrames?.times_utc?.[hoveredWaveFrameIndex])}
+                </div>
+              )}
+
+              {/* Daily labels below */}
+              {waveDailyTicks.map((tick) => {
+                const maxIdx = waveFrames.hours.length - 1;
+                const positionPercent = maxIdx > 0 ? (tick.idx / maxIdx) * 100 : 0;
+                return (
+                  <div
+                    key={`label-${tick.idx}`}
+                    style={{
+                      position: 'absolute',
+                      left: `${positionPercent}%`,
+                      transform: 'translateX(-50%)',
+                      top: '22px',
+                      fontSize: '10px',
+                      color: '#666',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {tick.label}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right: Legend + Labels */}
+            <div style={{
+              width: '520px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '16px'
+            }}>
+              <WaveHeightLegend units={units} />
+              <div style={{ textAlign: 'right', fontSize: '11px', color: '#666', minWidth: '120px' }}>
+                <div><strong>+{waveFrames.hours[selectedWaveFrameIndex]}h</strong></div>
+                <div>WW3</div>
+                <div style={{ fontSize: '10px', color: '#999' }}>
+                  {waveForecastUtcLabel.split(' ')[4] || '—'}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
