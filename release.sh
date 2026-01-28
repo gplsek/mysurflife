@@ -1,7 +1,7 @@
 #!/bin/bash
 # MySurfLife Production Release Script
 # Automatically installs dependencies if requirements.txt or package.json changed
-# Usage: ./release.sh [--force-install]
+# Usage: ./release.sh [--force-install] [--force-build]
 
 set -e  # Exit on error
 
@@ -23,10 +23,19 @@ echo ""
 
 # Parse arguments
 FORCE_INSTALL=false
-if [[ "$1" == "--force-install" ]]; then
-  FORCE_INSTALL=true
-  echo -e "${YELLOW}🔧 Force install mode enabled${NC}"
-fi
+FORCE_BUILD=false
+for arg in "$@"; do
+  case $arg in
+    --force-install)
+      FORCE_INSTALL=true
+      echo -e "${YELLOW}🔧 Force install mode enabled${NC}"
+      ;;
+    --force-build)
+      FORCE_BUILD=true
+      echo -e "${YELLOW}🔧 Force build mode enabled${NC}"
+      ;;
+  esac
+done
 
 # Check if we're in a git repository
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
@@ -34,9 +43,20 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
   exit 1
 fi
 
+# Track last released commit
+LAST_RELEASE_FILE=".last-release"
+LAST_RELEASED_COMMIT=""
+if [[ -f "$LAST_RELEASE_FILE" ]]; then
+  LAST_RELEASED_COMMIT=$(cat "$LAST_RELEASE_FILE")
+fi
+
 # Get current commit before pull
 BEFORE_COMMIT=$(git rev-parse HEAD)
 echo -e "${BLUE}📍 Current commit: ${BEFORE_COMMIT:0:7}${NC}"
+
+if [[ -n "$LAST_RELEASED_COMMIT" ]]; then
+  echo -e "${BLUE}📌 Last released: ${LAST_RELEASED_COMMIT:0:7}${NC}"
+fi
 echo ""
 
 # Pull latest changes
@@ -46,8 +66,26 @@ git pull origin main
 # Get commit after pull
 AFTER_COMMIT=$(git rev-parse HEAD)
 
-# Check if anything changed
-if [[ "$BEFORE_COMMIT" == "$AFTER_COMMIT" ]] && [[ "$FORCE_INSTALL" == false ]]; then
+# Determine if we need to process changes
+PROCESS_CHANGES=false
+
+if [[ "$FORCE_BUILD" == true ]] || [[ "$FORCE_INSTALL" == true ]]; then
+  # Force flags always trigger processing
+  PROCESS_CHANGES=true
+  echo -e "${YELLOW}🔧 Force mode: processing changes${NC}"
+elif [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]]; then
+  # Git pull found changes
+  PROCESS_CHANGES=true
+  echo -e "${GREEN}✅ Updated to commit: ${AFTER_COMMIT:0:7}${NC}"
+elif [[ -n "$LAST_RELEASED_COMMIT" ]] && [[ "$AFTER_COMMIT" != "$LAST_RELEASED_COMMIT" ]]; then
+  # Current commit differs from last released commit
+  PROCESS_CHANGES=true
+  echo -e "${YELLOW}⚠️  Current commit (${AFTER_COMMIT:0:7}) differs from last release (${LAST_RELEASED_COMMIT:0:7})${NC}"
+  echo -e "${YELLOW}   Building unreleased changes...${NC}"
+  # Set BEFORE_COMMIT to last released so we compare correctly
+  BEFORE_COMMIT="$LAST_RELEASED_COMMIT"
+else
+  # No changes detected
   echo -e "${GREEN}✅ Already up to date (${AFTER_COMMIT:0:7})${NC}"
   echo ""
   exit 0
@@ -140,7 +178,7 @@ if [[ "$NEEDS_FRONTEND_BUILD" == true ]]; then
 fi
 
 # Clear caches (always run on any changes)
-if [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]] || [[ "$FORCE_INSTALL" == true ]]; then
+if [[ "$PROCESS_CHANGES" == true ]]; then
   echo -e "${YELLOW}🧹 Clearing caches...${NC}"
 
   # Clear Python bytecode cache
@@ -167,7 +205,7 @@ if [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]] || [[ "$FORCE_INSTALL" == true ]]; 
 fi
 
 # Restart backend service (always restart on any changes)
-if [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]] || [[ "$FORCE_INSTALL" == true ]]; then
+if [[ "$PROCESS_CHANGES" == true ]]; then
   echo -e "${YELLOW}🔄 Restarting backend service...${NC}"
 
   # Check if systemd service exists
@@ -193,7 +231,7 @@ if [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]] || [[ "$FORCE_INSTALL" == true ]]; 
 fi
 
 # Restart Apache webserver (always restart on any changes)
-if [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]] || [[ "$FORCE_INSTALL" == true ]]; then
+if [[ "$PROCESS_CHANGES" == true ]]; then
   echo -e "${YELLOW}🌐 Restarting Apache webserver...${NC}"
 
   # Check if Apache is running
@@ -229,7 +267,7 @@ if [[ "$NEEDS_FRONTEND_BUILD" == true ]]; then
   echo -e "${GREEN}✅ Frontend built${NC}"
 fi
 
-if [[ "$BEFORE_COMMIT" != "$AFTER_COMMIT" ]] || [[ "$FORCE_INSTALL" == true ]]; then
+if [[ "$PROCESS_CHANGES" == true ]]; then
   echo -e "${GREEN}✅ Caches cleared (Python bytecode + Redis)${NC}"
   echo -e "${GREEN}✅ Backend restarted${NC}"
   echo -e "${GREEN}✅ Apache restarted${NC}"
@@ -237,6 +275,11 @@ fi
 
 echo ""
 echo -e "${GREEN}🚀 Release complete!${NC}"
+echo ""
+
+# Save released commit for future comparisons
+echo "$AFTER_COMMIT" > "$LAST_RELEASE_FILE"
+echo -e "${BLUE}📝 Saved release marker: ${AFTER_COMMIT:0:7}${NC}"
 echo ""
 
 # Show service status

@@ -53,6 +53,9 @@ backend/backend.pid
 .cache/
 backend/cache/
 
+# Deployment tracking
+.last-release
+
 # Development tools
 .claude/
 .cursor/

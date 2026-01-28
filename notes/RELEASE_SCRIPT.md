@@ -37,7 +37,22 @@ This will:
 - Pull latest changes
 - Only install dependencies if `requirements.txt` or `package.json` changed
 - Build frontend if source files changed
-- Restart services as needed
+- Clear caches and restart services
+- Track this commit as successfully released
+
+**Smart Detection**: If you run `git pull` manually before running `./release.sh`, the script detects unreleased changes by comparing against the last successful release (stored in `.last-release`).
+
+### Force Build Mode
+
+```bash
+./release.sh --force-build
+```
+
+Force all build/restart steps even if no changes detected. Use this when:
+- You manually pulled changes before running the script
+- Frontend build failed previously
+- Services need restart after manual changes
+- Testing the release process
 
 ### Force Install Mode
 
@@ -49,6 +64,15 @@ Force install treats `requirements.txt` and `package.json` as changed, even if t
 - Dependency files are corrupt
 - You suspect cache issues
 - Manual verification needed
+- Complete rebuild required
+
+### Combined Flags
+
+```bash
+./release.sh --force-install --force-build
+```
+
+Forces both dependency installation and all build/restart steps.
 
 ### Dry Run (Check What Would Change)
 
@@ -59,6 +83,20 @@ cd /var/www/mysurflife
 git fetch origin main
 git diff --name-only HEAD origin/main
 ```
+
+## Release Tracking
+
+The script tracks successful releases using a `.last-release` file containing the deployed commit hash. This enables:
+
+- **Smart detection of manual pulls** - If you run `git pull` before `./release.sh`, the script compares the current commit against the last release
+- **Idempotent deploys** - Running the script multiple times won't rebuild unnecessarily
+- **Audit trail** - Know exactly what commit is deployed
+
+The `.last-release` file is:
+- Created automatically on first successful release
+- Updated after every successful release
+- Excluded from git (in `.gitignore`)
+- Production-specific (each environment has its own)
 
 ## Requirements
 
