@@ -1,14 +1,40 @@
 # Fix Production Wind Data Issue
 
+## ✅ RESOLVED (2026-01-28)
+
+**Root Cause**: Missing `cfgrib` and `eccodes` libraries on production server.
+
+**What Happened**:
+- GFS GRIB2 files downloaded successfully from NOMADS
+- xarray failed to parse them (missing cfgrib engine)
+- Backend fell back to generating sample/dummy wind data
+- Sample data returned same static values (15.3 m/s @ 247°) for all hours
+
+**Fix Applied**:
+```bash
+cd /var/www/mysurflife/backend
+source venv/bin/activate
+pip install cfgrib eccodes
+sudo systemctl restart mysurflife-backend
+```
+
+**Prevention**:
+- Added `cfgrib>=0.9.10` and `eccodes>=1.5.0` to `requirements.txt` (commit 3acb850)
+- Future deployments will automatically include these dependencies
+
+---
+
 ## Problem
 Production returns identical wind data for all forecast hours (stuck at 15.3 m/s @ 247°).
 Local works correctly with varying wind data.
 
-## Root Cause
+## Root Cause (Original Hypothesis - Not Correct)
 One of these:
-1. Production code is out of date
-2. Python bytecode cache (.pyc) is stale
-3. GFS data fetch is broken on production server
+1. Production code is out of date ❌
+2. Python bytecode cache (.pyc) is stale ❌
+3. GFS data fetch is broken on production server ❌
+
+**Actual Root Cause**: Missing cfgrib library ✅
 
 ---
 
