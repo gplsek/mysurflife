@@ -16,6 +16,7 @@ Complete index of all project documentation, organized by category.
 
 ### Production Deployment
 - **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - ⭐ Complete deployment instructions for production
+- **[RELEASE_SCRIPT.md](./RELEASE_SCRIPT.md)** - ⭐ Automated release script documentation
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Earlier deployment notes
 
 ### Performance & Monitoring
