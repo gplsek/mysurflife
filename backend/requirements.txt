@@ -3,6 +3,8 @@ uvicorn
 httpx
 netCDF4
 xarray
+cfgrib>=0.9.10
+eccodes>=1.5.0
 numpy
 pytest
 redis>=7.0.0
