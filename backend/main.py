@@ -828,6 +828,7 @@ async def invite_user(
         # Create user role
         admin_client.table("user_roles").insert({
             "user_id": user_id,
+            "email": email,
             "is_admin": is_admin,
         }).execute()
 
@@ -868,9 +869,14 @@ async def update_user_role(
         raise HTTPException(status_code=400, detail="is_admin field is required")
 
     try:
+        # Get user email from auth
+        user_data = admin_client.auth.admin.get_user_by_id(user_id)
+        user_email = user_data.user.email
+
         # Update or insert user role
         result = admin_client.table("user_roles").upsert({
             "user_id": user_id,
+            "email": user_email,
             "is_admin": is_admin,
         }).execute()
 
@@ -879,7 +885,7 @@ async def update_user_role(
         if user_id in _admin_cache:
             del _admin_cache[user_id]
 
-        print(f"✅ User role updated: {user_id} admin={is_admin} by {user.get('email', 'unknown')}")
+        print(f"✅ User role updated: {user_id} ({user_email}) admin={is_admin} by {user.get('email', 'unknown')}")
 
         return {
             "success": True,
