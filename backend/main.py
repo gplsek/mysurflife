@@ -745,6 +745,197 @@ async def create_persona(
 
 
 # ============================================================================
+# User Management Endpoints (Admin Only)
+# ============================================================================
+
+@app.get("/api/admin/users")
+async def list_users(user: Dict = Depends(require_admin)):
+    """
+    List all users with their roles (admin only).
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+
+    try:
+        # Get all users from auth.users
+        users_response = admin_client.auth.admin.list_users()
+
+        # Get user roles
+        roles_response = admin_client.table("user_roles").select("*").execute()
+        roles_map = {role['user_id']: role for role in roles_response.data}
+
+        # Combine users with their roles
+        users_with_roles = []
+        for auth_user in users_response:
+            user_id = auth_user.id
+            role = roles_map.get(user_id, {})
+
+            users_with_roles.append({
+                "id": user_id,
+                "email": auth_user.email,
+                "created_at": auth_user.created_at,
+                "last_sign_in_at": auth_user.last_sign_in_at,
+                "is_admin": role.get("is_admin", False),
+                "role_created_at": role.get("created_at"),
+            })
+
+        print(f"📋 Listed {len(users_with_roles)} users for {user.get('email', 'unknown')}")
+
+        return {
+            "success": True,
+            "users": users_with_roles
+        }
+
+    except Exception as e:
+        print(f"❌ Error listing users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/admin/users/invite")
+async def invite_user(
+    invite_data: Dict[str, Any],
+    user: Dict = Depends(require_admin)
+):
+    """
+    Invite a new user by email (admin only).
+    Required fields: email
+    Optional fields: is_admin (default: False)
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+
+    email = invite_data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    is_admin = invite_data.get("is_admin", False)
+
+    try:
+        # Create user via Supabase Admin API
+        new_user = admin_client.auth.admin.create_user({
+            "email": email,
+            "email_confirm": True,  # Auto-confirm email
+        })
+
+        user_id = new_user.user.id
+
+        # Create user role
+        admin_client.table("user_roles").insert({
+            "user_id": user_id,
+            "is_admin": is_admin,
+        }).execute()
+
+        print(f"✅ User '{email}' invited by {user.get('email', 'unknown')} (admin={is_admin})")
+
+        return {
+            "success": True,
+            "user": {
+                "id": user_id,
+                "email": email,
+                "is_admin": is_admin,
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ Error inviting user: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/admin/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    role_data: Dict[str, Any],
+    user: Dict = Depends(require_admin)
+):
+    """
+    Update user's admin role (admin only).
+    Required fields: is_admin
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+
+    is_admin = role_data.get("is_admin")
+    if is_admin is None:
+        raise HTTPException(status_code=400, detail="is_admin field is required")
+
+    try:
+        # Update or insert user role
+        result = admin_client.table("user_roles").upsert({
+            "user_id": user_id,
+            "is_admin": is_admin,
+        }).execute()
+
+        # Clear admin cache for this user
+        from auth import _admin_cache
+        if user_id in _admin_cache:
+            del _admin_cache[user_id]
+
+        print(f"✅ User role updated: {user_id} admin={is_admin} by {user.get('email', 'unknown')}")
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "is_admin": is_admin,
+        }
+
+    except Exception as e:
+        print(f"❌ Error updating user role: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    user: Dict = Depends(require_admin)
+):
+    """
+    Delete a user (admin only).
+    Cannot delete yourself.
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+
+    # Prevent self-deletion
+    if user_id == user.get("user_id"):
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    try:
+        # Delete user role first
+        admin_client.table("user_roles").delete().eq("user_id", user_id).execute()
+
+        # Delete user from auth
+        admin_client.auth.admin.delete_user(user_id)
+
+        # Clear admin cache
+        from auth import _admin_cache
+        if user_id in _admin_cache:
+            del _admin_cache[user_id]
+
+        print(f"✅ User {user_id} deleted by {user.get('email', 'unknown')}")
+
+        return {
+            "success": True,
+            "user_id": user_id,
+        }
+
+    except Exception as e:
+        print(f"❌ Error deleting user: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # Buoy Data Endpoints
 # ============================================================================
 

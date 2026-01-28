@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from './AuthContext';
@@ -27,9 +27,9 @@ const MapInteractionController = ({ isEditMode }) => {
       map.boxZoom.enable();
       map.keyboard.enable();
 
-      // Add zoom control if not already present
+      // Add zoom control in bottom right if not already present
       if (!map.zoomControl) {
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
       }
     } else {
       // Disable all interactions
@@ -53,7 +53,7 @@ const MapInteractionController = ({ isEditMode }) => {
 const SpotDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
 
   // Core data (loads first - blocks render)
   const [spot, setSpot] = useState(null);
@@ -78,6 +78,27 @@ const SpotDetail = () => {
   const [editedSpot, setEditedSpot] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  // Admin menu state
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuOpen && !e.target.closest('.admin-menu-container')) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [menuOpen]);
+
+  // Sign out handler
+  const handleSignOut = async () => {
+    setMenuOpen(false);
+    await signOut();
+    navigate('/');
+  };
 
   // Phase 1: Load critical data (spot + conditions) - blocks render
   useEffect(() => {
@@ -520,6 +541,7 @@ const SpotDetail = () => {
           </button>
           <h1>{isEditMode && editedSpot ? editedSpot.name : spot.name}</h1>
           <div className="header-actions">
+            {/* Edit Mode Buttons */}
             {isAdmin && !isEditMode && (
               <button className="edit-button" onClick={enterEditMode}>
                 ✏️ Edit
@@ -534,6 +556,74 @@ const SpotDetail = () => {
                   ✖️ Cancel
                 </button>
               </>
+            )}
+
+            {/* Admin Menu or Login Button */}
+            {user ? (
+              <div className="admin-menu-container" style={{ position: 'relative', marginLeft: '8px' }}>
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="menu-button"
+                >
+                  {isAdmin && <span>👑</span>}
+                  <span>☰</span>
+                </button>
+
+                {menuOpen && (
+                  <div className="admin-dropdown-menu">
+                    {/* User Info */}
+                    <div className="menu-user-info">
+                      <div className="menu-user-role">
+                        {isAdmin ? 'Admin User' : 'Signed in as'}
+                      </div>
+                      <div className="menu-user-email">
+                        {user.email}
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="menu-items">
+                      {isAdmin && (
+                        <>
+                          <Link
+                            to="/admin/users"
+                            onClick={() => setMenuOpen(false)}
+                            className="menu-link"
+                          >
+                            👥 Manage Users
+                          </Link>
+                          <Link
+                            to="/admin/personas"
+                            onClick={() => setMenuOpen(false)}
+                            className="menu-link"
+                          >
+                            🤖 Manage AI Personas
+                          </Link>
+                          <Link
+                            to="/"
+                            onClick={() => setMenuOpen(false)}
+                            className="menu-link"
+                          >
+                            🗺️ View All Spots
+                          </Link>
+                          <div className="menu-divider" />
+                        </>
+                      )}
+
+                      <button
+                        onClick={handleSignOut}
+                        className="menu-button-signout"
+                      >
+                        🚪 Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link to="/login" className="login-button">
+                Login
+              </Link>
             )}
           </div>
         </div>

@@ -5,6 +5,7 @@ import MapOverlay from './MapOverlay';
 import SpotDetail from './SpotDetail';
 import Login from './Login';
 import ManagePersonas from './ManagePersonas';
+import ManageUsers from './ManageUsers';
 
 function AppHeader({ view, setView }) {
   const { user, isAdmin, signOut } = useAuth();
@@ -99,6 +100,21 @@ function AppHeader({ view, setView }) {
                   <div style={{ padding: '0.5rem 0' }}>
                     {isAdmin && (
                       <>
+                        <Link
+                          to="/admin/users"
+                          onClick={() => setMenuOpen(false)}
+                          style={{
+                            display: 'block',
+                            padding: '0.75rem 1rem',
+                            color: '#374151',
+                            textDecoration: 'none',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
+                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                        >
+                          👥 Manage Users
+                        </Link>
                         <Link
                           to="/admin/personas"
                           onClick={() => setMenuOpen(false)}
@@ -244,6 +260,7 @@ function App() {
         <Route path="/spots/:slug" element={<SpotDetail />} />
 
         {/* Admin Pages */}
+        <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/personas" element={<ManagePersonas />} />
 
         {/* Login Page */}
