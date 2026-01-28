@@ -506,38 +506,37 @@ const SpotDetail = () => {
 
   return (
     <div className="spot-detail-container">
-      {/* Header */}
-      <div className="spot-detail-header">
-        <button
-          className="back-button"
-          onClick={() => navigate('/')}
-        >
-          ← Back to Map
-        </button>
-        <h1>{isEditMode && editedSpot ? editedSpot.name : spot.name}</h1>
-        <div className="header-actions">
-          {isAdmin && !isEditMode && (
-            <button className="edit-button" onClick={enterEditMode}>
-              ✏️ Edit
-            </button>
-          )}
-          {isAdmin && isEditMode && (
-            <>
-              <button className="save-button" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? '💾 Saving...' : '💾 Save'}
-              </button>
-              <button className="cancel-button" onClick={exitEditMode} disabled={isSaving}>
-                ✖️ Cancel
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
       {saveError && <div className="save-error">⚠️ {saveError}</div>}
 
       {/* Hero Image - Static Satellite View (Interactive in Edit Mode) */}
       <div className="hero-section">
+        {/* Header Overlay */}
+        <div className="spot-detail-header">
+          <button
+            className="back-button"
+            onClick={() => navigate('/')}
+          >
+            ← Back to Map
+          </button>
+          <h1>{isEditMode && editedSpot ? editedSpot.name : spot.name}</h1>
+          <div className="header-actions">
+            {isAdmin && !isEditMode && (
+              <button className="edit-button" onClick={enterEditMode}>
+                ✏️ Edit
+              </button>
+            )}
+            {isAdmin && isEditMode && (
+              <>
+                <button className="save-button" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? '💾 Saving...' : '💾 Save'}
+                </button>
+                <button className="cancel-button" onClick={exitEditMode} disabled={isSaving}>
+                  ✖️ Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
         <div className="map-container">
           <MapContainer
             center={[
