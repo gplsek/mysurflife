@@ -108,6 +108,7 @@ Complete index of all project documentation, organized by category.
 
 ## 🛠️ Development Workflows
 
+- **[HOW_TO_ADD_NOTES.md](./HOW_TO_ADD_NOTES.md)** - ⭐ Guide for adding and organizing documentation
 - **[WORKFLOWS_SETUP.md](./WORKFLOWS_SETUP.md)** - Claude Code custom workflows setup
 - **[SESSION_NOTES.md](./SESSION_NOTES.md)** - Development session history
 
@@ -180,7 +181,7 @@ Production considerations...
 ---
 
 **Last Updated**: 2026-01-28
-**Total Documents**: 45
+**Total Documents**: 46
 **Categories**: 9
 
 ---
