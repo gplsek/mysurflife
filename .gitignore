@@ -28,6 +28,11 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Environment variables (IMPORTANT - never commit!)
+.env
+backend/.env
+*.env
+
 # IDEs
 .vscode/
 .idea/
@@ -41,7 +46,29 @@ Thumbs.db
 
 # Logs
 *.log
+backend/*.log
+backend/backend.pid
 
 # Cache
 .cache/
+backend/cache/
+
+# Development tools
+.claude/
+.cursor/
+.cursorrules
+.mcp.json
+.playwright-mcp/
+screenshots/
+claude-code-workflows-main/
+
+# Test/migration/utility scripts (not needed in production)
+backend/test_*.py
+backend/migrate_*.py
+backend/add_*.py
+backend/fix_*.py
+backend/check_*.py
+backend/update_*.py
+backend/generate_*.py
+backend/create_admin.py
 

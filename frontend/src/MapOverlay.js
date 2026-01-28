@@ -44,6 +44,51 @@ const getIcon = (score) => {
   });
 };
 
+// Surf spot icon (different from buoy markers)
+const getSurfSpotIcon = (score) => {
+  // Color-code by surf score (0-10 scale)
+  let color, emoji;
+  if (score >= 8.5) {
+    color = '#ef4444'; // Red for Epic (fire)
+    emoji = '🔥';
+  } else if (score >= 7.0) {
+    color = '#22c55e'; // Green for Good
+    emoji = '🟢';
+  } else if (score >= 5.0) {
+    color = '#f59e0b'; // Orange for Fair
+    emoji = '🟡';
+  } else if (score >= 3.0) {
+    color = '#fbbf24'; // Gold for Poor
+    emoji = '🟠';
+  } else {
+    color = '#9ca3af'; // Grey for Flat
+    emoji = '🔴';
+  }
+
+  return new L.DivIcon({
+    className: 'surf-spot-marker',
+    html: `
+      <div style="
+        background-color: ${color};
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      ">
+        🏄
+      </div>
+    `,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14],
+  });
+};
+
 // Conversion functions
 const metersToFeet = (m) => m * 3.28084;
 const celsiusToFahrenheit = (c) => (c * 9/5) + 32;
@@ -256,6 +301,19 @@ export default function MapOverlay() {
   const forecastDate = selectedTimeUtc ? new Date(selectedTimeUtc) : null;
   const forecastUtcLabel = forecastDate ? forecastDate.toUTCString() : "—";
   const forecastLocalLabel = forecastDate ? forecastDate.toLocaleString() : "—";
+
+  // Surf spots state
+  const [surfSpots, setSurfSpots] = useState([]);
+  const [surfSpotsLoading, setSurfSpotsLoading] = useState(false);
+  const [showSurfSpots, setShowSurfSpots] = useState(() => {
+    const saved = localStorage.getItem('showSurfSpots');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [showBuoys, setShowBuoys] = useState(() => {
+    const saved = localStorage.getItem('showBuoys');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [selectedSpot, setSelectedSpot] = useState(null); // For detail panel
   
   // Compute daily tick metadata for footer timeline (Windy-style)
   const timesUtc = windFrames?.times_utc ?? [];
@@ -502,6 +560,14 @@ export default function MapOverlay() {
     localStorage.setItem('timezone', timezone);
   }, [timezone]);
 
+  useEffect(() => {
+    localStorage.setItem('showBuoys', showBuoys.toString());
+  }, [showBuoys]);
+
+  useEffect(() => {
+    localStorage.setItem('showSurfSpots', showSurfSpots.toString());
+  }, [showSurfSpots]);
+
   // Track map zoom level for UI updates (warning messages, etc.)
   useEffect(() => {
     if (!mapRef.current) return;
@@ -536,6 +602,23 @@ export default function MapOverlay() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSurfSpots = async () => {
+    try {
+      setSurfSpotsLoading(true);
+      // Fetch with scores for real-time conditions
+      const res = await fetch('/api/surf-spots?with_scores=true');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSurfSpots(data.spots || []);
+      console.log(`✅ Loaded ${data.count} surf spots with current conditions`);
+    } catch (err) {
+      console.error('❌ Error fetching surf spots:', err);
+      setSurfSpots([]);
+    } finally {
+      setSurfSpotsLoading(false);
     }
   };
 
@@ -781,10 +864,20 @@ export default function MapOverlay() {
 
   useEffect(() => {
     fetchBuoyData();
-    
+
     // Auto-refresh every 5 minutes
     const interval = setInterval(fetchBuoyData, 5 * 60 * 1000);
-    
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch surf spots on mount
+  useEffect(() => {
+    fetchSurfSpots();
+
+    // Auto-refresh every 10 minutes (same as buoys)
+    const interval = setInterval(fetchSurfSpots, 10 * 60 * 1000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -1413,10 +1506,21 @@ export default function MapOverlay() {
     }
   };
 
+  // Handle surf spot selection
+  const handleSpotClick = (spot) => {
+    setSelectedSpot(spot);
+    setSelectedBuoy(null); // Clear buoy selection
+    setShowChart(false);
+    setShowForecast(false);
+    if (isMobile) {
+      setShowMobileDetail(true);
+    }
+  };
+
   // Handle closing mobile detail view
   const handleCloseMobileDetail = () => {
     setShowMobileDetail(false);
-    // Don't clear selectedBuoy, just hide the detail view
+    // Don't clear selectedBuoy/selectedSpot, just hide the detail view
   };
 
   const mapCenter = [33.0, -118.0];
@@ -2327,6 +2431,63 @@ export default function MapOverlay() {
             </select>
           </div>
 
+          {/* Map Layers Toggle */}
+          <div style={{
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '2px solid #eee'
+          }}>
+            <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
+              Map Layers:
+            </label>
+
+            {/* Buoys Toggle */}
+            <div style={{ marginBottom: '8px' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showBuoys}
+                  onChange={(e) => setShowBuoys(e.target.checked)}
+                  style={{
+                    marginRight: '8px',
+                    cursor: 'pointer',
+                    width: '16px',
+                    height: '16px'
+                  }}
+                />
+                <span style={{ color: '#333' }}>🟢 Show Buoys</span>
+              </label>
+            </div>
+
+            {/* Surf Spots Toggle */}
+            <div>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showSurfSpots}
+                  onChange={(e) => setShowSurfSpots(e.target.checked)}
+                  style={{
+                    marginRight: '8px',
+                    cursor: 'pointer',
+                    width: '16px',
+                    height: '16px'
+                  }}
+                />
+                <span style={{ color: '#333' }}>🏄 Show Surf Spots</span>
+              </label>
+            </div>
+          </div>
+
           {/* Waves Mode Toggle (Default) */}
           <div style={{ 
             marginTop: '12px', 
@@ -2647,12 +2808,12 @@ export default function MapOverlay() {
               />
             </Pane>
           )}
-          
+
           {/* Show buoys (overlays disabled for now) */}
-        {buoys.map((buoy) => {
+        {showBuoys && buoys.map((buoy) => {
           const score = scoreBuoy(buoy);
             const hasError = buoy.error;
-            
+
           return (
               <Marker
                   key={buoy.station}
@@ -2680,6 +2841,70 @@ export default function MapOverlay() {
               </Marker>
           );
         })}
+
+          {/* Surf Spots */}
+          {showSurfSpots && surfSpots.map((spot) => {
+            const conditions = spot.current_conditions;
+            const score = conditions?.overall_score || 0;
+
+            return (
+              <Marker
+                key={spot.id}
+                position={[spot.latitude, spot.longitude]}
+                icon={getSurfSpotIcon(score)}
+                eventHandlers={{
+                  click: () => handleSpotClick(spot)
+                }}
+              >
+                <Popup>
+                  <div style={{ textAlign: 'center', minWidth: '200px' }}>
+                    <strong style={{ fontSize: '16px' }}>
+                      {spot.name}
+                    </strong>
+                    {conditions && (
+                      <>
+                        <div style={{
+                          fontSize: '32px',
+                          margin: '12px 0',
+                          color: score >= 7 ? '#22c55e' : score >= 5 ? '#f59e0b' : '#ef4444'
+                        }}>
+                          {conditions.emoji} {score}/10
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#666' }}>
+                          {conditions.rating}
+                        </div>
+                        <div style={{ fontSize: '12px', marginTop: '10px', color: '#444' }}>
+                          {conditions.adjusted_height_ft}ft @ {conditions.period_sec}s
+                        </div>
+                        <div style={{ fontSize: '11px', marginTop: '6px', color: '#888' }}>
+                          {spot.spot_characteristics?.break_type} · {spot.spot_characteristics?.skill_level}
+                        </div>
+                        <a
+                          href={`/spots/${spot.slug}`}
+                          style={{
+                            display: 'inline-block',
+                            marginTop: '12px',
+                            padding: '8px 16px',
+                            backgroundColor: '#3b82f6',
+                            color: 'white',
+                            textDecoration: 'none',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
+                        >
+                          View Details →
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
 
           {/* Wind Overlay - Windy-style (heatmap + particles) */}
           {overlayType === 'wind' && windData && windData.vectors && windData.vectors.length > 0 && (

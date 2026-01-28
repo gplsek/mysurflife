@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncio
@@ -25,12 +25,54 @@ CACHE_DURATION = timedelta(minutes=5)  # NDBC updates every ~10 min, cache for 5
 _redis_client = None
 try:
     import redis
-    _redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
+    redis_host = os.getenv('REDIS_HOST', 'localhost')
+    redis_port = int(os.getenv('REDIS_PORT', 6379))
+    redis_password = os.getenv('REDIS_PASSWORD', None)
+    redis_db = int(os.getenv('REDIS_DB', 0))
+
+    _redis_client = redis.Redis(
+        host=redis_host,
+        port=redis_port,
+        password=redis_password if redis_password else None,
+        db=redis_db,
+        decode_responses=False
+    )
     _redis_client.ping()
-    print("✅ Redis connected (L2 cache enabled)")
-except Exception:
-    print("⚠️  Redis not available (L2 cache disabled)")
+    print(f"✅ Redis connected: {redis_host}:{redis_port} (L2 cache enabled)")
+except Exception as e:
+    print(f"⚠️  Redis not available: {e} (L2 cache disabled)")
     _redis_client = None
+
+# Supabase database connection (optional)
+# Import after environment variables are loaded
+try:
+    from database import supabase
+    if supabase:
+        print("✅ Supabase database ready")
+except ImportError:
+    print("⚠️  Supabase not configured (database.py not imported)")
+    supabase = None
+except Exception as e:
+    print(f"⚠️  Supabase initialization failed: {e}")
+    supabase = None
+
+# Authentication middleware
+try:
+    from auth import require_admin, optional_auth, is_admin
+    print("✅ Authentication middleware loaded")
+except ImportError as e:
+    print(f"⚠️  Authentication not configured: {e}")
+    require_admin = None
+    optional_auth = None
+    is_admin = None
+
+# Buoy registry (loads from database with fallback to hardcoded list)
+try:
+    from buoy_registry import get_all_buoys, get_buoy_by_id
+except ImportError as e:
+    print(f"⚠️  Failed to import buoy_registry: {e}")
+    get_all_buoys = None
+    get_buoy_by_id = None
 
 # Disk cache directory for raw responses (optional)
 DISK_CACHE_DIR = Path(__file__).parent / "cache" / "ww3"
@@ -278,58 +320,8 @@ async def shutdown():
         await _http_client.aclose()
         _http_client = None
 
-BUOY_LIST = [
-    # Southern California (San Diego County)
-    {"id": "46266", "lat": 32.933, "lon": -117.317, "name": "Del Mar Nearshore", "wind_fallback": "LJAC1"},
-    {"id": "46225", "lat": 32.866, "lon": -117.283, "name": "Torrey Pines Outer", "wind_fallback": "LJAC1"},
-    {"id": "46259", "lat": 32.749, "lon": -117.258, "name": "Mission Bay", "wind_fallback": "SDBC1"},
-    {"id": "46232", "lat": 32.517, "lon": -117.425, "name": "Point Loma South", "wind_fallback": "SDBC1"},
-    {"id": "46236", "lat": 32.55,  "lon": -117.15,  "name": "Imperial Beach", "wind_fallback": "TIXC1"},
-
-    # Southern California (Orange/LA County)
-    {"id": "46224", "lat": 33.178, "lon": -117.472, "name": "Oceanside Offshore", "wind_fallback": "SDBC1"},
-    {"id": "46275", "lat": 33.291, "lon": -117.501, "name": "Red Beach Nearshore", "wind_fallback": "SDBC1"},
-    {"id": "46277", "lat": 33.336, "lon": -117.659, "name": "Green Beach Offshore", "wind_fallback": "SDBC1"},
-    {"id": "46285", "lat": 33.445, "lon": -117.68,  "name": "Capistrano Beach", "wind_fallback": "SDBC1"},
-    {"id": "46258", "lat": 33.475, "lon": -118.533, "name": "San Pedro Channel", "wind_fallback": "LJAC1"},
-    {"id": "46222", "lat": 33.75,  "lon": -118.833, "name": "Santa Monica Basin", "wind_fallback": "AGXC1"},
-    {"id": "46086", "lat": 32.504, "lon": -118.029, "name": "San Clemente Basin", "wind_fallback": "SDBC1"},
-    {"id": "46025", "lat": 33.749, "lon": -119.053, "name": "Santa Monica Offshore", "wind_fallback": "AGXC1"},
-    {"id": "46069", "lat": 33.67,  "lon": -120.21,  "name": "San Nicolas Island", "wind_fallback": None},
-
-    # Central California
-    {"id": "46063", "lat": 34.289, "lon": -120.218, "name": "Santa Barbara", "wind_fallback": None},
-    {"id": "46011", "lat": 34.935, "lon": -121.93,  "name": "Santa Maria", "wind_fallback": None},
-    {"id": "46054", "lat": 35.167, "lon": -120.983, "name": "Point Buchon (SLO)", "wind_fallback": None},
-    {"id": "46028", "lat": 35.741, "lon": -121.884, "name": "Cape San Martin", "wind_fallback": None},
-    {"id": "46012", "lat": 36.75,  "lon": -122.43,  "name": "Monterey Bay", "wind_fallback": "MEYC1"},
-
-    # Northern California
-    {"id": "46026", "lat": 37.75,  "lon": -122.83,  "name": "San Francisco Bar", "wind_fallback": "FTPC1"},
-    {"id": "46013", "lat": 38.24,  "lon": -123.31,  "name": "Bodega Bay", "wind_fallback": "PRYC1"},
-    {"id": "46014", "lat": 39.22,  "lon": -123.97,  "name": "Pt. Arena", "wind_fallback": None},
-    {"id": "46022", "lat": 40.713, "lon": -124.531, "name": "Eel River (Humboldt)", "wind_fallback": None},
-    {"id": "46027", "lat": 40.75,  "lon": -124.5,   "name": "Cape Mendocino", "wind_fallback": None},
-
-    # Pacific Northwest (Oregon)
-    {"id": "46050", "lat": 44.656, "lon": -124.524, "name": "Newport, OR", "wind_fallback": None},
-    {"id": "46089", "lat": 45.866, "lon": -124.003, "name": "Tillamook, OR", "wind_fallback": None},
-    {"id": "46029", "lat": 46.144, "lon": -124.511, "name": "Columbia River, OR", "wind_fallback": None},
-
-    # Pacific Northwest (Washington)
-    {"id": "46041", "lat": 47.353, "lon": -124.731, "name": "Cape Elizabeth, WA", "wind_fallback": None},
-
-    # Offshore Pacific
-    {"id": "46002", "lat": 42.614, "lon": -130.516, "name": "Oregon Offshore", "wind_fallback": None},
-    {"id": "46005", "lat": 46.134, "lon": -131.018, "name": "Washington Offshore", "wind_fallback": None},
-
-    # Hawaii (Popular surf spots)
-    {"id": "51001", "lat": 23.445, "lon": -162.279, "name": "NW Hawaii", "wind_fallback": None},
-    {"id": "51002", "lat": 17.208, "lon": -157.754, "name": "South of Oahu", "wind_fallback": None},
-    {"id": "51003", "lat": 21.673, "lon": -157.752, "name": "Mokapu Point, Oahu", "wind_fallback": None},
-    {"id": "51004", "lat": 17.531, "lon": -152.363, "name": "SE Oahu", "wind_fallback": None},
-    {"id": "51101", "lat": 22.183, "lon": -159.481, "name": "Hanalei, Kauai", "wind_fallback": None}
-]
+# BUOY_LIST now loaded from Supabase database (see buoy_registry.py)
+# Fallback list is in buoy_registry.py if database unavailable
 
 async def fetch_wind_from_station(station_id: str) -> Dict:
     """Fetch wind data from a fallback station (NOS CO-OPS)."""
@@ -577,26 +569,208 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
     except Exception as e:
         return {"station": buoy_id, "error": str(e)}
 
+
+# ============================================================================
+# Authentication Endpoints
+# ============================================================================
+
+@app.get("/api/auth/check-admin")
+async def check_admin_status(user: Optional[Dict] = Depends(optional_auth)):
+    """
+    Check if the current user has admin privileges.
+    Returns: {"is_admin": true/false, "user_id": "...", "email": "..."}
+    """
+    if not user:
+        return {"is_admin": False, "authenticated": False}
+
+    user_id = user.get("user_id")
+    email = user.get("email")
+
+    # Check admin status
+    admin_status = is_admin(user_id) if is_admin else False
+
+    return {
+        "is_admin": admin_status,
+        "authenticated": True,
+        "user_id": user_id,
+        "email": email
+    }
+
+
+# ============================================================================
+# AI Personas Management Endpoints
+# ============================================================================
+
+@app.get("/api/admin/personas")
+async def list_personas(user: Dict = Depends(require_admin) if require_admin else None):
+    """
+    List all AI personas (admin only).
+    Returns all personas with their configurations.
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        return {"error": "Database not configured"}
+
+    try:
+        result = admin_client.table("ai_personas") \
+            .select("*") \
+            .order("name") \
+            .execute()
+
+        return {
+            "success": True,
+            "personas": result.data
+        }
+
+    except Exception as e:
+        print(f"❌ Error listing personas: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/admin/personas/{slug}")
+async def get_persona(slug: str, user: Dict = Depends(require_admin) if require_admin else None):
+    """
+    Get a specific persona by slug (admin only).
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        return {"error": "Database not configured"}
+
+    try:
+        result = admin_client.table("ai_personas") \
+            .select("*") \
+            .eq("slug", slug) \
+            .single() \
+            .execute()
+
+        if not result.data:
+            return {"error": f"Persona '{slug}' not found"}
+
+        return {
+            "success": True,
+            "persona": result.data
+        }
+
+    except Exception as e:
+        print(f"❌ Error fetching persona: {e}")
+        return {"error": str(e)}
+
+
+@app.put("/api/admin/personas/{slug}")
+async def update_persona(
+    slug: str,
+    persona_data: Dict[str, Any],
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """
+    Update a persona (admin only).
+    Allowed fields: name, description, system_prompt, model, max_tokens, temperature, is_active
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        return {"error": "Database not configured"}
+
+    # Fields that can be updated
+    allowed_fields = ['name', 'description', 'system_prompt', 'model', 'max_tokens', 'temperature', 'is_active']
+    update_data = {k: v for k, v in persona_data.items() if k in allowed_fields}
+
+    if not update_data:
+        return {"error": "No valid fields to update"}
+
+    # Add updated_at timestamp
+    update_data['updated_at'] = datetime.utcnow().isoformat()
+
+    try:
+        result = admin_client.table("ai_personas") \
+            .update(update_data) \
+            .eq("slug", slug) \
+            .execute()
+
+        if not result.data:
+            return {"error": f"Persona '{slug}' not found"}
+
+        print(f"✅ Persona '{slug}' updated by {user.get('email', 'unknown')}")
+
+        return {
+            "success": True,
+            "persona": result.data[0]
+        }
+
+    except Exception as e:
+        print(f"❌ Error updating persona: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/admin/personas")
+async def create_persona(
+    persona_data: Dict[str, Any],
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """
+    Create a new persona (admin only).
+    Required fields: slug, name, description, system_prompt
+    """
+    from database import get_supabase_admin_client
+    admin_client = get_supabase_admin_client()
+
+    if not admin_client:
+        return {"error": "Database not configured"}
+
+    required_fields = ['slug', 'name', 'description', 'system_prompt']
+    for field in required_fields:
+        if field not in persona_data:
+            return {"error": f"Missing required field: {field}"}
+
+    try:
+        result = admin_client.table("ai_personas") \
+            .insert(persona_data) \
+            .execute()
+
+        print(f"✅ Persona '{persona_data['slug']}' created by {user.get('email', 'unknown')}")
+
+        return {
+            "success": True,
+            "persona": result.data[0]
+        }
+
+    except Exception as e:
+        print(f"❌ Error creating persona: {e}")
+        return {"error": str(e)}
+
+
+# ============================================================================
+# Buoy Data Endpoints
+# ============================================================================
+
 @app.get("/api/buoy-status")
 async def get_primary_buoy():
     """Get data for the primary buoy (Del Mar Nearshore)."""
-    primary_buoy = next((b for b in BUOY_LIST if b["id"] == "46266"), None)
+    primary_buoy = get_buoy_by_id("46266") if get_buoy_by_id else None
     wind_fallback = primary_buoy.get("wind_fallback") if primary_buoy else None
     return await fetch_buoy_data("46266", wind_fallback_station=wind_fallback)
 
 @app.get("/api/buoy-status/all")
-async def get_all_buoys():
+async def get_all_buoys_endpoint():
     """Get data for all buoys concurrently with caching and wind fallback."""
+    # Load buoy list from database (or fallback to hardcoded list)
+    buoy_list = get_all_buoys() if get_all_buoys else []
+
     # Fetch all buoys concurrently with their wind fallback stations
     # Use return_exceptions=True to prevent one slow request from blocking all others
     tasks = [
-        fetch_buoy_data(buoy["id"], wind_fallback_station=buoy.get("wind_fallback")) 
-        for buoy in BUOY_LIST
+        fetch_buoy_data(buoy["id"], wind_fallback_station=buoy.get("wind_fallback"))
+        for buoy in buoy_list
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     # Merge with buoy metadata and handle exceptions
-    for i, buoy in enumerate(BUOY_LIST):
+    for i, buoy in enumerate(buoy_list):
         if isinstance(results[i], Exception):
             # Replace exception with error dict
             results[i] = {
@@ -1259,16 +1433,26 @@ async def fetch_real_noaa_wind(
 
             # Create meshgrid for lat/lon
             lon_grid, lat_grid = np.meshgrid(lons, lats)
-            
+
             # Convert lon from [0,360] to [-180,180]
             lon_grid = np.where(lon_grid > 180, lon_grid - 360, lon_grid)
 
-            # Filter out NaN values
-            valid_mask = ~(np.isnan(u_values) | np.isnan(v_values))
-            vectors: List[Dict] = []
-            
-            # Subsample if too many points (limit to ~3000 vectors for performance - 40% reduction for faster rendering)
+
+            # Filter by bbox FIRST (with margin for GFS 0.25° grid), THEN subsample
+            # This prevents subsampling from skipping over the requested region
+            margin = 0.5
+            bbox_mask = (
+                (lat_grid >= (min_lat - margin)) & (lat_grid <= (max_lat + margin)) &
+                (lon_grid >= (min_lon - margin)) & (lon_grid <= (max_lon + margin))
+            )
+
+            # Filter out NaN values AND points outside bbox
+            valid_mask = ~(np.isnan(u_values) | np.isnan(v_values)) & bbox_mask
+
             total_points = np.sum(valid_mask)
+            vectors: List[Dict] = []
+
+            # Subsample if too many points (limit to ~3000 vectors for performance)
             step = 1
             if total_points > 3000:
                 step = max(1, int(np.sqrt(total_points / 3000)))
@@ -1281,8 +1465,6 @@ async def fetch_real_noaa_wind(
                 lat_grid = lat_grid[::step, ::step]
                 lon_grid = lon_grid[::step, ::step]
                 valid_mask = valid_mask[::step, ::step]
-                lats = lats[::step]
-                lons = lons[::step]
 
             # Build vectors list (only valid points)
             for i in range(lat_grid.shape[0]):
@@ -2072,9 +2254,10 @@ async def fetch_real_noaa_ww3_opendap(
                 print(f"🔍 Available data variables: {list(ds.data_vars.keys())}")
                 print(f"🔍 Available coordinates: {list(ds.coords.keys())}")
                 
-                # Find HTSGW (significant wave height) and WVDIR (mean wave direction)
+                # Find HTSGW (significant wave height), WVDIR (mean wave direction), and PERPW (peak period)
                 hs_name = None
                 dir_name = None
+                per_name = None
                 for name in ds.data_vars:
                     var_lower = name.lower()
                     if 'htsgw' in var_lower or 'swh' in var_lower or 'hs' in var_lower or 'wave_height' in var_lower:
@@ -2083,6 +2266,9 @@ async def fetch_real_noaa_ww3_opendap(
                     if 'wvdir' in var_lower or 'wdir' in var_lower or 'dir' in var_lower or 'wave_direction' in var_lower:
                         dir_name = name
                         print(f"✅ Found wave direction var: {name}")
+                    if 'perpw' in var_lower or 'period' in var_lower or 'wave_period' in var_lower:
+                        per_name = name
+                        print(f"✅ Found wave period var: {name}")
                 
                 if not hs_name:
                     # Try common names
@@ -2100,6 +2286,7 @@ async def fetch_real_noaa_ww3_opendap(
                 # Select data for the forecast hour and bbox
                 hs_var = ds[hs_name]
                 dir_var = ds[dir_name] if dir_name and dir_name in ds.data_vars else None
+                per_var = ds[per_name] if per_name and per_name in ds.data_vars else None
                 
                 # Get lat/lon coordinates
                 lat_name = "latitude" if "latitude" in hs_var.coords else ("lat" if "lat" in hs_var.coords else None)
@@ -2122,9 +2309,14 @@ async def fetch_real_noaa_ww3_opendap(
                         dir_slice = dir_var.isel(time=time_idx)
                     else:
                         dir_slice = None
+                    if per_var is not None and 'time' in per_var.dims:
+                        per_slice = per_var.isel(time=time_idx)
+                    else:
+                        per_slice = None
                 else:
                     hs_slice = hs_var
                     dir_slice = dir_var
+                    per_slice = per_var
                 
                 # Check latitude order in the dataset
                 lat_coord = hs_slice[lat_name]
@@ -2143,7 +2335,7 @@ async def fetch_real_noaa_ww3_opendap(
                     {lat_name: lat_slice,
                      lon_name: slice(opendap_min_lon, opendap_max_lon)}
                 )
-                
+
                 if dir_slice is not None:
                     dir_subset = dir_slice.sel(
                         {lat_name: lat_slice,
@@ -2151,6 +2343,14 @@ async def fetch_real_noaa_ww3_opendap(
                     )
                 else:
                     dir_subset = None
+
+                if per_slice is not None:
+                    per_subset = per_slice.sel(
+                        {lat_name: lat_slice,
+                         lon_name: slice(opendap_min_lon, opendap_max_lon)}
+                    )
+                else:
+                    per_subset = None
                 
                 # Load data into memory
                 print(f"🔍 Subset shape: {hs_subset.shape}, dims: {hs_subset.dims}")
@@ -2161,23 +2361,33 @@ async def fetch_real_noaa_ww3_opendap(
                 
                 hs_values = hs_subset.values
                 dir_values = dir_subset.values if dir_subset is not None else np.zeros_like(hs_values)
+                per_values = per_subset.values if per_subset is not None else np.zeros_like(hs_values)
                 lats = hs_subset[lat_name].values
                 lons = hs_subset[lon_name].values
-                
+
                 # Force NaN/Inf to be finite (source-level cleanup)
                 hs_values = np.array(hs_values, dtype=np.float64)
                 dir_values = np.array(dir_values, dtype=np.float64) if dir_subset is not None else np.zeros_like(hs_values, dtype=np.float64)
-                
+                per_values = np.array(per_values, dtype=np.float64) if per_subset is not None else np.zeros_like(hs_values, dtype=np.float64)
+
                 # Replace NaN/Inf with NaN (will be filtered out later)
                 hs_values = np.where(np.isfinite(hs_values), hs_values, np.nan)
                 dir_values = np.where(np.isfinite(dir_values), dir_values, np.nan)
+                per_values = np.where(np.isfinite(per_values), per_values, np.nan)
                 
                 print(f"🔍 Loaded data: hs shape={hs_values.shape}, lats range={lats.min():.2f} to {lats.max():.2f}, lons range={lons.min():.2f} to {lons.max():.2f}")
                 print(f"🔍 Requested bbox: lat {rounded_min_lat:.2f} to {rounded_max_lat:.2f}, lon {rounded_min_lon:.2f} to {rounded_max_lon:.2f}")
-                
+
+                # Debug period values
+                valid_per = per_values[np.isfinite(per_values)] if per_values is not None else []
+                if len(valid_per) > 0:
+                    print(f"🔍 Period values: min={valid_per.min():.1f}s, max={valid_per.max():.1f}s, mean={valid_per.mean():.1f}s, count={len(valid_per)}")
+                else:
+                    print(f"⚠️  No valid period values found in dataset")
+
                 ds.close()
-                
-                return (hs_values, dir_values, lats, lons)
+
+                return (hs_values, dir_values, per_values, lats, lons)
                 
             except Exception as e:
                 print(f"❌ OPeNDAP fetch error: {e}")
@@ -2196,8 +2406,8 @@ async def fetch_real_noaa_ww3_opendap(
                 
                 if result is None:
                     return None
-                
-                hs_values, dir_values, lats, lons = result
+
+                hs_values, dir_values, per_values, lats, lons = result
                 
                 # Process data into vectors
                 # Handle reversed latitude order
@@ -2205,6 +2415,8 @@ async def fetch_real_noaa_ww3_opendap(
                     hs_values = np.flipud(hs_values)
                     if dir_values is not None:
                         dir_values = np.flipud(dir_values)
+                    if per_values is not None:
+                        per_values = np.flipud(per_values)
                     lats = np.flip(lats)
                 
                 # Create meshgrid for lat/lon
@@ -2240,6 +2452,7 @@ async def fetch_real_noaa_ww3_opendap(
                     print(f"📊 Subsampling: {valid_points} valid points -> ~{valid_points // (step*step)} vectors (step={step})")
                     hs_values = hs_values[::step, ::step]
                     dir_values = dir_values[::step, ::step] if dir_values is not None else dir_values[::step, ::step]
+                    per_values = per_values[::step, ::step] if per_values is not None else per_values[::step, ::step]
                     lat_grid = lat_grid[::step, ::step]
                     lon_grid = lon_grid[::step, ::step]
                     valid_mask = valid_mask[::step, ::step]
@@ -2266,13 +2479,24 @@ async def fetch_real_noaa_ww3_opendap(
                                 dir_val = 270.0  # Default direction for NaN
                         else:
                             dir_val = 270.0
-                        
+
+                        # Handle period - check for NaN and bounds
+                        if per_values is not None and i < per_values.shape[0] and j < per_values.shape[1]:
+                            per_raw = per_values[i, j]
+                            if not np.isnan(per_raw) and np.isfinite(per_raw) and per_raw > 0:
+                                per_val = round(float(per_raw), 1)
+                            else:
+                                per_val = None  # null for NaN/invalid period
+                        else:
+                            per_val = None
+
                         # Include ALL points (even with null hs) to ensure bounds cover full expanded bbox
                         vectors.append({
                             "lat": round(lat_val, 2),
                             "lon": round(lon_val, 2),
                             "hs": hs_val,  # Can be null for NaN/invalid points
                             "dir_deg": dir_val,
+                            "period": per_val,  # Can be null for NaN/invalid period
                         })
                 
                 fetch_duration = time.time() - fetch_start_time
@@ -2771,6 +2995,573 @@ async def get_wave_point(
     
     return result
 
+
+# ============================================================================
+# SURF SPOTS API
+# ============================================================================
+
+@app.get("/api/surf-spots")
+async def get_surf_spots(
+    region: Optional[str] = None,
+    skill_level: Optional[str] = None,
+    min_score: Optional[float] = None,
+    with_scores: bool = False
+):
+    """
+    Get all surf spots with optional filtering.
+
+    Query params:
+    - region: Filter by region (e.g., "San Diego County")
+    - skill_level: Filter by skill level (beginner, intermediate, experienced, expert)
+    - min_score: Minimum current score (requires with_scores=true)
+    - with_scores: Include real-time conditions scores (slower)
+    """
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        # Build query
+        query = supabase.table("spots").select("""
+            *,
+            spot_characteristics(
+                break_type,
+                bottom_type,
+                wave_quality,
+                skill_level,
+                crowd_level,
+                best_swell_direction,
+                works_from_swell_ft,
+                works_to_swell_ft
+            )
+        """)
+
+        # Apply filters
+        if region:
+            query = query.eq("subregion", region)
+
+        result = query.execute()
+        spots = result.data
+
+        # Filter by skill level if specified
+        if skill_level:
+            spots = [
+                s for s in spots
+                if s.get('spot_characteristics', {}).get('skill_level') == skill_level
+            ]
+
+        # Calculate scores if requested
+        if with_scores:
+            # Import here to avoid circular dependency
+            from surf_scoring import calculate_spot_score
+
+            # Fetch all buoy data once
+            buoy_cache = {}
+            buoy_list = get_all_buoys() if get_all_buoys else []
+
+            for buoy in buoy_list:
+                try:
+                    buoy_data = await fetch_buoy_data(buoy['id'], wind_fallback_station=buoy.get('wind_fallback'))
+                    if buoy_data and 'station' in buoy_data:
+                        buoy_cache[buoy_data['station']] = buoy_data
+                except Exception as e:
+                    print(f"⚠️  Failed to fetch buoy {buoy['id']}: {e}")
+                    continue
+
+            # Calculate scores for each spot
+            spots_with_scores = []
+            for spot in spots:
+                try:
+                    score_result = await calculate_spot_score(spot['slug'], buoy_cache)
+                    if score_result:
+                        spot['current_conditions'] = score_result
+                        spots_with_scores.append(spot)
+                except Exception as e:
+                    print(f"⚠️  Failed to score {spot['slug']}: {e}")
+                    spot['current_conditions'] = None
+                    spots_with_scores.append(spot)
+
+            spots = spots_with_scores
+
+            # Apply min_score filter if specified
+            if min_score is not None:
+                spots = [
+                    s for s in spots
+                    if s.get('current_conditions', {}).get('overall_score', 0) >= min_score
+                ]
+
+        return {
+            "spots": spots,
+            "count": len(spots),
+            "with_scores": with_scores
+        }
+
+    except Exception as e:
+        print(f"❌ Error fetching surf spots: {e}")
+        return {"error": str(e), "spots": [], "count": 0}
+
+
+@app.get("/api/surf-spots/{slug}")
+async def get_surf_spot_detail(slug: str):
+    """
+    Get detailed information for a single surf spot.
+    Includes characteristics, swell/wind windows, and buoy mappings.
+    """
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        result = supabase.table("spots").select("""
+            *,
+            spot_characteristics(*),
+            spot_swell_windows(*),
+            spot_wind_windows(*),
+            spot_forecast_tuning(*)
+        """).eq("slug", slug).single().execute()
+
+        if not result.data:
+            return {"error": "Spot not found"}
+
+        return result.data
+
+    except Exception as e:
+        print(f"❌ Error fetching spot {slug}: {e}")
+        return {"error": str(e)}
+
+
+@app.put("/api/admin/surf-spots/{slug}")
+async def update_surf_spot(
+    slug: str,
+    spot_data: Dict[str, Any],
+    user: Dict = Depends(require_admin)
+):
+    """
+    Update surf spot data (admin only).
+    Updates both spots table (basic info) and spot_characteristics table.
+    """
+    from database import get_supabase_admin_client
+    from datetime import datetime
+
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    # Define which fields belong to which table
+    spot_fields = [
+        'name', 'region', 'subregion', 'latitude', 'longitude',
+        'location_description', 'access_description', 'parking_info'
+    ]
+
+    char_fields = [
+        'break_type', 'bottom_type', 'wave_quality', 'skill_level',
+        'best_swell_direction', 'best_wind_direction', 'tide_position',
+        'works_from_swell_ft', 'works_to_swell_ft', 'hazards'
+    ]
+
+    # Validation
+    if 'name' in spot_data and not spot_data['name']:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    if 'region' in spot_data and not spot_data['region']:
+        raise HTTPException(status_code=400, detail="Region is required")
+
+    if 'skill_level' in spot_data and not spot_data['skill_level']:
+        raise HTTPException(status_code=400, detail="Skill level is required")
+
+    if 'latitude' in spot_data:
+        lat = spot_data['latitude']
+        if lat < -90 or lat > 90:
+            raise HTTPException(status_code=400, detail="Latitude must be between -90 and 90")
+
+    if 'longitude' in spot_data:
+        lon = spot_data['longitude']
+        if lon < -180 or lon > 180:
+            raise HTTPException(status_code=400, detail="Longitude must be between -180 and 180")
+
+    try:
+        # Update spots table
+        spot_update = {k: v for k, v in spot_data.items() if k in spot_fields}
+        if spot_update:
+            spot_update['updated_at'] = datetime.utcnow().isoformat()
+            result = admin_client.table("spots") \
+                .update(spot_update) \
+                .eq("slug", slug) \
+                .execute()
+
+            if not result.data:
+                raise HTTPException(status_code=404, detail=f"Spot '{slug}' not found")
+
+        # Update characteristics table
+        char_update = {k: v for k, v in spot_data.items() if k in char_fields}
+        if char_update:
+            char_update['updated_at'] = datetime.utcnow().isoformat()
+
+            # Get spot ID
+            spot = admin_client.table("spots").select("id").eq("slug", slug).single().execute()
+            if spot.data:
+                admin_client.table("spot_characteristics") \
+                    .update(char_update) \
+                    .eq("spot_id", spot.data['id']) \
+                    .execute()
+
+        print(f"✅ Spot '{slug}' updated by {user.get('email', 'unknown')}")
+        return {"success": True, "message": "Spot updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error updating spot: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/surf-spots/{slug}/conditions")
+async def get_surf_spot_conditions(slug: str):
+    """
+    Get real-time surf conditions and score for a spot.
+    Returns current wave/wind data from blended buoys with 0-10 quality score.
+    """
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        from surf_scoring import calculate_spot_score
+
+        # Get spot to find buoy mappings
+        spot_result = supabase.table("spots").select("""
+            *,
+            spot_forecast_tuning(buoy_blend)
+        """).eq("slug", slug).single().execute()
+
+        if not spot_result.data:
+            return {"error": "Spot not found"}
+
+        spot = spot_result.data
+        tuning = spot.get('spot_forecast_tuning', {})
+        buoy_blend = tuning.get('buoy_blend', {})
+
+        if not buoy_blend:
+            return {"error": "No buoys mapped for this spot"}
+
+        # Make a copy of buoy_blend so we can modify it
+        import copy
+        buoy_blend_with_model = copy.deepcopy(buoy_blend)
+
+        # Fetch buoy data for all buoys in the blend
+        buoy_cache = {}
+        for buoy_id in buoy_blend.keys():
+            try:
+                buoy_data = await fetch_buoy_data(buoy_id)
+                if buoy_data and 'station' in buoy_data:
+                    buoy_cache[buoy_id] = buoy_data
+            except Exception as e:
+                print(f"⚠️  Failed to fetch buoy {buoy_id}: {e}")
+                continue
+
+        # Fetch WW3 model data at spot coordinates
+        try:
+            lat = spot['latitude']
+            lon = spot['longitude']
+            bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
+
+            wave_response = await get_waves_overlay(
+                model="ww3",
+                bounds=bounds,
+                forecast_hour=0,
+                source="global"
+            )
+
+            if wave_response and 'vectors' in wave_response and len(wave_response['vectors']) > 0:
+                # Find closest grid point to spot
+                min_dist = float('inf')
+                closest = None
+                for v in wave_response['vectors']:
+                    dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest = v
+
+                if closest and closest.get('hs'):
+                    # Add WW3 as a synthetic buoy to the cache
+                    buoy_cache['WW3'] = {
+                        'station': 'WW3',
+                        'wave_height_m': closest.get('hs'),
+                        'dominant_period_sec': closest.get('per'),  # May be None
+                        'mean_wave_dir': str(int(closest.get('dir_deg'))) if closest.get('dir_deg') else None,
+                        'wind_speed_ms': None,
+                        'wind_dir': None,
+                        'timestamp_utc': datetime.utcnow().isoformat() + 'Z',
+                        'name': 'WaveWatch III Model'
+                    }
+
+                    # Add WW3 to the buoy blend with 20% weight
+                    # Reduce other buoy weights proportionally
+                    ww3_weight = 0.2
+                    scale_factor = (1.0 - ww3_weight)
+
+                    # Scale existing weights in the copy
+                    for buoy_id in buoy_blend_with_model.keys():
+                        if isinstance(buoy_blend_with_model[buoy_id], dict):
+                            buoy_blend_with_model[buoy_id]['weight'] = buoy_blend_with_model[buoy_id].get('weight', 0) * scale_factor
+                        else:
+                            buoy_blend_with_model[buoy_id] = {'weight': buoy_blend_with_model[buoy_id] * scale_factor}
+
+                    # Add WW3
+                    buoy_blend_with_model['WW3'] = {'weight': ww3_weight, 'role': 'model'}
+
+                    print(f"✅ Added WW3 model data to {slug} blend (20% weight)")
+        except Exception as e:
+            print(f"⚠️  Failed to fetch WW3 for {slug}: {e}")
+
+        # Calculate score with modified blend (includes WW3 if available)
+        score_result = await calculate_spot_score(slug, buoy_cache, buoy_blend_override=buoy_blend_with_model)
+
+        if not score_result:
+            return {"error": "Unable to calculate conditions"}
+
+        return score_result
+
+    except Exception as e:
+        print(f"❌ Error calculating conditions for {slug}: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/surf-spots/{slug}/model-forecast")
+async def get_surf_spot_model_forecast(slug: str):
+    """
+    Get current model forecast data at spot coordinates.
+    Fetches WW3 wave and HRRR wind data at the exact spot location.
+    """
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        # Get spot coordinates
+        spot_result = supabase.table("spots").select("latitude, longitude, name").eq("slug", slug).single().execute()
+
+        if not spot_result.data:
+            return {"error": "Spot not found"}
+
+        spot = spot_result.data
+        lat = spot['latitude']
+        lon = spot['longitude']
+
+        # Create small bbox around spot (0.2° ~ 22km box)
+        bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
+
+        model_data = {}
+
+        # Fetch WW3 wave data (hour 0 = current)
+        try:
+            wave_response = await get_waves_overlay(
+                model="ww3",
+                bounds=bounds,
+                forecast_hour=0,
+                source="global"
+            )
+
+            if wave_response and 'vectors' in wave_response and len(wave_response['vectors']) > 0:
+                # Find closest grid point to spot
+                min_dist = float('inf')
+                closest = None
+                for v in wave_response['vectors']:
+                    dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest = v
+
+                if closest:
+                    model_data['ww3'] = {
+                        'wave_height_m': closest.get('hs'),
+                        'wave_height_ft': closest.get('hs') * 3.28084 if closest.get('hs') else None,
+                        'direction': closest.get('dir_deg'),
+                        'period_sec': closest.get('per'),  # May be None
+                        'grid_distance_km': min_dist * 111,  # degrees to km
+                        'model': 'WaveWatch III',
+                        'resolution': '0.16° (~18km)'
+                    }
+        except Exception as e:
+            print(f"⚠️  WW3 fetch failed for {slug}: {e}")
+            model_data['ww3'] = {'error': str(e)}
+
+        # Fetch HRRR wind data (hour 0 = current)
+        try:
+            wind_response = await get_wind_overlay(
+                model="hrrr",
+                bounds=bounds,
+                forecast_hour=0,
+                real_data=True
+            )
+
+            if wind_response and 'vectors' in wind_response and len(wind_response['vectors']) > 0:
+                # Find closest grid point to spot
+                min_dist = float('inf')
+                closest = None
+                for v in wind_response['vectors']:
+                    dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest = v
+
+                if closest:
+                    # Convert wind speed from m/s to mph
+                    speed_ms = ((closest.get('u', 0)**2 + closest.get('v', 0)**2)**0.5)
+                    speed_mph = speed_ms * 2.23694
+
+                    model_data['hrrr'] = {
+                        'wind_speed_ms': speed_ms,
+                        'wind_speed_mph': speed_mph,
+                        'wind_direction': closest.get('dir'),
+                        'grid_distance_km': min_dist * 111,
+                        'model': 'HRRR',
+                        'resolution': '3km'
+                    }
+        except Exception as e:
+            print(f"⚠️  HRRR fetch failed for {slug}: {e}")
+            model_data['hrrr'] = {'error': str(e)}
+
+        # Sanitize for JSON
+        return json_sanitize({
+            'spot_name': spot['name'],
+            'spot_slug': slug,
+            'latitude': lat,
+            'longitude': lon,
+            'models': model_data
+        })
+
+    except Exception as e:
+        print(f"❌ Error fetching model forecast for {slug}: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/surf-spots/{slug}/forecast-timeline")
+async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
+    """
+    Get forecast timeline for a spot showing wave and wind conditions over time.
+    Returns data points every 3 hours from 0 to {hours}.
+    """
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        # Get spot coordinates
+        spot_result = supabase.table("spots").select("latitude, longitude, name").eq("slug", slug).single().execute()
+
+        if not spot_result.data:
+            return {"error": "Spot not found"}
+
+        spot = spot_result.data
+        lat = spot['latitude']
+        lon = spot['longitude']
+
+        # Create small bbox around spot
+        bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
+
+        forecast_timeline = []
+
+        # Fetch WW3 data for multiple forecast hours
+        # We'll fetch every 6 hours to reduce load: 0, 6, 12, 18, 24, etc.
+        forecast_hours = list(range(0, min(hours + 1, 181), 6))
+
+        print(f"🔮 Fetching forecast timeline for {slug}: {len(forecast_hours)} points")
+
+        for forecast_hour in forecast_hours:
+            try:
+                # Fetch WW3 wave data
+                wave_response = await get_waves_overlay(
+                    model="ww3",
+                    bounds=bounds,
+                    forecast_hour=forecast_hour,
+                    source="global"
+                )
+
+                wave_data = None
+                if wave_response and 'vectors' in wave_response and len(wave_response['vectors']) > 0:
+                    # Find closest grid point
+                    min_dist = float('inf')
+                    closest = None
+                    for v in wave_response['vectors']:
+                        dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
+                        if dist < min_dist:
+                            min_dist = dist
+                            closest = v
+
+                    if closest:
+                        height_m = closest.get('hs')
+                        period_sec = closest.get('period')
+
+                        # Calculate surf face height if we have both height and period
+                        surf_height_m = None
+                        surf_height_ft = None
+                        if height_m and period_sec:
+                            surf_height_m = calculate_surf_height(height_m, period_sec)
+                            surf_height_ft = round(surf_height_m * 3.28084, 1)
+
+                        wave_data = {
+                            'height_m': height_m,
+                            'height_ft': height_m * 3.28084 if height_m else None,
+                            'direction': closest.get('dir_deg'),
+                            'period': period_sec,
+                            'surf_height_m': surf_height_m,
+                            'surf_height_ft': surf_height_ft
+                        }
+
+                # Fetch GFS wind data (HRRR not fully implemented yet)
+                wind_data = None
+                try:
+                    wind_response = await get_wind_overlay(
+                        model="gfs",
+                        bounds=bounds,
+                        forecast_hour=forecast_hour,
+                        real_data=True
+                    )
+
+                    if wind_response and 'vectors' in wind_response and len(wind_response['vectors']) > 0:
+                        min_dist = float('inf')
+                        closest = None
+                        for v in wind_response['vectors']:
+                            dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
+                            if dist < min_dist:
+                                min_dist = dist
+                                closest = v
+
+                        if closest:
+                            # GFS wind vectors use u_component/v_component and direction_deg
+                            u_comp = closest.get('u_component', 0)
+                            v_comp = closest.get('v_component', 0)
+                            speed_ms = ((u_comp**2 + v_comp**2)**0.5)
+                            wind_data = {
+                                'speed_ms': round(speed_ms, 1),
+                                'speed_mph': round(speed_ms * 2.23694, 1),
+                                'direction': closest.get('direction_deg')
+                            }
+                except Exception as e:
+                    print(f"⚠️  Wind fetch failed for hour {forecast_hour}: {e}")
+
+                # Add to timeline
+                forecast_timeline.append({
+                    'hour': forecast_hour,
+                    'wave': wave_data,
+                    'wind': wind_data
+                })
+
+            except Exception as e:
+                print(f"⚠️  Failed to fetch hour {forecast_hour}: {e}")
+                continue
+
+        return json_sanitize({
+            'spot_name': spot['name'],
+            'spot_slug': slug,
+            'latitude': lat,
+            'longitude': lon,
+            'forecast_hours': forecast_hours,
+            'timeline': forecast_timeline,
+            'total_points': len(forecast_timeline)
+        })
+
+    except Exception as e:
+        print(f"❌ Error fetching forecast timeline for {slug}: {e}")
+        return {"error": str(e)}
+
+
 @app.get("/api/overlays/models")
 async def get_available_models():
     """
@@ -2818,3 +3609,627 @@ async def get_available_models():
             }
         ]
     }
+
+
+# ============================================================================
+# AI SURF ANALYSIS PERSONAS
+# ============================================================================
+
+# Import AI modules
+try:
+    from ai_personas import analyze_spot_swell_geometry
+    from ai_analysis_db import (
+        save_analysis, get_analysis, get_all_analyses,
+        delete_analysis, update_user_feedback, get_analysis_stats
+    )
+    print("✅ AI personas module loaded")
+except ImportError as e:
+    print(f"⚠️  AI personas not available: {e}")
+    analyze_spot_swell_geometry = None
+
+
+@app.get("/api/ai/spot-analysis/{buoy_id}")
+async def get_spot_ai_analysis(buoy_id: str):
+    """
+    Get AI-powered swell geometry analysis for a buoy/spot.
+
+    Returns cached analysis if available, otherwise returns 404.
+    Use POST endpoint to generate new analysis.
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    try:
+        from ai_analysis_db import get_analysis
+
+        analysis = await get_analysis(buoy_id, "swell_geometry_analyst")
+
+        if analysis:
+            return {
+                "success": True,
+                "cached": True,
+                "buoy_id": buoy_id,
+                "analysis": analysis
+            }
+        else:
+            return {
+                "success": False,
+                "cached": False,
+                "message": "No analysis found - use POST to generate"
+            }
+
+    except Exception as e:
+        print(f"❌ Error retrieving AI analysis: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/ai/spot-analysis/{buoy_id}/generate")
+async def generate_spot_ai_analysis(buoy_id: str, force: bool = False):
+    """
+    Generate new AI-powered swell geometry analysis for a buoy/spot.
+
+    Query params:
+    - force: If true, regenerate even if cached analysis exists
+
+    This is the endpoint to trigger AI analysis on-demand or in background.
+    """
+    if not analyze_spot_swell_geometry:
+        return {"error": "AI personas not configured (missing ANTHROPIC_API_KEY)"}
+
+    try:
+        # Check if analysis already exists (unless force=true)
+        if not force:
+            from ai_analysis_db import get_analysis
+            existing = await get_analysis(buoy_id, "swell_geometry_analyst")
+
+            if existing:
+                return {
+                    "success": True,
+                    "cached": True,
+                    "message": "Analysis already exists (use force=true to regenerate)",
+                    "analysis": existing
+                }
+
+        # Get buoy metadata
+        buoy = get_buoy_by_id(buoy_id)
+
+        if not buoy:
+            return {"error": f"Buoy {buoy_id} not found"}
+
+        print(f"🤖 Generating AI analysis for {buoy['name']} ({buoy_id})...")
+
+        # Generate AI analysis
+        result = await analyze_spot_swell_geometry(
+            lat=buoy['lat'],
+            lon=buoy['lon'],
+            spot_name=buoy['name'],
+            buoy_id=buoy_id
+        )
+
+        if not result.get('success'):
+            return {
+                "success": False,
+                "error": result.get('error', 'Unknown error'),
+                "buoy_id": buoy_id
+            }
+
+        # Save to database
+        from ai_analysis_db import save_analysis
+
+        saved = await save_analysis(
+            buoy_id=buoy_id,
+            spot_name=buoy['name'],
+            lat=buoy['lat'],
+            lon=buoy['lon'],
+            analysis_data=result['analysis'],
+            persona_type="swell_geometry_analyst",
+            model_used=result.get('model', 'claude-3-haiku-20240307'),
+            analysis_version="1.0"
+        )
+
+        if saved:
+            print(f"✅ AI analysis saved for {buoy['name']}")
+            return {
+                "success": True,
+                "cached": False,
+                "generated": True,
+                "buoy_id": buoy_id,
+                "analysis": saved
+            }
+        else:
+            # Analysis generated but save failed - return the analysis anyway
+            return {
+                "success": True,
+                "cached": False,
+                "generated": True,
+                "save_failed": True,
+                "warning": "Analysis generated but not saved to database",
+                "buoy_id": buoy_id,
+                "analysis": result
+            }
+
+    except Exception as e:
+        print(f"❌ Error generating AI analysis: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/ai/spot-analysis/batch-generate")
+async def batch_generate_ai_analysis(buoy_ids: List[str] = None, force: bool = False):
+    """
+    Generate AI analysis for multiple buoys (background job).
+
+    Body params:
+    - buoy_ids: List of buoy IDs (if empty, analyzes all buoys)
+    - force: Regenerate even if cached
+
+    Returns immediately with job status. Analyses run in background.
+    """
+    if not analyze_spot_swell_geometry:
+        return {"error": "AI personas not configured"}
+
+    # Get list of buoys to analyze
+    if not buoy_ids:
+        all_buoys = get_all_buoys()
+        buoy_ids = [b['id'] for b in all_buoys]
+
+    print(f"🚀 Starting batch AI analysis for {len(buoy_ids)} buoys...")
+
+    results = []
+
+    for buoy_id in buoy_ids:
+        try:
+            result = await generate_spot_ai_analysis(buoy_id, force)
+            results.append({
+                "buoy_id": buoy_id,
+                "success": result.get('success', False),
+                "cached": result.get('cached', False)
+            })
+
+            # Brief delay to avoid rate limits
+            await asyncio.sleep(1)
+
+        except Exception as e:
+            print(f"❌ Failed to analyze {buoy_id}: {e}")
+            results.append({
+                "buoy_id": buoy_id,
+                "success": False,
+                "error": str(e)
+            })
+
+    successful = sum(1 for r in results if r['success'])
+
+    return {
+        "success": True,
+        "total_requested": len(buoy_ids),
+        "successful": successful,
+        "failed": len(buoy_ids) - successful,
+        "results": results
+    }
+
+
+@app.get("/api/ai/analyses/all")
+async def get_all_ai_analyses(persona_type: str = "swell_geometry_analyst", limit: int = 50):
+    """
+    Get all AI analyses in database.
+
+    Query params:
+    - persona_type: Filter by persona (default: swell_geometry_analyst)
+    - limit: Max results (default: 50)
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    try:
+        from ai_analysis_db import get_all_analyses
+
+        analyses = await get_all_analyses(persona_type, limit)
+
+        return {
+            "success": True,
+            "count": len(analyses),
+            "analyses": analyses
+        }
+
+    except Exception as e:
+        print(f"❌ Error retrieving analyses: {e}")
+        return {"error": str(e)}
+
+
+@app.delete("/api/ai/spot-analysis/{analysis_id}")
+async def delete_ai_analysis(analysis_id: str):
+    """
+    Delete (archive) an AI analysis.
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    try:
+        from ai_analysis_db import delete_analysis
+
+        success = await delete_analysis(analysis_id)
+
+        return {
+            "success": success,
+            "analysis_id": analysis_id,
+            "message": "Analysis archived" if success else "Failed to archive"
+        }
+
+    except Exception as e:
+        print(f"❌ Error deleting analysis: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/ai/spot-analysis/{analysis_id}/feedback")
+async def submit_analysis_feedback(analysis_id: str, rating: int, notes: str = None):
+    """
+    Submit user feedback for an AI analysis.
+
+    Body params:
+    - rating: 1-5 stars
+    - notes: Optional text feedback
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    if rating < 1 or rating > 5:
+        return {"error": "Rating must be 1-5"}
+
+    try:
+        from ai_analysis_db import update_user_feedback
+
+        success = await update_user_feedback(analysis_id, rating, notes)
+
+        return {
+            "success": success,
+            "analysis_id": analysis_id,
+            "message": "Feedback submitted" if success else "Failed to submit feedback"
+        }
+
+    except Exception as e:
+        print(f"❌ Error submitting feedback: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/ai/stats")
+async def get_ai_analysis_stats():
+    """
+    Get statistics about AI analyses in database.
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    try:
+        from ai_analysis_db import get_analysis_stats
+
+        stats = await get_analysis_stats()
+
+        return {
+            "success": True,
+            "stats": stats
+        }
+
+    except Exception as e:
+        print(f"❌ Error getting stats: {e}")
+        return {"error": str(e)}
+
+
+# ============================================================================
+# SPOT-BASED AI ANALYSIS (New: Works with actual surf spots)
+# ============================================================================
+
+try:
+    from ai_personas_spots import analyze_spot_swell_geometry as analyze_spot_ai
+    from ai_analysis_db_spots import save_spot_analysis, get_spot_analysis, get_all_spot_analyses
+    print("✅ Spot-based AI personas loaded")
+except ImportError as e:
+    print(f"⚠️  Spot-based AI personas not available: {e}")
+    analyze_spot_ai = None
+
+try:
+    from ai_personas_spots_openai import SpotSwellGeometryAnalystOpenAI
+    analyze_spot_ai_openai = SpotSwellGeometryAnalystOpenAI.analyze
+    print("✅ OpenAI spot personas loaded")
+except ImportError as e:
+    print(f"⚠️  OpenAI spot personas not available: {e}")
+    analyze_spot_ai_openai = None
+
+
+@app.get("/api/spots/{spot_slug}/ai-analysis/all")
+async def get_all_spot_ai_analyses(spot_slug: str):
+    """
+    Get ALL AI analyses for a spot (Claude, OpenAI, etc.)
+    Returns a dict with model names as keys.
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    try:
+        analyses = {}
+
+        # Fetch Claude analysis
+        claude = await get_spot_analysis(spot_slug, "swell_geometry_analyst")
+        if claude:
+            analyses['claude'] = {
+                **claude,
+                'provider': 'Claude',
+                'model_display': 'Sonnet 4'
+            }
+
+        # Fetch OpenAI analysis
+        openai = await get_spot_analysis(spot_slug, "swell_geometry_analyst_openai")
+        if openai:
+            analyses['openai'] = {
+                **openai,
+                'provider': 'OpenAI',
+                'model_display': 'GPT-4o'
+            }
+
+        return {
+            "success": True,
+            "spot_slug": spot_slug,
+            "analyses": analyses,
+            "available_models": list(analyses.keys())
+        }
+
+    except Exception as e:
+        print(f"❌ Error retrieving spot AI analyses: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/spots/{spot_slug}/ai-analysis")
+async def get_spot_ai_analysis(spot_slug: str):
+    """
+    Get AI-powered swell geometry analysis for a surf spot.
+
+    Returns cached analysis if available, otherwise returns 404.
+    Use POST endpoint to generate new analysis.
+    """
+    if not supabase:
+        return {"error": "Database not available"}
+
+    try:
+        analysis = await get_spot_analysis(spot_slug, "swell_geometry_analyst")
+
+        if analysis:
+            return {
+                "success": True,
+                "cached": True,
+                "spot_slug": spot_slug,
+                "analysis": analysis
+            }
+        else:
+            return {
+                "success": False,
+                "cached": False,
+                "message": "No analysis found - use POST to generate"
+            }
+
+    except Exception as e:
+        print(f"❌ Error retrieving spot AI analysis: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/spots/{spot_slug}/ai-analysis/generate")
+async def generate_spot_ai_analysis(
+    spot_slug: str,
+    force: bool = False,
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """
+    Generate new AI-powered swell geometry analysis for a surf spot.
+
+    **Requires admin authentication.**
+
+    Query params:
+    - force: If true, regenerate even if cached analysis exists
+
+    This endpoint analyzes the ACTUAL surf spot using its characteristics,
+    break type, swell windows, and local geography from the database.
+    """
+    if not analyze_spot_ai:
+        return {"error": "AI personas not configured (missing ANTHROPIC_API_KEY)"}
+
+    try:
+        # Check if analysis already exists (unless force=true)
+        if not force:
+            existing = await get_spot_analysis(spot_slug, "swell_geometry_analyst")
+
+            if existing:
+                return {
+                    "success": True,
+                    "cached": True,
+                    "message": "Analysis already exists (use force=true to regenerate)",
+                    "analysis": existing
+                }
+
+        admin_email = user.get('email', 'unknown') if user else 'unknown'
+        print(f"🤖 Admin {admin_email} generating AI analysis for spot: {spot_slug}...")
+
+        # Generate AI analysis using spot characteristics
+        result = await analyze_spot_ai(spot_slug)
+
+        if not result.get('success'):
+            return {
+                "success": False,
+                "error": result.get('error', 'Unknown error'),
+                "spot_slug": spot_slug
+            }
+
+        # Save to database
+        saved = await save_spot_analysis(
+            spot_id=result['spot_id'],
+            spot_slug=spot_slug,
+            spot_name=result['spot_name'],
+            lat=result['lat'],
+            lon=result['lon'],
+            analysis_data=result['analysis'],
+            persona_type="swell_geometry_analyst",
+            model_used=result.get('model', 'claude-3-haiku-20240307'),
+            analysis_version="1.0"
+        )
+
+        if saved:
+            print(f"✅ AI analysis saved for {result['spot_name']}")
+            return {
+                "success": True,
+                "cached": False,
+                "generated": True,
+                "spot_slug": spot_slug,
+                "analysis": saved
+            }
+        else:
+            # Analysis generated but save failed
+            return {
+                "success": True,
+                "cached": False,
+                "generated": True,
+                "save_failed": True,
+                "warning": "Analysis generated but not saved to database",
+                "spot_slug": spot_slug,
+                "analysis": result
+            }
+
+    except Exception as e:
+        print(f"❌ Error generating spot AI analysis: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/spots/{spot_slug}/ai-analysis/generate-openai")
+async def generate_spot_ai_analysis_openai(
+    spot_slug: str,
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """
+    Generate new AI-powered swell geometry analysis for a surf spot using OpenAI GPT-4.
+
+    **Requires admin authentication.**
+
+    Saves with persona_type='swell_geometry_analyst_openai' to coexist with Claude analysis.
+    """
+    if not analyze_spot_ai_openai:
+        return {"error": "OpenAI personas not configured (missing OPENAI_API_KEY)"}
+
+    try:
+        admin_email = user.get('email', 'unknown') if user else 'unknown'
+        print(f"🤖 Admin {admin_email} generating OpenAI analysis for spot: {spot_slug}...")
+
+        # Generate AI analysis using OpenAI
+        result = await analyze_spot_ai_openai(spot_slug)
+
+        if not result.get('success'):
+            return {
+                "success": False,
+                "error": result.get('error', 'Unknown error'),
+                "spot_slug": spot_slug
+            }
+
+        # Save to database with openai persona_type
+        saved = await save_spot_analysis(
+            spot_id=result['spot_id'],
+            spot_slug=spot_slug,
+            spot_name=result['spot_name'],
+            lat=result['lat'],
+            lon=result['lon'],
+            analysis_data=result['analysis'],
+            persona_type="swell_geometry_analyst_openai",  # Different from Claude
+            model_used="gpt-4o",
+            analysis_version="1.0"
+        )
+
+        if saved:
+            print(f"✅ OpenAI analysis saved for {result['spot_name']}")
+            return {
+                "success": True,
+                "cached": False,
+                "generated": True,
+                "provider": "openai",
+                "model": "gpt-4o",
+                "spot_slug": spot_slug,
+                "analysis": saved
+            }
+        else:
+            return {
+                "success": True,
+                "generated": True,
+                "save_failed": True,
+                "warning": "Analysis generated but not saved to database",
+                "spot_slug": spot_slug,
+                "analysis": result
+            }
+
+    except Exception as e:
+        print(f"❌ Error generating OpenAI spot analysis: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/spots/ai-analysis/batch-generate")
+async def batch_generate_spot_analyses(
+    spot_slugs: List[str] = None,
+    force: bool = False,
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """
+    Generate AI analysis for multiple surf spots (background job).
+
+    **Requires admin authentication.**
+
+    Body params:
+    - spot_slugs: List of spot slugs (if empty, analyzes all published spots)
+    - force: Regenerate even if cached
+
+    Returns immediately with job status. Analyses run in background.
+    """
+    if not analyze_spot_ai:
+        return {"error": "AI personas not configured"}
+
+    try:
+        # Get list of spots to analyze
+        if not spot_slugs:
+            # Get all published spots
+            result = supabase.table("spots") \
+                .select("slug") \
+                .eq("is_published", True) \
+                .execute()
+
+            if result.data:
+                spot_slugs = [s['slug'] for s in result.data]
+            else:
+                return {"error": "No published spots found"}
+
+        print(f"🚀 Starting batch AI analysis for {len(spot_slugs)} spots...")
+
+        results = []
+
+        for slug in spot_slugs:
+            try:
+                result = await generate_spot_ai_analysis(slug, force)
+                results.append({
+                    "spot_slug": slug,
+                    "success": result.get('success', False),
+                    "cached": result.get('cached', False)
+                })
+
+                # Brief delay to avoid rate limits
+                await asyncio.sleep(1)
+
+            except Exception as e:
+                print(f"❌ Failed to analyze {slug}: {e}")
+                results.append({
+                    "spot_slug": slug,
+                    "success": False,
+                    "error": str(e)
+                })
+
+        successful = sum(1 for r in results if r['success'])
+
+        return {
+            "success": True,
+            "total_requested": len(spot_slugs),
+            "successful": successful,
+            "failed": len(spot_slugs) - successful,
+            "results": results
+        }
+
+    except Exception as e:
+        print(f"❌ Batch generation error: {e}")
+        return {"error": str(e)}
