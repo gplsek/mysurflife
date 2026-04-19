@@ -14,6 +14,9 @@
     "recharts": "^3.3.0"
   },
   "scripts": {
+    "prestart": "mkdir -p src/config && cp ../backend/config/ramps.json src/config/ramps.json",
+    "prebuild": "mkdir -p src/config && cp ../backend/config/ramps.json src/config/ramps.json && bash scripts/lint-no-hex.sh",
+    "lint:hex": "bash scripts/lint-no-hex.sh",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

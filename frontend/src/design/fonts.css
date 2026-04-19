@@ -1,0 +1,36 @@
+/* fonts.css — Self-hosted variable fonts. All OFL-1.1 licensed.
+ * Geist + Geist Mono: © Vercel — https://vercel.com/font
+ * Instrument Serif: © Google Fonts — https://fonts.google.com/specimen/Instrument+Serif
+ */
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/Geist[wght].woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('./fonts/GeistMono[wght].woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('./fonts/InstrumentSerif-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('./fonts/InstrumentSerif-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "generated_by": "design-v2-integration",
+  "description": "Shared color configuration for MySurfLife. Two top-level keys: `ramps` (theme-neutral data-driven ramps baked into PNG tiles and read by frontend legends) and `theme_accents` (per-theme chrome colors for the three Claude Design themes, consumed at runtime by particle shaders and markers). See notes/DESIGN_V2_INTEGRATION_PLAN.md for the full spec.",
+  "ramps": {
+    "wind_speed": {
+      "domain": [0, 50],
+      "unit": "knots",
+      "interpolation": "linear_rgba",
+      "description": "Theme-neutral wind speed ramp. Matches the semantic language Windy/Surfline/windfinder use (cool calm through hot storm). Baked into /api/tiles/wind/... PNGs server-side. Frontend legends read these exact stops.",
+      "stops": [
+        { "value": 0,  "rgba": [120, 200, 220, 0.15], "label": "Calm" },
+        { "value": 5,  "rgba": [100, 210, 180, 0.35], "label": "Light" },
+        { "value": 10, "rgba": [130, 220, 140, 0.50], "label": "Moderate" },
+        { "value": 15, "rgba": [220, 210, 100, 0.60], "label": "Fresh" },
+        { "value": 25, "rgba": [240, 160,  60, 0.70], "label": "Strong" },
+        { "value": 35, "rgba": [230,  90,  70, 0.80], "label": "Gale" },
+        { "value": 50, "rgba": [180,  50, 180, 0.85], "label": "Storm" }
+      ]
+    },
+    "wave_height": {
+      "domain": [0, 30],
+      "unit": "feet",
+      "interpolation": "linear_rgba",
+      "description": "Theme-neutral wave height (significant wave height, Hs) ramp. Semantic labels tuned to surf vocabulary (small/fun/head-high/big/XL/XXL). Baked into /api/tiles/waves/... PNGs.",
+      "stops": [
+        { "value": 0,  "rgba": [ 30, 100, 140, 0.00], "label": "Flat" },
+        { "value": 2,  "rgba": [ 70, 170, 200, 0.35], "label": "Small" },
+        { "value": 4,  "rgba": [110, 210, 200, 0.50], "label": "Fun" },
+        { "value": 8,  "rgba": [220, 210, 100, 0.65], "label": "Head-high+" },
+        { "value": 15, "rgba": [240, 140,  60, 0.75], "label": "Big" },
+        { "value": 25, "rgba": [220,  70,  80, 0.85], "label": "XL" },
+        { "value": 30, "rgba": [180,  50, 180, 0.90], "label": "XXL" }
+      ]
+    },
+    "wave_period": {
+      "domain": [4, 22],
+      "unit": "seconds",
+      "interpolation": "linear_rgba",
+      "description": "Theme-neutral wave period (dominant period, Tp) ramp. Short periods are windswell, long periods are groundswell — semantic coloring helps users spot quality swells at a glance. Optional overlay (ships as a togglable layer in Phase 2).",
+      "stops": [
+        { "value": 4,  "rgba": [140, 140, 160, 0.30], "label": "Windswell" },
+        { "value": 10, "rgba": [120, 200, 220, 0.55], "label": "Mid" },
+        { "value": 15, "rgba": [110, 210, 170, 0.75], "label": "Groundswell" },
+        { "value": 20, "rgba": [220, 150,  80, 0.85], "label": "Long-period" }
+      ]
+    }
+  },
+  "theme_accents": {
+    "ocean": {
+      "description": "Default dark theme (Dark Ocean). Aqua/cyan accent with sunset-orange fire. Used for particle colors, marker rings, rating dots, tide arrows, storm tracker iconography.",
+      "accent":   { "oklch": "0.82 0.16 195", "rgb": [ 75, 220, 220] },
+      "accent_2": { "oklch": "0.72 0.18 210", "rgb": [ 60, 180, 220] },
+      "fire":     { "oklch": "0.75 0.19 45",  "rgb": [255, 150,  70] },
+      "good":     { "oklch": "0.80 0.15 150", "rgb": [120, 220, 160] }
+    },
+    "dawn": {
+      "description": "Dawn Patrol theme. Warm coral/sunrise palette for early-morning surf sessions. Fire token is nearly identical to accent to reinforce the warm-sky feeling.",
+      "accent":   { "oklch": "0.80 0.17 45",  "rgb": [255, 160, 100] },
+      "accent_2": { "oklch": "0.72 0.19 30",  "rgb": [240, 120,  90] },
+      "fire":     { "oklch": "0.72 0.20 25",  "rgb": [235,  95,  85] },
+      "good":     { "oklch": "0.78 0.16 95",  "rgb": [220, 200, 110] }
+    },
+    "daylight": {
+      "description": "Bright satellite-style theme. High-contrast deep blue accent for visibility on light backgrounds. Used when ambient light is high (daytime mobile use, outdoor viewing).",
+      "accent":   { "oklch": "0.55 0.18 240", "rgb": [ 60,  95, 200] },
+      "accent_2": { "oklch": "0.50 0.20 250", "rgb": [ 45,  70, 210] },
+      "fire":     { "oklch": "0.60 0.22 30",  "rgb": [215,  95,  50] },
+      "good":     { "oklch": "0.60 0.18 150", "rgb": [ 70, 170, 100] }
+    }
+  },
+  "consumers": {
+    "backend": {
+      "loader": "backend/overlay_tiles.py",
+      "usage": "Loaded once at process start. Builds a 256-entry LUT per ramp from `domain` + `stops` + `interpolation`. `_interpolate_ramp(ramp, value)` returns 8-bit RGBA tuples for PNG encoding. `theme_accents` consumed by server-side rendering paths (OG images, cron'd artifacts) where DOM CSS is unavailable."
+    },
+    "frontend": {
+      "loader": "frontend/src/design/ramps.js",
+      "usage": "Imported at build time via symlink from backend/config/ramps.json → frontend/src/config/ramps.json. Exposes rampStops(name), rampDomain(name), sampleRamp(name, value). Consumed by WaveHeightLegend.js, WindSpeedLegend.js, and click-to-probe color badges. `theme_accents` are NOT read from this file at runtime — runtime theme switching reads CSS custom properties (--accent, --fire) on document.documentElement. The JSON copy is for server-side rendering parity only."
+    }
+  },
+  "ci_checks": {
+    "forbidden_literals": {
+      "pattern": "#[0-9a-fA-F]{3,8}",
+      "scope": ["frontend/src/**/*Legend.js", "frontend/src/**/*Layer*.js"],
+      "message": "Hex color literals forbidden in overlay layer and legend files. Import from frontend/src/design/ramps.js instead."
+    },
+    "schema_version": 1
+  }
+}

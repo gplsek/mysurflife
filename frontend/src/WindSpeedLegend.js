@@ -26,7 +26,7 @@ export default function WindSpeedLegend({ units = 'mph' }) {
 
   return (
     <div style={{ width: 260, userSelect: 'none' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#333', marginBottom: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', marginBottom: 6 }}>
         Wind speed ({units.toUpperCase()})
       </div>
 
@@ -42,7 +42,7 @@ export default function WindSpeedLegend({ units = 'mph' }) {
         display: 'flex',
         justifyContent: 'space-between',
         fontSize: 10,
-        color: '#333',
+        color: 'var(--fg-2)',
         marginTop: 6
       }}>
         {labels.map((l, i) => (

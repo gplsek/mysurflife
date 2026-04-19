@@ -1,6 +1,1 @@
-/* index.css */
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background-color: #f8f9fa;
-}
+/* Base styles moved to frontend/src/design/tokens.css */
