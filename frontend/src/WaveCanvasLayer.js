@@ -3,80 +3,6 @@ import { useMap } from 'react-leaflet';
 import WaveField from './WaveField';
 import landMask from './LandMask';
 
-/**
- * Improved land/water detection using coastline approximation
- * Uses a more accurate coastline approximation for California and Baja
- * 
- * Strategy: Only block clearly inland areas. Be less aggressive to avoid blocking valid ocean data.
- * For production, this should use a proper GeoJSON land polygon from Natural Earth (10m or 50m).
- */
-function isLikelyLand(lat, lon) {
-  // California and Baja California coastline approximation
-  // Be LESS aggressive - only block clearly inland areas to avoid blocking valid ocean data
-  
-  // California (32°N to 42°N)
-  if (lat >= 32 && lat <= 42 && lon >= -125 && lon <= -117) {
-    // More accurate coastline: varies by latitude
-    // Northern CA (42°N): coast around -124.5°
-    // Central CA (37°N): coast around -122.5°
-    // Southern CA (32°N): coast around -117.5°
-    const coastLon = -124.5 + (lat - 42) * 0.7; // Coastline approximation
-    // More aggressive buffer: block if east of coast (0.15° = ~17km) to prevent bleeding onto land
-    if (lon > coastLon + 0.15) {
-      return true; // Likely on land
-    }
-  }
-  
-  // Baja California (23°N to 32°N)
-  if (lat >= 23 && lat < 32 && lon >= -118 && lon <= -110) {
-    // Baja coastline: roughly follows -115° to -113° longitude
-    const coastLon = -115 + (lat - 32) * 0.2;
-    // More aggressive buffer: block if east of coast (0.15° = ~17km) to prevent bleeding
-    if (lon > coastLon + 0.15) {
-      return true; // Likely on land
-    }
-  }
-  
-  // Be very conservative for other areas - only mark as land if clearly inland
-  // For ocean areas far from known coastlines, assume water
-  return false;
-}
-
-/**
- * Check if a point is clearly over water (not near land boundary)
- * Used to determine if we should fill NaN gaps (only fill over water)
- * Made less restrictive to fill more gaps near shore
- */
-function isClearlyOverWater(lat, lon) {
-  // If we're clearly on land, we're not over water
-  if (isLikelyLand(lat, lon)) {
-    return false;
-  }
-  
-  // More restrictive: only allow filling if we're clearly over water (west of coast)
-  // This prevents filling gaps that are actually on land
-  if (lat >= 32 && lat <= 42 && lon >= -125 && lon <= -117) {
-    const coastLon = -124.5 + (lat - 42) * 0.7;
-    const distFromCoast = lon - coastLon;
-    // Only allow filling if we're west of the coast (negative distance = west)
-    // Add a small buffer (0.05° = ~5.5km) to account for coastline approximation error
-    if (distFromCoast > -0.05) {
-      // Too close to or east of coast - don't fill (likely on land)
-      return false;
-    }
-  }
-  
-  // For Baja California
-  if (lat >= 23 && lat < 32 && lon >= -118 && lon <= -110) {
-    const coastLon = -115 + (lat - 32) * 0.2;
-    const distFromCoast = lon - coastLon;
-    if (distFromCoast > -0.05) {
-      return false;
-    }
-  }
-  
-  return true;
-}
 
 // Wave height color scale - match Windy.com: darker ocean with lower transparency
 // Windy.com uses lower opacity (~40-45%) for realistic ocean feel with dark navy at low heights
@@ -671,7 +597,7 @@ const WaveCanvasLayer = ({ waveData, visible, units = 'imperial' }) => {
               
               // STRICT land check: Require 3 neighbors AND explicit NOT land check
               // This prevents bleeding onto land while still filling ocean gaps
-              if (neighborCount >= 3 && !isLikelyLand(latLng.lat, latLng.lng) && isClearlyOverWater(latLng.lat, latLng.lng)) {
+              if (neighborCount >= 3 && !landMask.isLand(latLng.lat, latLng.lng)) {
                 const r = Math.round(rSum / neighborCount);
                 const g = Math.round(gSum / neighborCount);
                 const b = Math.round(bSum / neighborCount);

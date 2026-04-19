@@ -82,7 +82,8 @@ const WindCanvasLayer = ({ windData, visible }) => {
   const map = useMap();
   const canvasRef = useRef(null);
   const windFieldRef = useRef(null);
-  const offscreenCanvasRef = useRef(null); // Cache offscreen canvas
+  const offscreenCanvasRef = useRef(null);
+  const renderCancelledRef = useRef(false);
 
   useEffect(() => {
     if (!visible || !windData || !windData.vectors || windData.vectors.length === 0) {
@@ -151,57 +152,57 @@ const WindCanvasLayer = ({ windData, visible }) => {
     function drawHeatmap() {
       if (!windFieldRef.current || !windFieldRef.current.valid) return;
 
+      renderCancelledRef.current = false;
+
       const size = map.getSize();
       const zoom = map.getZoom();
-      
-      // Zoom-aware stride: smaller stride when zoomed in for better quality
-      const stride = zoom >= 8 ? 2 : zoom >= 6 ? 3 : 4;
+
+      // 4-level zoom-aware stride — matches WaveCanvasLayer scale scheme
+      let stride = zoom < 6 ? 4 : zoom < 8 ? 3 : zoom < 10 ? 2 : 1;
+
+      // PERFORMANCE: Render budget cap — prevents any single frame from taking too long
+      let offWidth = Math.ceil(size.x / stride);
+      let offHeight = Math.ceil(size.y / stride);
+      const MAX_SAMPLES = 100000;
+      const totalSamples = offWidth * offHeight;
+      if (totalSamples > MAX_SAMPLES) {
+        const additionalScaling = Math.ceil(Math.sqrt(totalSamples / MAX_SAMPLES));
+        stride *= additionalScaling;
+        offWidth = Math.ceil(size.x / stride);
+        offHeight = Math.ceil(size.y / stride);
+        console.warn(`⚠️ Wind render budget cap: ${totalSamples.toLocaleString()} -> ${(offWidth * offHeight).toLocaleString()} samples (stride=${stride})`);
+      }
 
       // Create or reuse offscreen canvas at lower resolution
       let offscreenCanvas = offscreenCanvasRef.current;
-      const offWidth = Math.ceil(size.x / stride);
-      const offHeight = Math.ceil(size.y / stride);
-      
       if (!offscreenCanvas || offscreenCanvas.width !== offWidth || offscreenCanvas.height !== offHeight) {
         offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = offWidth;
         offscreenCanvas.height = offHeight;
         offscreenCanvasRef.current = offscreenCanvas;
       }
-      
+
       const offCtx = offscreenCanvas.getContext('2d');
-      
-      // Create ImageData for offscreen canvas (one pixel per sample)
       const offImageData = offCtx.createImageData(offWidth, offHeight);
       const offData = offImageData.data;
 
-      // Sample at stride intervals - one pixel per sample
+      // Sample at stride intervals; check cancellation every 10 rows
       for (let offY = 0; offY < offHeight; offY++) {
+        if (renderCancelledRef.current && offY % 10 === 0) return;
         for (let offX = 0; offX < offWidth; offX++) {
-          // Convert offscreen pixel to map pixel
           const mapX = offX * stride;
           const mapY = offY * stride;
-          
-          // Convert pixel to lat/lon
           const latLng = map.containerPointToLatLng([mapX, mapY]);
-          
-          // Interpolate wind speed
           const speed = windFieldRef.current.getSpeed(latLng.lat, latLng.lng);
-          
           const idx = (offY * offWidth + offX) * 4;
-          
           if (speed !== null && speed !== undefined) {
             const color = getWindSpeedColor(speed, ALPHA_BASE);
-            offData[idx] = color.r;     // R
-            offData[idx + 1] = color.g; // G
-            offData[idx + 2] = color.b; // B
-            offData[idx + 3] = Math.round(color.a * 255); // A
+            offData[idx]     = color.r;
+            offData[idx + 1] = color.g;
+            offData[idx + 2] = color.b;
+            offData[idx + 3] = Math.round(color.a * 255);
           } else {
-            // Transparent for invalid data
-            offData[idx] = 0;
-            offData[idx + 1] = 0;
-            offData[idx + 2] = 0;
-            offData[idx + 3] = 0;
+            offData[idx] = offData[idx + 1] = offData[idx + 2] = offData[idx + 3] = 0;
           }
         }
       }
@@ -237,10 +238,11 @@ const WindCanvasLayer = ({ windData, visible }) => {
 
     // Cleanup
     return () => {
+      renderCancelledRef.current = true;
       map.off('moveend', handleMapUpdate);
       map.off('zoomend', handleMapUpdate);
       map.off('resize', handleMapUpdate);
-      
+
       if (canvasRef.current && canvasRef.current.parentNode) {
         canvasRef.current.remove();
         canvasRef.current = null;

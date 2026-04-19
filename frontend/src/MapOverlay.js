@@ -280,9 +280,21 @@ export default function MapOverlay() {
   const [hoveredWaveFrameIndex, setHoveredWaveFrameIndex] = useState(null);
   const wavePlayTimerRef = useRef(null);
 
-  // PERFORMANCE: Debounce and cancellation refs for wave slider
-  const waveSliderDebounceRef = useRef(null);
+  // PERFORMANCE: Render token for wave canvas stale-render prevention
   const waveRenderTokenRef = useRef(0);
+
+  // V2: Fetch debounce timers + AbortControllers for wind and wave overlay fetches
+  const windFetchDebounceRef = useRef(null);
+  const waveFetchDebounceRef = useRef(null);
+  const windFetchAbortRef = useRef(null);
+  const waveFetchAbortRef = useRef(null);
+  // V2: Idle-prefetch timers (fire ±3/±6 frame warmup after 400ms of slider inactivity)
+  const windIdlePrefetchRef = useRef(null);
+  const waveIdlePrefetchRef = useRef(null);
+  // Refs that mirror wave state so they're accessible inside fetch-effect closures without
+  // adding them to the dependency array (which would cause extra re-runs)
+  const waveFramesRef = useRef(null);
+  const selectedWaveFrameIndexRef = useRef(0);
 
   // Wind frames (time slider) state
   const [windFrames, setWindFrames] = useState(null); // {model, run, date, cycle, hours, cadence_note}
@@ -415,39 +427,39 @@ export default function MapOverlay() {
   }, [roundBbox]);
   
   // Fetch wind frame with caching
-  const fetchWindFrame = useCallback(async ({ model, bbox, hour }) => {
+  const fetchWindFrame = useCallback(async ({ model, bbox, hour, signal }) => {
     const key = makeWindKey({ model, bbox, hour });
-    
+
     // Return cached data if available
     if (windDataCacheRef.current.has(key)) {
       console.log(`📦 Using cached wind data for ${model} hour ${hour}`);
       return windDataCacheRef.current.get(key);
     }
-    
+
     // Fetch new data
     const url = `/api/wind-overlay?model=${model}&forecast_hour=${hour}&bounds=${bbox}&real_data=true`;
     console.log(`🌬️ Fetching wind overlay: forecast_hour=${hour}, bounds=${bbox}`);
-    
+
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, signal ? { signal } : undefined);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const data = await res.json();
-      
+
       // Cache the result
       windDataCacheRef.current.set(key, data);
       console.log(`✅ Cached wind overlay frame: +${hour}h, vectors: ${data.vectors?.length ?? 0}`);
-      
+
       return data;
     } catch (err) {
-      console.error(`❌ Error fetching wind frame:`, err);
+      if (err.name !== 'AbortError') console.error(`❌ Error fetching wind frame:`, err);
       throw err;
     }
   }, [makeWindKey]);
   
   // Fetch wave data with caching and zoom-based source selection
-  const fetchWaveData = useCallback(async ({ model, bbox, hour = 0, zoom = null }) => {
+  const fetchWaveData = useCallback(async ({ model, bbox, hour = 0, zoom = null, signal }) => {
     // Minimum zoom level check - prevent massive bbox requests at low zoom
     // At zoom < 4, the bbox becomes too large (entire Pacific) and causes:
     // 1. OPeNDAP timeouts or very slow responses
@@ -487,12 +499,12 @@ export default function MapOverlay() {
     console.log(`🌊 Fetching wave overlay: forecast_hour=${hour}, bounds=${bbox}, source=${source} (zoom=${zoom})`);
     
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, signal ? { signal } : undefined);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const rawData = await res.json();
-      
+
       // Normalize and validate vectors (Task S2)
       if (rawData.vectors && Array.isArray(rawData.vectors)) {
         const normalizedVectors = rawData.vectors.map(v => {
@@ -538,7 +550,7 @@ export default function MapOverlay() {
       
       return rawData;
     } catch (err) {
-      console.error(`❌ Error fetching wave data:`, err);
+      if (err.name !== 'AbortError') console.error(`❌ Error fetching wave data:`, err);
       throw err;
     }
   }, [makeWaveKey]);
@@ -1101,37 +1113,17 @@ export default function MapOverlay() {
     };
   }, [isWavePlaying, overlayType, waveFrames]);
 
-  // PERFORMANCE: Debounced handler for wave frame changes
-  // Prevents multiple overlapping fetches/renders when scrubbing slider
+  // Wave frame handler: update state immediately (slider thumb moves), increment token to
+  // cancel any in-progress canvas render. The fetch useEffect debounces the actual HTTP call.
   const handleWaveFrameChange = useCallback((newIndex) => {
-    // Cancel any pending debounced fetch
-    if (waveSliderDebounceRef.current) {
-      clearTimeout(waveSliderDebounceRef.current);
-    }
-
-    // Update UI immediately for responsive feedback
     setSelectedWaveFrameIndex(newIndex);
-
-    // Increment render token to invalidate any in-flight renders
+    selectedWaveFrameIndexRef.current = newIndex;
     waveRenderTokenRef.current++;
-    const currentToken = waveRenderTokenRef.current;
-
-    // Debounce the actual data fetch/render (150ms)
-    waveSliderDebounceRef.current = setTimeout(() => {
-      console.log(`🎬 Wave frame changed to index ${newIndex} (token=${currentToken})`);
-      // The useEffect watching selectedWaveForecastHour will trigger fetch
-      // No need to manually fetch here - just let the effect handle it
-    }, 150);
   }, []);
 
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (waveSliderDebounceRef.current) {
-        clearTimeout(waveSliderDebounceRef.current);
-      }
-    };
-  }, []);
+  // Keep waveFramesRef in sync so the wave fetch effect can access it without adding waveFrames
+  // to the dependency array (which would cause unnecessary re-fetches).
+  useEffect(() => { waveFramesRef.current = waveFrames; }, [waveFrames]);
 
   // Handle wind play/pause animation
   useEffect(() => {
@@ -1194,55 +1186,68 @@ export default function MapOverlay() {
       bounds.getEast()
     ].join(',');
     
-    let cancelled = false;
-    
-    // Fetch current frame and prefetch next
-    (async () => {
+    // Abort any previous in-flight fetch and start a fresh controller
+    if (windFetchAbortRef.current) windFetchAbortRef.current.abort();
+    const controller = new AbortController();
+    windFetchAbortRef.current = controller;
+
+    // 120ms debounce: if the slider moves again before the timer fires, the cleanup
+    // above will abort() before the fetch even starts.
+    clearTimeout(windFetchDebounceRef.current);
+    windFetchDebounceRef.current = setTimeout(async () => {
       try {
-        // Fetch current frame (uses cache if available)
-        const data = await fetchWindFrame({ 
-          model: selectedWindModel, 
-          bbox, 
-          hour: selectedForecastHour 
+        const data = await fetchWindFrame({
+          model: selectedWindModel,
+          bbox,
+          hour: selectedForecastHour,
+          signal: controller.signal,
         });
-        
-        if (!cancelled) {
+
+        if (!controller.signal.aborted) {
           setWindData(data);
         }
-        
-        // Prefetch next frame
-        const nextIndex = Math.min(selectedFrameIndex + 1, (windFrames?.hours?.length ?? 1) - 1);
-        const nextHour = windFrames?.hours?.[nextIndex];
-        if (nextHour != null && nextHour !== selectedForecastHour && !cancelled) {
-          // Prefetch in background (don't await, just cache it)
-          fetchWindFrame({ 
-            model: selectedWindModel, 
-            bbox, 
-            hour: nextHour 
-          }).catch(() => {
-            // Silently fail prefetch - not critical
-          });
+
+        if (controller.signal.aborted || !windFrames?.hours) return;
+        const hours = windFrames.hours;
+
+        // Immediate +1 warmup
+        const nextIdx = Math.min(selectedFrameIndex + 1, hours.length - 1);
+        const nextHour = hours[nextIdx];
+        if (nextHour != null && nextHour !== selectedForecastHour) {
+          fetchWindFrame({ model: selectedWindModel, bbox, hour: nextHour }).catch(() => {});
         }
+
+        // Idle: after 400ms of no slider activity, warm ±3 and ±6 adjacent frames
+        clearTimeout(windIdlePrefetchRef.current);
+        windIdlePrefetchRef.current = setTimeout(() => {
+          if (controller.signal.aborted) return;
+          const warmed = new Set([selectedForecastHour, nextHour].filter(h => h != null));
+          for (const offset of [-6, -3, 3, 6]) {
+            const idx = Math.max(0, Math.min(hours.length - 1, selectedFrameIndex + offset));
+            const h = hours[idx];
+            if (h != null && !warmed.has(h)) {
+              warmed.add(h);
+              fetchWindFrame({ model: selectedWindModel, bbox, hour: h }).catch(() => {});
+            }
+          }
+          console.log(`🌬️ Wind idle prefetch: warmed ±3/±6 adjacent frames`);
+        }, 400);
       } catch (err) {
-        if (!cancelled) {
+        if (err.name !== 'AbortError' && !controller.signal.aborted) {
           console.error(`❌ Error fetching wind overlay:`, err);
           setWindData(null);
         }
       }
-    })();
-    
+    }, 120);
+
     // Also listen for map move/zoom events to refetch with new bounds
     let mapChangeTimeout = null;
     const map = mapRef.current;
     const handleMapChange = () => {
-      // Clear existing timeout
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
-      
-      // Debounce map changes (wait 300ms after last movement)
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
+
       mapChangeTimeout = setTimeout(() => {
-        if (overlayType === 'wind' && selectedForecastHour != null && mapRef.current && !cancelled) {
+        if (overlayType === 'wind' && selectedForecastHour != null && mapRef.current && !controller.signal.aborted) {
           const newBounds = mapRef.current.getBounds();
           const newBbox = [
             newBounds.getSouth(),
@@ -1250,34 +1255,34 @@ export default function MapOverlay() {
             newBounds.getNorth(),
             newBounds.getEast()
           ].join(',');
-          
-          // Use fetchWindFrame for map changes too (with caching)
-          fetchWindFrame({ 
-            model: selectedWindModel, 
-            bbox: newBbox, 
-            hour: selectedForecastHour 
+
+          fetchWindFrame({
+            model: selectedWindModel,
+            bbox: newBbox,
+            hour: selectedForecastHour,
+            signal: controller.signal,
           }).then(data => {
-            if (!cancelled) {
+            if (!controller.signal.aborted) {
               console.log(`✅ Wind overlay updated (map moved): +${selectedForecastHour}h, vectors: ${data.vectors?.length ?? 0}`);
               setWindData(data);
             }
           }).catch(err => {
-            if (!cancelled) {
+            if (err.name !== 'AbortError' && !controller.signal.aborted) {
               console.error(`❌ Error updating wind overlay:`, err);
             }
           });
         }
       }, 300);
     };
-    
+
     map.on('moveend', handleMapChange);
     map.on('zoomend', handleMapChange);
-    
+
     return () => {
-      cancelled = true;
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
+      controller.abort();
+      clearTimeout(windFetchDebounceRef.current);
+      clearTimeout(windIdlePrefetchRef.current);
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
       map.off('moveend', handleMapChange);
       map.off('zoomend', handleMapChange);
     };
@@ -1303,179 +1308,129 @@ export default function MapOverlay() {
     }
   }, [overlayType, waveData]);
   
-  // Fetch wave data when waves overlay is enabled OR when map bounds change (zoom/pan)
+  // Fetch wave data: handles initial load, slider scrub, and map pan/zoom in one effect.
+  // AbortController cancels in-flight fetches when the hour changes or the effect re-runs.
+  // 120ms debounce prevents rapid slider scrubs from firing multiple concurrent requests.
   useEffect(() => {
     if (overlayType !== 'waves') {
       setWaveData(null);
       return;
     }
-    
-    let cancelled = false;
+
+    if (waveFetchAbortRef.current) waveFetchAbortRef.current.abort();
+    const controller = new AbortController();
+    waveFetchAbortRef.current = controller;
+
     let mapChangeTimeout = null;
-    
-    // Function to fetch wave data for current map bounds
-    const fetchWaveDataForBounds = async (retryCount = 0) => {
-      // Prevent infinite retries
+    let retryTimeout = null;
+
+    const fetchForBounds = async (retryCount = 0) => {
+      if (controller.signal.aborted) return;
       if (retryCount > 50) {
         console.warn('🌊 Wave data fetch: Max retries reached, map may not be ready');
         return;
       }
-      
-      // Wait for map to be initialized
       if (!mapRef.current) {
-        console.log(`🌊 Wave data fetch: Map not ready, retry ${retryCount + 1}`);
-        setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        retryTimeout = setTimeout(() => fetchForBounds(retryCount + 1), 100);
         return;
       }
-      
-      // Ensure map has loaded and has valid bounds
       const map = mapRef.current;
-      
-      // Check if map has valid bounds (this works even if load event hasn't fired)
       let bounds;
       try {
         bounds = map.getBounds();
       } catch (e) {
-        console.log(`🌊 Wave data fetch: Cannot get bounds yet, retry ${retryCount + 1}`);
-        setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        retryTimeout = setTimeout(() => fetchForBounds(retryCount + 1), 100);
         return;
       }
-      
       if (!bounds || !bounds.isValid()) {
-        console.log(`🌊 Wave data fetch: Bounds not valid, retry ${retryCount + 1}`);
-        // If map hasn't loaded, wait for load event; otherwise retry
         if (!map.loaded) {
-          console.log('🌊 Wave data fetch: Waiting for map load event');
-          map.once('load', () => {
-            if (!cancelled) {
-              fetchWaveDataForBounds(retryCount);
-            }
-          });
+          map.once('load', () => { if (!controller.signal.aborted) fetchForBounds(retryCount); });
         } else {
-          setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+          retryTimeout = setTimeout(() => fetchForBounds(retryCount + 1), 100);
         }
         return;
       }
-      
       try {
-        
         const bbox = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()].join(',');
         const zoom = map.getZoom();
         console.log('🌊 Wave data fetch: Map ready, fetching data...');
-
-        const data = await fetchWaveData({ model: 'ww3', bbox, hour: selectedWaveForecastHour, zoom });
-        if (!cancelled) {
+        const data = await fetchWaveData({ model: 'ww3', bbox, hour: selectedWaveForecastHour, zoom, signal: controller.signal });
+        if (!controller.signal.aborted) {
           setWaveData(data);
+
+          // Idle: after 400ms of no slider activity, warm ±3 and ±6 adjacent wave frames
+          clearTimeout(waveIdlePrefetchRef.current);
+          waveIdlePrefetchRef.current = setTimeout(() => {
+            if (controller.signal.aborted || !waveFramesRef.current?.hours) return;
+            const hours = waveFramesRef.current.hours;
+            const currentIdx = selectedWaveFrameIndexRef.current;
+            const warmed = new Set([selectedWaveForecastHour]);
+            for (const offset of [-6, -3, 3, 6]) {
+              const idx = Math.max(0, Math.min(hours.length - 1, currentIdx + offset));
+              const h = hours[idx];
+              if (h != null && !warmed.has(h)) {
+                warmed.add(h);
+                fetchWaveData({ model: 'ww3', bbox, hour: h, zoom }).catch(() => {});
+              }
+            }
+            console.log(`🌊 Wave idle prefetch: warmed ±3/±6 adjacent frames`);
+          }, 400);
         }
       } catch (err) {
-        if (!cancelled) {
-          console.error('Error fetching wave data:', err);
+        if (err.name !== 'AbortError' && !controller.signal.aborted) {
+          console.error('❌ Error fetching wave data:', err);
         }
       }
     };
-    
-    fetchWaveDataForBounds();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [overlayType, fetchWaveData, selectedWaveForecastHour]);
-  
-  // Update wave data on map move/zoom (similar to wind)
-  useEffect(() => {
-    if (overlayType !== 'waves') return;
-    
-    let cancelled = false;
-    let mapChangeTimeout = null;
+    // Debounce the initial fetch so rapid slider scrubs don't stack requests
+    clearTimeout(waveFetchDebounceRef.current);
+    waveFetchDebounceRef.current = setTimeout(() => fetchForBounds(), 120);
+
+    // Map pan handler (100ms debounce)
     const map = mapRef.current;
     const handleMapChange = () => {
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
-      
-      // Use a shorter timeout for zoomend to ensure we fetch data quickly after zoom completes
-      // This is critical when zooming out - we need data for the expanded area immediately
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
       mapChangeTimeout = setTimeout(() => {
-        if (overlayType === 'waves' && mapRef.current && !cancelled) {
-          // Get bounds after a small delay to ensure they're fully updated
-          requestAnimationFrame(() => {
-            const newBounds = mapRef.current.getBounds();
-            if (!newBounds || !newBounds.isValid()) {
-              return;
-            }
-            
-            const newBbox = [
-              newBounds.getSouth(),
-              newBounds.getWest(),
-              newBounds.getNorth(),
-              newBounds.getEast()
-            ].join(',');
-            
-            const currentZoom = mapRef.current.getZoom();
-            
-            // Always fetch on map change (zoom or pan) to ensure data covers new bounds
-            // This is critical when zooming out - we need data for the expanded area
-            console.log(`🌊 Map changed (zoom/pan), fetching wave data for new bounds (zoom=${currentZoom}, bbox=${newBbox}, hour=${selectedWaveForecastHour})...`);
-            fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom }).then(data => {
-              if (!cancelled) {
-                console.log(`✅ Wave overlay updated (map moved/zoomed): vectors: ${data.vectors?.length ?? 0}`);
-                setWaveData(data);
-              }
-            }).catch(err => {
-              if (!cancelled) {
-                console.error(`❌ Error updating wave overlay:`, err);
-              }
-            });
-          });
-        }
-      }, 100); // Shorter debounce for better responsiveness on zoom
-    };
-    
-    // Separate handler for zoomend to fetch data immediately with updated bounds
-    // CRITICAL: On zoom out, bounds expand, so we need to fetch data for the expanded area
-    // zoomend fires after bounds are fully updated, so we get the correct expanded bounds
-    const handleZoomEnd = () => {
-      // Clear any pending timeout from moveend handler
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-        mapChangeTimeout = null;
-      }
-      // Fetch immediately on zoomend (bounds are fully updated by now)
-      if (overlayType === 'waves' && mapRef.current && !cancelled) {
-        const newBounds = mapRef.current.getBounds();
-        if (newBounds && newBounds.isValid()) {
-          const newBbox = [
-            newBounds.getSouth(),
-            newBounds.getWest(),
-            newBounds.getNorth(),
-            newBounds.getEast()
-          ].join(',');
+        if (!mapRef.current || controller.signal.aborted) return;
+        requestAnimationFrame(() => {
+          const newBounds = mapRef.current.getBounds();
+          if (!newBounds || !newBounds.isValid()) return;
+          const newBbox = [newBounds.getSouth(), newBounds.getWest(), newBounds.getNorth(), newBounds.getEast()].join(',');
           const currentZoom = mapRef.current.getZoom();
-          console.log(`🌊 Zoom ended, fetching wave data for expanded bounds (zoom=${currentZoom}, bbox=${newBbox}, hour=${selectedWaveForecastHour})...`);
-          fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom }).then(data => {
-            if (!cancelled) {
-              console.log(`✅ Wave overlay updated (zoom ended): vectors: ${data.vectors?.length ?? 0}`);
-              setWaveData(data);
-            }
-          }).catch(err => {
-            if (!cancelled) {
-              console.error(`❌ Error updating wave overlay:`, err);
-            }
-          });
-        }
-      }
+          console.log(`🌊 Map moved, fetching wave data (zoom=${currentZoom})...`);
+          fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom, signal: controller.signal })
+            .then(data => { if (!controller.signal.aborted) { console.log(`✅ Wave overlay updated (map moved): vectors: ${data.vectors?.length ?? 0}`); setWaveData(data); } })
+            .catch(err => { if (err.name !== 'AbortError' && !controller.signal.aborted) console.error(`❌ Error updating wave overlay:`, err); });
+        });
+      }, 100);
     };
-    
+
+    // Zoom-end handler: bounds fully updated by now, fetch immediately
+    const handleZoomEnd = () => {
+      if (mapChangeTimeout) { clearTimeout(mapChangeTimeout); mapChangeTimeout = null; }
+      if (!mapRef.current || controller.signal.aborted) return;
+      const newBounds = mapRef.current.getBounds();
+      if (!newBounds || !newBounds.isValid()) return;
+      const newBbox = [newBounds.getSouth(), newBounds.getWest(), newBounds.getNorth(), newBounds.getEast()].join(',');
+      const currentZoom = mapRef.current.getZoom();
+      console.log(`🌊 Zoom ended, fetching wave data for expanded bounds (zoom=${currentZoom})...`);
+      fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom, signal: controller.signal })
+        .then(data => { if (!controller.signal.aborted) { console.log(`✅ Wave overlay updated (zoom ended): vectors: ${data.vectors?.length ?? 0}`); setWaveData(data); } })
+        .catch(err => { if (err.name !== 'AbortError' && !controller.signal.aborted) console.error(`❌ Error updating wave overlay:`, err); });
+    };
+
     if (map) {
       map.on('moveend', handleMapChange);
-      map.on('zoomend', handleZoomEnd); // Separate handler for immediate fetch on zoom
+      map.on('zoomend', handleZoomEnd);
     }
-    
+
     return () => {
-      cancelled = true;
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
+      controller.abort();
+      clearTimeout(waveFetchDebounceRef.current);
+      clearTimeout(waveIdlePrefetchRef.current);
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       if (map) {
         map.off('moveend', handleMapChange);
         map.off('zoomend', handleZoomEnd);
