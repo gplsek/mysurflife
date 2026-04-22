@@ -3628,120 +3628,99 @@ async def get_surf_spot_model_forecast(slug: str):
         return {"error": str(e)}
 
 
+def _closest_vector(vectors: list, lat: float, lon: float):
+    """Return the vector in `vectors` nearest to (lat, lon)."""
+    best, best_dist = None, float('inf')
+    for v in vectors:
+        d = ((v['lat'] - lat) ** 2 + (v['lon'] - lon) ** 2) ** 0.5
+        if d < best_dist:
+            best_dist = d
+            best = v
+    return best
+
+
+async def _fetch_timeline_hour(
+    forecast_hour: int,
+    bounds: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """Fetch wave + wind for one forecast hour and return a timeline point."""
+    wave_data = None
+    wind_data = None
+
+    try:
+        wave_response = await get_waves_overlay(
+            model="ww3", bounds=bounds, forecast_hour=forecast_hour, source="global"
+        )
+        vectors = (wave_response or {}).get('vectors') or []
+        closest = _closest_vector(vectors, lat, lon) if vectors else None
+        if closest:
+            height_m = closest.get('hs')
+            period_sec = closest.get('period')
+            surf_height_m = calculate_surf_height(height_m, period_sec) if height_m and period_sec else None
+            wave_data = {
+                'height_m': height_m,
+                'height_ft': round(height_m * 3.28084, 2) if height_m else None,
+                'direction': closest.get('dir_deg'),
+                'period': period_sec,
+                'surf_height_m': surf_height_m,
+                'surf_height_ft': round(surf_height_m * 3.28084, 1) if surf_height_m else None,
+            }
+    except Exception as e:
+        print(f"⚠️  Wave fetch failed for hour {forecast_hour}: {e}")
+
+    try:
+        wind_response = await get_wind_overlay(
+            model="gfs", bounds=bounds, forecast_hour=forecast_hour, real_data=True
+        )
+        vectors = (wind_response or {}).get('vectors') or []
+        closest = _closest_vector(vectors, lat, lon) if vectors else None
+        if closest:
+            u = closest.get('u_component', 0)
+            v = closest.get('v_component', 0)
+            speed_ms = (u ** 2 + v ** 2) ** 0.5
+            wind_data = {
+                'speed_ms': round(speed_ms, 1),
+                'speed_mph': round(speed_ms * 2.23694, 1),
+                'direction': closest.get('direction_deg'),
+            }
+    except Exception as e:
+        print(f"⚠️  Wind fetch failed for hour {forecast_hour}: {e}")
+
+    return {'hour': forecast_hour, 'wave': wave_data, 'wind': wind_data}
+
+
 @app.get("/api/surf-spots/{slug}/forecast-timeline")
 async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
     """
     Get forecast timeline for a spot showing wave and wind conditions over time.
-    Returns data points every 3 hours from 0 to {hours}.
+    Returns data points every 6 hours from 0 to {hours}, fetched in parallel.
     """
     if not supabase:
         return {"error": "Database not configured"}
 
     try:
-        # Get spot coordinates
-        spot_result = supabase.table("spots").select("latitude, longitude, name").eq("slug", slug).single().execute()
+        spot_result = supabase.table("spots") \
+            .select("latitude, longitude, name") \
+            .eq("slug", slug).single().execute()
 
         if not spot_result.data:
             return {"error": "Spot not found"}
 
         spot = spot_result.data
-        lat = spot['latitude']
-        lon = spot['longitude']
-
-        # Create small bbox around spot
+        lat, lon = spot['latitude'], spot['longitude']
         bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
 
-        forecast_timeline = []
-
-        # Fetch WW3 data for multiple forecast hours
-        # We'll fetch every 6 hours to reduce load: 0, 6, 12, 18, 24, etc.
         forecast_hours = list(range(0, min(hours + 1, 181), 6))
+        print(f"🔮 Fetching forecast timeline for {slug}: {len(forecast_hours)} points (parallel)")
 
-        print(f"🔮 Fetching forecast timeline for {slug}: {len(forecast_hours)} points")
+        raw = await asyncio.gather(
+            *[_fetch_timeline_hour(h, bounds, lat, lon) for h in forecast_hours],
+            return_exceptions=True,
+        )
 
-        for forecast_hour in forecast_hours:
-            try:
-                # Fetch WW3 wave data
-                wave_response = await get_waves_overlay(
-                    model="ww3",
-                    bounds=bounds,
-                    forecast_hour=forecast_hour,
-                    source="global"
-                )
-
-                wave_data = None
-                if wave_response and 'vectors' in wave_response and len(wave_response['vectors']) > 0:
-                    # Find closest grid point
-                    min_dist = float('inf')
-                    closest = None
-                    for v in wave_response['vectors']:
-                        dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
-                        if dist < min_dist:
-                            min_dist = dist
-                            closest = v
-
-                    if closest:
-                        height_m = closest.get('hs')
-                        period_sec = closest.get('period')
-
-                        # Calculate surf face height if we have both height and period
-                        surf_height_m = None
-                        surf_height_ft = None
-                        if height_m and period_sec:
-                            surf_height_m = calculate_surf_height(height_m, period_sec)
-                            surf_height_ft = round(surf_height_m * 3.28084, 1)
-
-                        wave_data = {
-                            'height_m': height_m,
-                            'height_ft': height_m * 3.28084 if height_m else None,
-                            'direction': closest.get('dir_deg'),
-                            'period': period_sec,
-                            'surf_height_m': surf_height_m,
-                            'surf_height_ft': surf_height_ft
-                        }
-
-                # Fetch GFS wind data (HRRR not fully implemented yet)
-                wind_data = None
-                try:
-                    wind_response = await get_wind_overlay(
-                        model="gfs",
-                        bounds=bounds,
-                        forecast_hour=forecast_hour,
-                        real_data=True
-                    )
-
-                    if wind_response and 'vectors' in wind_response and len(wind_response['vectors']) > 0:
-                        min_dist = float('inf')
-                        closest = None
-                        for v in wind_response['vectors']:
-                            dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
-                            if dist < min_dist:
-                                min_dist = dist
-                                closest = v
-
-                        if closest:
-                            # GFS wind vectors use u_component/v_component and direction_deg
-                            u_comp = closest.get('u_component', 0)
-                            v_comp = closest.get('v_component', 0)
-                            speed_ms = ((u_comp**2 + v_comp**2)**0.5)
-                            wind_data = {
-                                'speed_ms': round(speed_ms, 1),
-                                'speed_mph': round(speed_ms * 2.23694, 1),
-                                'direction': closest.get('direction_deg')
-                            }
-                except Exception as e:
-                    print(f"⚠️  Wind fetch failed for hour {forecast_hour}: {e}")
-
-                # Add to timeline
-                forecast_timeline.append({
-                    'hour': forecast_hour,
-                    'wave': wave_data,
-                    'wind': wind_data
-                })
-
-            except Exception as e:
-                print(f"⚠️  Failed to fetch hour {forecast_hour}: {e}")
-                continue
+        timeline = [r for r in raw if isinstance(r, dict)]
 
         return json_sanitize({
             'spot_name': spot['name'],
@@ -3749,8 +3728,8 @@ async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
             'latitude': lat,
             'longitude': lon,
             'forecast_hours': forecast_hours,
-            'timeline': forecast_timeline,
-            'total_points': len(forecast_timeline)
+            'timeline': timeline,
+            'total_points': len(timeline),
         })
 
     except Exception as e:
