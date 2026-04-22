@@ -5,7 +5,7 @@ import asyncio
 import json
 import math
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, List, Tuple, Any
 from netCDF4 import Dataset
 import numpy as np
@@ -4010,19 +4010,48 @@ async def _copilot_get_spot_conditions(spot_id: str) -> Dict:
 
 
 async def _copilot_get_conditions_window(spot_id: str, hours: int = 24) -> Dict:
-    """Fetch forecast timeline simplified for Copilot."""
+    """Fetch forecast timeline + tide data simplified for Copilot."""
     try:
+        from tides import _resolve_station, fetch_tide_timeline, fetch_hilo
+
         hours = max(6, min(hours, 72))
-        result = await get_surf_spot_forecast_timeline(spot_id, hours=hours)
+
+        # Resolve tide station in parallel with forecast fetch
+        station_id, _ = await _resolve_station(spot_id)
+
+        now_utc = datetime.now(timezone.utc)
+        tide_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        tide_end = tide_start + timedelta(days=max(4, hours // 24 + 2))
+
+        result, tide_points, hilo_points = await asyncio.gather(
+            get_surf_spot_forecast_timeline(spot_id, hours=hours),
+            fetch_tide_timeline(station_id, tide_start, tide_end),
+            fetch_hilo(station_id, tide_start, tide_end),
+            return_exceptions=True,
+        )
+
+        if isinstance(result, Exception):
+            return {"error": str(result), "spot_id": spot_id}
         if "error" in result:
             return result
+
+        # Build tide lookup keyed by CO-OPS wall-clock string "YYYY-MM-DD HH:00"
+        # CO-OPS returns lst_ldt (Pacific local) so we convert UTC→Pacific (UTC-7 PDT approx)
+        PACIFIC_OFFSET_H = -7
+        now_pacific = now_utc + timedelta(hours=PACIFIC_OFFSET_H)
+        tide_by_hour: Dict[str, Dict] = {}
+        if isinstance(tide_points, list):
+            for tp in tide_points:
+                tide_by_hour[tp["t"]] = tp
 
         timeline = result.get("timeline", [])
         points = []
         for pt in timeline:
             wave = pt.get("wave") or {}
             wind = pt.get("wind") or {}
-            points.append({
+            target_pacific = now_pacific + timedelta(hours=pt.get("hour", 0))
+            tide = tide_by_hour.get(target_pacific.strftime("%Y-%m-%d %H:00"))
+            row: Dict = {
                 "hour": pt.get("hour"),
                 "wave_height_ft": wave.get("height_ft"),
                 "surf_height_ft": wave.get("surf_height_ft"),
@@ -4030,13 +4059,24 @@ async def _copilot_get_conditions_window(spot_id: str, hours: int = 24) -> Dict:
                 "swell_direction": wave.get("direction"),
                 "wind_speed_mph": wind.get("speed_mph"),
                 "wind_direction": wind.get("direction"),
-            })
+            }
+            if tide:
+                row["tide_ft"] = round(tide["v"], 1) if tide.get("v") is not None else None
+                row["tide_state"] = tide.get("state")
+            points.append(row)
+
+        # Next 8 hi/lo events from now
+        tide_hilo: list = []
+        if isinstance(hilo_points, list):
+            now_str = now_pacific.strftime("%Y-%m-%d %H:%M")
+            tide_hilo = [h for h in hilo_points if h.get("t", "") >= now_str][:8]
 
         return {
             "spot_id": spot_id,
             "spot_name": result.get("spot_name"),
             "hours": hours,
             "points": points,
+            "tide_hilo": tide_hilo,
         }
     except Exception as e:
         return {"error": str(e), "spot_id": spot_id}
