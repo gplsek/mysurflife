@@ -1830,6 +1830,221 @@ async def _set_ww3_cache(cache_key: str, vectors: List[Dict], ttl_l1: int = 600,
     except Exception as e:
         print(f"⚠️  Disk cache write error: {e}")
 
+async def fetch_real_noaa_ww3_grib(
+    model: str,
+    bounds: tuple,
+    run: Optional[str] = None,
+    forecast_hour: int = 0,
+    source: str = "global",
+) -> Optional[List[Dict]]:
+    """
+    Fetch WW3/GFSWave vectors via NOMADS GRIB2 filter (primary path).
+
+    Faster than OPeNDAP — downloads only the requested bbox + 3 variables
+    instead of opening the full dataset over DAP. Falls back to OPeNDAP if
+    cfgrib is unavailable or the download fails.
+
+    NOMADS GRIB2 filter for GFSWave:
+      https://nomads.ncep.noaa.gov/cgi-bin/filter_gfswave_0p16.pl
+        ?file=gfswave.global.0p16.t{HH}z.f{FFF}.grib2
+        &var_HTSGW=on&var_PERPW=on&var_WVDIR=on
+        &leftlon=L&rightlon=R&toplat=T&bottomlat=B
+        &dir=%2Fgfswave.YYYYMMDD%2FHH
+    """
+    try:
+        import xarray as xr
+        import cfgrib  # noqa — just check it's importable
+    except ImportError as e:
+        print(f"⚠️  GRIB deps not available ({e}), skipping GRIB path")
+        return None
+
+    min_lat, min_lon, max_lat, max_lon = bounds
+    min_lat = max(-90.0, min(90.0, min_lat))
+    max_lat = max(-90.0, min(90.0, max_lat))
+    min_lon = max(-180.0, min(180.0, min_lon))
+    max_lon = max(-180.0, min(180.0, max_lon))
+
+    domain_config = _select_ww3_domain(
+        (min_lat, min_lon, max_lat, max_lon), source=source
+    )
+    domain = domain_config.get("domain", "global")
+
+    # Force global when bbox > 10° (same logic as OPeNDAP path)
+    bbox_w = max_lon - min_lon
+    bbox_h = max_lat - min_lat
+    center_lon = (min_lon + max_lon) / 2
+    center_lat = (min_lat + max_lat) / 2
+    if domain != "global":
+        if bbox_w >= 10 or bbox_h >= 10:
+            domain = "global"
+        elif center_lon < -110 and 25 < center_lat < 45:
+            domain = "global"
+    if domain == "global":
+        registry = _load_ww3_registry()
+        for d in registry.get("domains", []):
+            if d.get("domain") == "global":
+                domain_config = d
+                break
+
+    filter_script = domain_config.get("grib_filter_script", "filter_gfswave_0p16.pl")
+    file_prefix   = domain_config.get("grib_file_prefix",   "gfswave.global.0p16")
+    dir_pattern   = domain_config.get("grib_dir_pattern",   "%2Fgfswave.{DATE}%2F{HH}")
+
+    # Resolve model run
+    def _parse_run_str(s: str):
+        try:
+            return datetime.fromisoformat(s.replace("Z", ""))
+        except Exception:
+            return None
+
+    run_dt = _parse_run_str(run) if run else None
+    if not run_dt:
+        now = datetime.utcnow()
+        # Most recent cycle that's had time to publish (lag ~3-4h)
+        for hrs_back in [4, 10, 16, 22]:
+            candidate = now - timedelta(hours=hrs_back)
+            cycle_h = (candidate.hour // 6) * 6
+            run_dt = candidate.replace(hour=cycle_h, minute=0, second=0, microsecond=0)
+            break
+
+    run_date  = run_dt.strftime("%Y%m%d")
+    run_cycle = run_dt.strftime("%H")
+    fh = max(0, int(forecast_hour))
+
+    file_name = f"{file_prefix}.t{run_cycle}z.f{fh:03d}.grib2"
+    grib_dir  = dir_pattern.format(DATE=run_date, HH=run_cycle)
+
+    # NOMADS expects longitude in [0, 360]
+    def to360(lon: float) -> float:
+        return lon % 360.0
+
+    leftlon  = to360(min_lon - 0.5)
+    rightlon = to360(max_lon + 0.5)
+    if leftlon > rightlon:
+        leftlon, rightlon = 0.0, 360.0
+    toplat    = min(90.0,  max_lat + 0.5)
+    bottomlat = max(-90.0, min_lat - 0.5)
+
+    grib_url = (
+        f"https://nomads.ncep.noaa.gov/cgi-bin/{filter_script}"
+        f"?file={file_name}"
+        "&var_HTSGW=on&var_PERPW=on&var_WVDIR=on"
+        f"&leftlon={leftlon:.2f}&rightlon={rightlon:.2f}"
+        f"&toplat={toplat:.2f}&bottomlat={bottomlat:.2f}"
+        f"&dir={grib_dir}"
+    )
+
+    try:
+        print(f"🌊 Fetching WW3 GRIB: {file_name} f{fh:03d} ({run_date} {run_cycle}z)")
+        resp = await _http_client.get(grib_url, timeout=30.0)
+        resp.raise_for_status()
+        content = resp.content
+
+        if len(content) < 1024:
+            print(f"❌ WW3 GRIB response too small ({len(content)}B) — likely error or empty region")
+            return None
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".grib2") as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            print(f"📥 WW3 GRIB downloaded {len(content)} bytes, parsing…")
+            import xarray as xr
+
+            # cfgrib may split the file into multiple datasets (one per typeOfLevel)
+            datasets = xr.open_dataset(
+                tmp_path,
+                engine="cfgrib",
+                backend_kwargs={"indexpath": ""},
+            )
+            # If open_dataset returns a single dataset, wrap it
+            if not isinstance(datasets, list):
+                datasets = [datasets]
+
+            hs_da = per_da = dir_da = None
+            for ds in datasets:
+                for name, da in ds.data_vars.items():
+                    sn = (da.attrs.get("GRIB_shortName") or "").lower()
+                    ln = name.lower()
+                    if hs_da  is None and (sn in ("swh", "htsgw") or "swh" in ln or "htsgw" in ln):
+                        hs_da  = da
+                    if per_da is None and (sn in ("perpw", "pp1d") or "perpw" in ln or "pp1d" in ln):
+                        per_da = da
+                    if dir_da is None and (sn in ("mwd", "wvdir") or "mwd" in ln or "wvdir" in ln):
+                        dir_da = da
+
+            if hs_da is None:
+                print(f"❌ WW3 GRIB: could not find wave height variable")
+                return None
+
+            lat_name = "latitude" if "latitude" in hs_da.coords else "lat"
+            lon_name = "longitude" if "longitude" in hs_da.coords else "lon"
+
+            hs_values  = np.array(hs_da.values,  dtype=np.float64)
+            per_values = np.array(per_da.values, dtype=np.float64) if per_da is not None else np.zeros_like(hs_values)
+            dir_values = np.array(dir_da.values, dtype=np.float64) if dir_da is not None else np.full_like(hs_values, 270.0)
+
+            lats = hs_da[lat_name].values
+            lons = hs_da[lon_name].values
+
+            # Ensure south→north latitude order
+            if len(lats) >= 2 and lats[0] > lats[-1]:
+                hs_values  = np.flipud(hs_values)
+                per_values = np.flipud(per_values)
+                dir_values = np.flipud(dir_values)
+                lats = np.flip(lats)
+
+            lon_grid, lat_grid = np.meshgrid(lons, lats)
+            # Convert 0-360 → -180-180
+            lon_grid = np.where(lon_grid > 180, lon_grid - 360, lon_grid)
+
+            hs_values  = np.where(np.isfinite(hs_values),  hs_values,  np.nan)
+            per_values = np.where(np.isfinite(per_values) & (per_values > 0), per_values, np.nan)
+            dir_values = np.where(np.isfinite(dir_values), dir_values, 270.0)
+
+            valid_mask = np.isfinite(hs_values) & (hs_values >= 0)
+            step = max(1, int(np.sqrt(np.sum(valid_mask) / 3000))) if np.sum(valid_mask) > 3000 else 1
+            if step > 1:
+                hs_values  = hs_values[::step, ::step]
+                per_values = per_values[::step, ::step]
+                dir_values = dir_values[::step, ::step]
+                lat_grid   = lat_grid[::step, ::step]
+                lon_grid   = lon_grid[::step, ::step]
+                valid_mask = valid_mask[::step, ::step]
+
+            vectors: List[Dict] = []
+            for i in range(lat_grid.shape[0]):
+                for j in range(lat_grid.shape[1]):
+                    hs_val  = round(float(hs_values[i, j]),  2) if valid_mask[i, j] else None
+                    per_raw = per_values[i, j]
+                    per_val = round(float(per_raw), 1) if np.isfinite(per_raw) and per_raw > 0 else None
+                    dir_val = round(float(dir_values[i, j]), 0)
+                    vectors.append({
+                        "lat":     round(float(lat_grid[i, j]), 2),
+                        "lon":     round(float(lon_grid[i, j]), 2),
+                        "hs":      hs_val,
+                        "dir_deg": dir_val,
+                        "period":  per_val,
+                    })
+
+            print(f"✅ WW3 GRIB: {len(vectors)} vectors ({run_date} {run_cycle}z f{fh:03d})")
+            return vectors if vectors else None
+
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+    except asyncio.TimeoutError:
+        print(f"❌ WW3 GRIB timeout (30s)")
+        return None
+    except Exception as e:
+        print(f"❌ WW3 GRIB fetch/parse error: {e}")
+        return None
+
+
 async def fetch_real_noaa_ww3_opendap(
     model: str,
     bounds: tuple,
@@ -2401,15 +2616,24 @@ async def _get_wave_overlay_impl(
     valid_time_utc = None
     
     if real_data:
-        # Use registry-based domain selection (automatic based on bbox and source)
-        # The fetch function will automatically select the best domain
-        vectors = await fetch_real_noaa_ww3_opendap(
+        # Primary: GRIB filter (faster, no DAP overhead)
+        vectors = await fetch_real_noaa_ww3_grib(
             model,
             (min_lat, min_lon, max_lat, max_lon),
-            run=None,  # Auto-resolve latest run
+            run=None,
             forecast_hour=forecast_hour,
-            source=source,  # Pass source for domain selection
+            source=source,
         )
+        # Fallback: OPeNDAP (slower but broader compatibility)
+        if not vectors:
+            print("⚠️  GRIB path returned nothing, falling back to OPeNDAP")
+            vectors = await fetch_real_noaa_ww3_opendap(
+                model,
+                (min_lat, min_lon, max_lat, max_lon),
+                run=None,
+                forecast_hour=forecast_hour,
+                source=source,
+            )
     
     # Fallback to synthetic data if real data fetch fails or real_data=False
     if not vectors or len(vectors) == 0:

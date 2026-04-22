@@ -21,6 +21,9 @@
       },
       "source": "NOAA GFSWave Global",
       "opendap_pattern": "gfswave.global.0p16_{HH}z",
+      "grib_filter_script": "filter_gfswave_0p16.pl",
+      "grib_file_prefix": "gfswave.global.0p16",
+      "grib_dir_pattern": "%2Fgfswave.{DATE}%2F{HH}",
       "variables": {
         "wave_height": {
           "name": "htsgwsfc",
@@ -66,6 +69,9 @@
       },
       "source": "NOAA GFSWave Eastern Pacific",
       "opendap_pattern": "gfswave.epacif.0p16_{HH}z",
+      "grib_filter_script": "filter_gfswave_epacif.pl",
+      "grib_file_prefix": "gfswave.epacif.0p16",
+      "grib_dir_pattern": "%2Fgfswave.{DATE}%2F{HH}",
       "variables": {
         "wave_height": {
           "name": "htsgwsfc",
@@ -112,6 +118,9 @@
       },
       "source": "NOAA GFSWave Atlantic",
       "opendap_pattern": "gfswave.atlocn.0p16_{HH}z",
+      "grib_filter_script": "filter_gfswave_atlocn.pl",
+      "grib_file_prefix": "gfswave.atlocn.0p16",
+      "grib_dir_pattern": "%2Fgfswave.{DATE}%2F{HH}",
       "variables": {
         "wave_height": {
           "name": "htsgwsfc",
