@@ -33,6 +33,16 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(sessions_router)
 
+from high_seas import register_routes as register_high_seas_routes
+register_high_seas_routes(app)
+
+try:
+    from ecmwf_wind import fetch_ecmwf_wind
+    print("✅ ECMWF Open Data wind fetcher loaded")
+except ImportError as e:
+    print(f"⚠️  ecmwf_wind not available: {e}")
+    fetch_ecmwf_wind = None
+
 # Simple in-memory cache (L1 - per worker, short TTL)
 cache: Dict[str, Dict] = {}
 CACHE_DURATION = timedelta(minutes=5)  # NDBC updates every ~10 min, cache for 5
@@ -1614,23 +1624,45 @@ async def _do_fetch_wind_overlay(
             "update_frequency": "6 hours",
             "forecast_range": "84 hours",
             "source": "NOAA NCEP"
+        },
+        "ecmwf": {
+            "name": "ECMWF IFS (Open Data)",
+            "resolution": "0.25 degree (~25km)",
+            "update_frequency": "12 hours",
+            "forecast_range": "360 hours",
+            "source": "ECMWF"
         }
     }
-    
+
     if model not in model_configs:
         return {"error": f"Invalid model. Choose from: {', '.join(model_configs.keys())}"}
-    
+
     config = model_configs[model]
-    
-    # Try to fetch real NOAA data
+
+    # Try to fetch real wind data
     vectors = None
     if real_data:
-        vectors = await fetch_real_noaa_wind(
-            model,
-            (min_lat, min_lon, max_lat, max_lon),
-            run=run,
-            forecast_hour=forecast_hour,
-        )
+        if model == "ecmwf" and fetch_ecmwf_wind is not None:
+            vectors = await fetch_ecmwf_wind(
+                (min_lat, min_lon, max_lat, max_lon),
+                forecast_hour=forecast_hour,
+                run=run,
+            )
+            if vectors is None:
+                print("⚠️  ECMWF fetch failed — falling back to GFS")
+                vectors = await fetch_real_noaa_wind(
+                    "gfs",
+                    (min_lat, min_lon, max_lat, max_lon),
+                    run=run,
+                    forecast_hour=forecast_hour,
+                )
+        else:
+            vectors = await fetch_real_noaa_wind(
+                model,
+                (min_lat, min_lon, max_lat, max_lon),
+                run=run,
+                forecast_hour=forecast_hour,
+            )
     
     # Fallback to sample data if real data fetch fails
     if vectors is None:
@@ -3587,6 +3619,16 @@ async def get_available_models():
                 "coverage": "North America",
                 "update": "Every 6 hours",
                 "forecast": "84 hours"
+            },
+            {
+                "id": "ecmwf",
+                "name": "ECMWF IFS - Open Data",
+                "provider": "ECMWF",
+                "resolution": "25 km",
+                "coverage": "Global",
+                "update": "Every 12 hours",
+                "forecast": "15 days",
+                "requires": "ecmwf-opendata"
             }
         ],
         "swell_models": [
