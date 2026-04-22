@@ -62,19 +62,26 @@ const DEMO_CONVERSATION = [
 ];
 
 function CopilotDemo() {
-  const scrollRef = useRef(null);
+  const viewportRef = useRef(null);
+  const trackRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    const scroll = scrollRef.current;
+    const viewport = viewportRef.current;
+    const track = trackRef.current;
     const inputEl = inputRef.current;
-    if (!scroll || !inputEl) return;
+    if (!viewport || !track || !inputEl) return;
 
     let cancelled = false;
     let currentTimeout = null;
 
     function sleep(ms) {
       return new Promise(r => { currentTimeout = setTimeout(() => { currentTimeout = null; r(); }, ms); });
+    }
+
+    function settleScroll() {
+      const overflow = track.scrollHeight - viewport.clientHeight;
+      track.style.transform = overflow > 0 ? `translateY(${-overflow}px)` : 'translateY(0)';
     }
 
     async function typeInto(el, text) {
@@ -90,8 +97,8 @@ function CopilotDemo() {
       const b = document.createElement('div');
       b.className = 'home-bubble ' + cls;
       b.innerHTML = html;
-      scroll.appendChild(b);
-      scroll.scrollTop = scroll.scrollHeight;
+      track.appendChild(b);
+      requestAnimationFrame(settleScroll);
       return b;
     }
 
@@ -119,20 +126,22 @@ function CopilotDemo() {
             .join(' ');
           thinking.querySelector('.home-bubble-b').innerHTML =
             chips + '<div style="height:4px"></div><span class="home-typing"><span></span><span></span><span></span></span>';
+          requestAnimationFrame(settleScroll);
           await sleep(700);
           if (cancelled) return;
           thinking.querySelectorAll('.home-tool-chip').forEach(c => c.classList.add('done'));
           const bEl = thinking.querySelector('.home-bubble-b');
           const doneChips = Array.from(bEl.querySelectorAll('.home-tool-chip')).map(c => c.outerHTML).join(' ');
           bEl.innerHTML = doneChips + '<div style="height:6px"></div>' + step.html;
-          scroll.scrollTop = scroll.scrollHeight;
+          requestAnimationFrame(settleScroll);
           await sleep(2200);
         }
       }
       if (cancelled) return;
       await sleep(2500);
       if (cancelled) return;
-      scroll.innerHTML = '';
+      track.innerHTML = '';
+      track.style.transform = 'translateY(0)';
       inputEl.innerHTML = CARET_HTML;
       await sleep(800);
       if (!cancelled) playConversation();
@@ -141,7 +150,7 @@ function CopilotDemo() {
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { io.disconnect(); playConversation(); } });
     }, { threshold: 0.2 });
-    io.observe(scroll);
+    io.observe(viewport);
 
     return () => {
       cancelled = true;
@@ -159,7 +168,9 @@ function CopilotDemo() {
         <span className="home-demo-title">mysurflife / copilot</span>
         <span className="home-demo-pill">LIVE</span>
       </div>
-      <div className="home-demo-scroll" ref={scrollRef} />
+      <div className="home-demo-scroll" ref={viewportRef}>
+        <div className="home-demo-track" ref={trackRef} />
+      </div>
       <div className="home-demo-input">
         <div className="home-demo-inp" ref={inputRef}>
           <span className="home-demo-caret" />
@@ -313,7 +324,7 @@ export default function Home() {
             <div className="home-stats-k">Station-accurate</div>
           </div>
           <div className="home-stats-item">
-            <div className="home-stats-v"><em>Stormsurf</em> physics</div>
+            <div className="home-stats-v"><em>mysurflife</em> physics</div>
             <div className="home-stats-k">Validated decay + arrival</div>
           </div>
         </div>
@@ -391,7 +402,7 @@ export default function Home() {
               <p>Every spot gets wave height + period, wind speed + direction, and tide state on the same axis. Filter windows by your preference profile. Pull it up in the Copilot with a single question.</p>
               <ul className="home-bullet-list">
                 <li><b>Swell arrival tracking.</b> Storm distance + period + decay tells you when the leading edge hits — to the hour.</li>
-                <li><b>Stormsurf Category scale.</b> 6ft @ 14s is a Cat 3 (shoulder-to-head). 6ft @ 7s is Cat 1 (closed out). <em>Period matters.</em></li>
+                <li><b>Category scale.</b> 6ft @ 14s is a Cat 3 (shoulder-to-head). 6ft @ 7s is Cat 1 (closed out). <em>Period matters.</em></li>
                 <li><b>Spot-specific adjustments.</b> Blacks amplifies canyon swell 30–40%. Del Mar doesn't. The forecast knows.</li>
               </ul>
             </div>
@@ -448,7 +459,7 @@ export default function Home() {
               {/* Stormsurf category scale */}
               <div style={{ marginTop: '14px' }}>
                 <div style={{ fontFamily: "'Geist Mono',monospace", fontSize: '10px', letterSpacing: '0.14em', color: 'oklch(0.58 0.014 230)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                  Stormsurf Cat Scale
+                  Wave Category Scale
                 </div>
                 <div className="home-cat-scale">
                   {CAT_CHIPS.map(c => (
@@ -627,7 +638,7 @@ export default function Home() {
               <li><a href="#">NOAA NDBC buoys</a></li>
               <li><a href="#">WaveWatch III</a></li>
               <li><a href="#">CO-OPS tides</a></li>
-              <li><a href="#">Stormsurf physics</a></li>
+              <li><a href="#">Swell physics</a></li>
               <li><a href="#">Wannasurf DB</a></li>
             </ul>
           </div>

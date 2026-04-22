@@ -203,7 +203,7 @@
   border-radius: 16px;
   box-shadow: 0 30px 80px oklch(0 0 0 / 0.45);
   overflow: hidden; position: relative;
-  min-height: 540px; display: flex; flex-direction: column;
+  height: 560px; display: flex; flex-direction: column;
 }
 .home-demo::before {
   content: ''; position: absolute; inset: -1px; border-radius: 16px;
@@ -229,12 +229,26 @@
   background: oklch(0.82 0.16 140); box-shadow: 0 0 6px oklch(0.82 0.16 140);
 }
 .home-demo-scroll {
-  flex: 1; padding: 18px 20px 14px; overflow: hidden; position: relative;
+  flex: 1; overflow: hidden; position: relative; padding: 0;
+}
+.home-demo-scroll::before,
+.home-demo-scroll::after {
+  content: ''; position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none;
+}
+.home-demo-scroll::before {
+  top: 0; height: 24px;
+  background: linear-gradient(180deg, oklch(0.20 0.020 230), transparent);
 }
 .home-demo-scroll::after {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 24px;
-  background: linear-gradient(180deg, oklch(0.20 0.020 230), transparent);
-  pointer-events: none;
+  bottom: 0; height: 28px;
+  background: linear-gradient(0deg, oklch(0.20 0.020 230), transparent);
+}
+.home-demo-track {
+  padding: 18px 20px 14px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 100%;
+  transition: transform 0.5s cubic-bezier(.2,.7,.2,1);
+  will-change: transform;
 }
 .home-demo-input {
   padding: 10px 12px; border-top: 1px solid oklch(1 0 0 / 0.08);
