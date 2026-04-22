@@ -3452,58 +3452,37 @@ async def get_surf_spot_conditions(slug: str):
                 print(f"⚠️  Failed to fetch buoy {buoy_id}: {e}")
                 continue
 
-        # Fetch WW3 model data at spot coordinates
+        # Fetch WW3 model data at spot coordinates via direct point lookup
         try:
             lat = spot['latitude']
             lon = spot['longitude']
             bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
 
-            wave_response = await get_waves_overlay(
-                model="ww3",
-                bounds=bounds,
-                forecast_hour=0,
-                source="global"
-            )
+            wave_response = await _get_wave_overlay_impl("ww3", bounds, 0, True, "global")
+            vectors = (wave_response or {}).get('vectors') or []
+            closest = _closest_vector(vectors, lat, lon) if vectors else None
 
-            if wave_response and 'vectors' in wave_response and len(wave_response['vectors']) > 0:
-                # Find closest grid point to spot
-                min_dist = float('inf')
-                closest = None
-                for v in wave_response['vectors']:
-                    dist = ((v['lat'] - lat)**2 + (v['lon'] - lon)**2)**0.5
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest = v
+            if closest and closest.get('hs'):
+                buoy_cache['WW3'] = {
+                    'station': 'WW3',
+                    'wave_height_m': closest.get('hs'),
+                    'dominant_period_sec': closest.get('per'),
+                    'mean_wave_dir': str(int(closest.get('dir_deg'))) if closest.get('dir_deg') else None,
+                    'wind_speed_ms': None,
+                    'wind_dir': None,
+                    'timestamp_utc': datetime.utcnow().isoformat() + 'Z',
+                    'name': 'WaveWatch III Model'
+                }
 
-                if closest and closest.get('hs'):
-                    # Add WW3 as a synthetic buoy to the cache
-                    buoy_cache['WW3'] = {
-                        'station': 'WW3',
-                        'wave_height_m': closest.get('hs'),
-                        'dominant_period_sec': closest.get('per'),  # May be None
-                        'mean_wave_dir': str(int(closest.get('dir_deg'))) if closest.get('dir_deg') else None,
-                        'wind_speed_ms': None,
-                        'wind_dir': None,
-                        'timestamp_utc': datetime.utcnow().isoformat() + 'Z',
-                        'name': 'WaveWatch III Model'
-                    }
-
-                    # Add WW3 to the buoy blend with 20% weight
-                    # Reduce other buoy weights proportionally
-                    ww3_weight = 0.2
-                    scale_factor = (1.0 - ww3_weight)
-
-                    # Scale existing weights in the copy
-                    for buoy_id in buoy_blend_with_model.keys():
-                        if isinstance(buoy_blend_with_model[buoy_id], dict):
-                            buoy_blend_with_model[buoy_id]['weight'] = buoy_blend_with_model[buoy_id].get('weight', 0) * scale_factor
-                        else:
-                            buoy_blend_with_model[buoy_id] = {'weight': buoy_blend_with_model[buoy_id] * scale_factor}
-
-                    # Add WW3
-                    buoy_blend_with_model['WW3'] = {'weight': ww3_weight, 'role': 'model'}
-
-                    print(f"✅ Added WW3 model data to {slug} blend (20% weight)")
+                ww3_weight = 0.2
+                scale_factor = 1.0 - ww3_weight
+                for buoy_id in buoy_blend_with_model.keys():
+                    if isinstance(buoy_blend_with_model[buoy_id], dict):
+                        buoy_blend_with_model[buoy_id]['weight'] = buoy_blend_with_model[buoy_id].get('weight', 0) * scale_factor
+                    else:
+                        buoy_blend_with_model[buoy_id] = {'weight': buoy_blend_with_model[buoy_id] * scale_factor}
+                buoy_blend_with_model['WW3'] = {'weight': ww3_weight, 'role': 'model'}
+                print(f"✅ Added WW3 model data to {slug} blend (20% weight)")
         except Exception as e:
             print(f"⚠️  Failed to fetch WW3 for {slug}: {e}")
 
