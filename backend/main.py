@@ -253,6 +253,8 @@ async def startup():
         timeout=httpx.Timeout(10.0, connect=5.0),
         limits=httpx.Limits(max_connections=20, max_keepalive_connections=20)
     )
+    from jobs.buoy_refresh import run_buoy_refresh_loop
+    asyncio.create_task(run_buoy_refresh_loop(fetch_buoy_data, get_all_buoys))
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -263,6 +265,36 @@ async def shutdown():
 
 # BUOY_LIST now loaded from Supabase database (see buoy_registry.py)
 # Fallback list is in buoy_registry.py if database unavailable
+
+async def fetch_wind_from_open_meteo(lat: float, lon: float) -> Dict:
+    """
+    Fetch current wind from Open-Meteo as a last-resort fallback.
+    No API key required. Covers any lat/lon including offshore buoys.
+    """
+    try:
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            f"&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+            f"&wind_speed_unit=ms"
+        )
+        response = await _http_client.get(url)
+        response.raise_for_status()
+        data = response.json()
+        current = data.get("current", {})
+        speed = current.get("wind_speed_10m")
+        if speed is None:
+            return {"wind_dir": None, "wind_speed_ms": None, "wind_gust_ms": None, "wind_source": None}
+        return {
+            "wind_dir":      current.get("wind_direction_10m"),
+            "wind_speed_ms": speed,
+            "wind_gust_ms":  current.get("wind_gusts_10m"),
+            "wind_source":   "open-meteo",
+        }
+    except Exception as e:
+        print(f"⚠️  Open-Meteo wind fallback failed ({lat}, {lon}): {e}")
+        return {"wind_dir": None, "wind_speed_ms": None, "wind_gust_ms": None, "wind_source": None}
+
 
 async def fetch_wind_from_station(station_id: str) -> Dict:
     """Fetch wind data from a fallback station (NOS CO-OPS)."""
@@ -487,14 +519,25 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
             "wind_source": "buoy"
         }
         
-        # If wind data is missing and we have a fallback station, try to fetch from it
+        # Fallback 1: NOS CO-OPS station (mapped per buoy in buoy_registry)
         if (wind_dir is None or wind_speed_ms is None) and wind_fallback_station:
             fallback_wind = await fetch_wind_from_station(wind_fallback_station)
             result["wind_dir"] = fallback_wind.get("wind_dir")
             result["wind_speed_ms"] = fallback_wind.get("wind_speed_ms")
             result["wind_gust_ms"] = fallback_wind.get("wind_gust_ms")
             result["wind_source"] = fallback_wind.get("wind_source") or "N/A"
-        
+
+        # Fallback 2: Open-Meteo point forecast (covers any offshore buoy)
+        if result.get("wind_speed_ms") is None:
+            buoy_meta = get_buoy_by_id(buoy_id) if get_buoy_by_id else None
+            if buoy_meta and buoy_meta.get("lat") and buoy_meta.get("lon"):
+                om = await fetch_wind_from_open_meteo(buoy_meta["lat"], buoy_meta["lon"])
+                if om.get("wind_speed_ms") is not None:
+                    result["wind_dir"] = om["wind_dir"]
+                    result["wind_speed_ms"] = om["wind_speed_ms"]
+                    result["wind_gust_ms"] = om["wind_gust_ms"]
+                    result["wind_source"] = "open-meteo"
+
         # Cache the successful result
         cache[buoy_id] = {
             "data": result,
