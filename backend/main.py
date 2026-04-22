@@ -16,6 +16,15 @@ import time  # For performance timing
 
 app = FastAPI()
 
+from tides import register_routes as register_tide_routes
+register_tide_routes(app)
+
+from swell_physics import register_routes as register_swell_routes
+register_swell_routes(app)
+
+from swell_tables import register_routes as register_swell_table_routes
+register_swell_table_routes(app)
+
 # Simple in-memory cache (L1 - per worker, short TTL)
 cache: Dict[str, Dict] = {}
 CACHE_DURATION = timedelta(minutes=5)  # NDBC updates every ~10 min, cache for 5
@@ -241,39 +250,29 @@ def json_sanitize(obj: Any) -> Any:
         return obj.isoformat() + "Z" if obj.tzinfo is None else obj.isoformat()
     return str(obj)
 
-def calculate_surf_height(wave_height_m: float, dpd_sec: float) -> float:
+def calculate_surf_height(wave_height_m: float, dpd_sec: float, size_bias: float = 1.0) -> float:
     """
     Calculate theoretical surf face height from offshore wave parameters.
 
-    Uses a period-based multiplier (linear, clamped) instead of √period
-    to avoid unrealistic values for long-period swells.
+    Uses the Stormsurf Swell Category Table (empirically calibrated industry
+    standard) rather than a homemade period multiplier. Returns the mid-point
+    of the face height range in meters for backward compatibility.
 
-    Formula: surf_height = WVHT × multiplier
-    Where multiplier = max(1.0, min(2.2, 0.6 + 0.08 × DPD))
-
-    Multiplier examples:
-    - 10s period: 1.4x (0.6 + 0.08*10)
-    - 15s period: 1.8x (0.6 + 0.08*15)
-    - 20s+ period: 2.2x (capped)
-
-    This is a heuristic for "generic beach" conditions without bathymetry/shadowing.
-    For spot-specific accuracy, use per-spot calibration coefficients.
+    For richer output (category, label, min/max range), call
+    surf_height_from_buoy(wvht_ft, dpd_sec, size_bias) directly.
 
     Args:
         wave_height_m: Significant wave height in meters (WVHT)
-        dpd_sec: Dominant period in seconds (DPD)
+        dpd_sec:       Dominant period in seconds (DPD)
+        size_bias:     Optional spot amplification factor (default 1.0 = generic beach)
 
     Returns:
-        Theoretical surf face height in meters
-
-    References:
-        - Wave energy flux scales with height² and period
-        - Linear period multiplier is more physically realistic than √period
-        - Capped at 2.2x to prevent over-estimation for very long period swells
+        Theoretical surf face height in meters (mid of face height range)
     """
-    # Period-based multiplier: increases with period, clamped at 2.2x
-    mult = max(1.0, min(2.2, 0.6 + 0.08 * dpd_sec))
-    return round(wave_height_m * mult, 2)
+    from swell_tables import surf_height_from_buoy
+    wvht_ft = wave_height_m * 3.28084
+    result = surf_height_from_buoy(wvht_ft, dpd_sec, size_bias)
+    return round(result["face_mid_ft"] / 3.28084, 2)
 
 # LRU cache for timestamp generation (Task A)
 @lru_cache(maxsize=64)
@@ -4429,4 +4428,468 @@ async def batch_generate_spot_analyses(
 
     except Exception as e:
         print(f"❌ Batch generation error: {e}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COPILOT — /api/copilot/chat
+# ══════════════════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel
+from copilot import handle_chat as _copilot_handle_chat
+
+
+class CopilotMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class CopilotChatRequest(BaseModel):
+    messages: List[CopilotMessage]
+    context: Optional[Dict[str, Any]] = None
+
+
+# ── Tool helpers (called by the Copilot tool registry) ────────────────────────
+
+async def _copilot_get_spot_conditions(spot_id: str) -> Dict:
+    """Fetch current scored conditions for a spot."""
+    try:
+        result = await get_surf_spot_conditions(spot_id)
+        if "error" in result:
+            return result
+        return {
+            "spot_id": spot_id,
+            "spot_name": result.get("spot_name"),
+            "score": result.get("overall_score"),
+            "rating": result.get("rating"),
+            "wave_height_ft": result.get("wave_height_ft"),
+            "surf_height_ft": result.get("surf_height_ft"),
+            "period_sec": result.get("period_sec"),
+            "swell_direction": result.get("swell_direction"),
+            "wind_speed_mph": result.get("wind_speed_mph"),
+            "wind_direction": result.get("wind_direction"),
+            "confidence": result.get("confidence"),
+        }
+    except Exception as e:
+        return {"error": str(e), "spot_id": spot_id}
+
+
+async def _copilot_get_conditions_window(spot_id: str, hours: int = 24) -> Dict:
+    """Fetch forecast timeline simplified for Copilot."""
+    try:
+        hours = max(6, min(hours, 72))
+        result = await get_surf_spot_forecast_timeline(spot_id, hours=hours)
+        if "error" in result:
+            return result
+
+        timeline = result.get("timeline", [])
+        points = []
+        for pt in timeline:
+            wave = pt.get("wave") or {}
+            wind = pt.get("wind") or {}
+            points.append({
+                "hour": pt.get("hour"),
+                "wave_height_ft": wave.get("height_ft"),
+                "surf_height_ft": wave.get("surf_height_ft"),
+                "period_sec": wave.get("period"),
+                "swell_direction": wave.get("direction"),
+                "wind_speed_mph": wind.get("speed_mph"),
+                "wind_direction": wind.get("direction"),
+            })
+
+        return {
+            "spot_id": spot_id,
+            "spot_name": result.get("spot_name"),
+            "hours": hours,
+            "points": points,
+        }
+    except Exception as e:
+        return {"error": str(e), "spot_id": spot_id}
+
+
+async def _copilot_get_buoy_history(spot_id: str, hours: int = 24) -> Dict:
+    """Fetch recent buoy observations for a spot's primary buoy."""
+    try:
+        hours = max(12, min(hours, 48))
+
+        if not supabase:
+            return {"error": "Database not configured"}
+
+        # Resolve primary buoy from spot record
+        spot_result = supabase.table("spots") \
+            .select("name, primary_buoy_id, spot_forecast_tuning(buoy_blend)") \
+            .eq("slug", spot_id).single().execute()
+
+        if not spot_result.data:
+            return {"error": f"Spot '{spot_id}' not found"}
+
+        spot = spot_result.data
+        station_id = spot.get("primary_buoy_id")
+
+        # Fallback: use highest-weight buoy from blend
+        if not station_id:
+            tuning = spot.get("spot_forecast_tuning") or {}
+            blend = tuning.get("buoy_blend") or {}
+            if blend:
+                station_id = max(
+                    blend.keys(),
+                    key=lambda k: (blend[k].get("weight", 0) if isinstance(blend[k], dict) else blend[k])
+                )
+
+        if not station_id:
+            return {"error": f"No buoy mapped for spot '{spot_id}'"}
+
+        history = await get_buoy_history(station_id, hours=hours)
+        if "error" in history:
+            return history
+
+        readings = history.get("readings", [])
+        simplified = [
+            {
+                "timestamp": r.get("timestamp"),
+                "wave_height_ft": round(r["wave_height_m"] * 3.28084, 1) if r.get("wave_height_m") else None,
+                "period_sec": r.get("dominant_period_sec"),
+                "direction": r.get("mean_wave_dir"),
+            }
+            for r in readings if r.get("wave_height_m")
+        ]
+
+        return {
+            "spot_id": spot_id,
+            "spot_name": spot.get("name"),
+            "station_id": station_id,
+            "hours": hours,
+            "readings": simplified,
+        }
+    except Exception as e:
+        return {"error": str(e), "spot_id": spot_id}
+
+
+async def _copilot_compare_spots(spot_ids: List[str]) -> Dict:
+    """Fetch conditions for each spot and rank them."""
+    try:
+        results = await asyncio.gather(
+            *[_copilot_get_spot_conditions(sid) for sid in spot_ids],
+            return_exceptions=True
+        )
+
+        spots = []
+        for sid, r in zip(spot_ids, results):
+            if isinstance(r, Exception):
+                spots.append({"spot_id": sid, "error": str(r)})
+            elif "error" in r:
+                spots.append(r)
+            else:
+                spots.append(r)
+
+        ranked = sorted(
+            [s for s in spots if "score" in s and s["score"] is not None],
+            key=lambda x: x["score"],
+            reverse=True
+        )
+        # Append any errored spots at the end
+        ranked += [s for s in spots if "score" not in s or s["score"] is None]
+
+        best = ranked[0] if ranked else None
+        summary = (
+            f"{best['spot_name']} leads with a {best['score']}/10 ({best['rating']})."
+            if best and "spot_name" in best
+            else "Could not determine a best spot."
+        )
+
+        return {
+            "ranked_spots": ranked,
+            "best_spot_id": best["spot_id"] if best else None,
+            "summary": summary,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _copilot_rank_spots(region: Optional[str] = None) -> Dict:
+    """Rank all spots in a region by current score."""
+    try:
+        if not supabase:
+            return {"error": "Database not configured"}
+
+        query = supabase.table("spots").select("slug, name, region").eq("is_published", True)
+        if region:
+            query = query.ilike("region", f"%{region.replace('-', ' ')}%")
+
+        spot_result = query.limit(20).execute()
+        if not spot_result.data:
+            return {"error": f"No spots found for region '{region}'"}
+
+        slugs = [s["slug"] for s in spot_result.data]
+        conditions = await asyncio.gather(
+            *[_copilot_get_spot_conditions(slug) for slug in slugs],
+            return_exceptions=True
+        )
+
+        spots = []
+        for slug, cond in zip(slugs, conditions):
+            if isinstance(cond, Exception) or "error" in (cond or {}):
+                continue
+            if cond and cond.get("score") is not None:
+                spots.append(cond)
+
+        ranked = sorted(spots, key=lambda x: x["score"], reverse=True)
+
+        return {
+            "region": region,
+            "ranked_spots": ranked[:10],
+            "total_scored": len(ranked),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _copilot_calculate_swell_arrival(
+    spot_slug: str,
+    storm_positions: list,
+    off_axis: bool = False,
+    small_fetch: bool = False,
+) -> Dict:
+    """
+    Calculate swell arrival times and decayed sizes for a spot.
+    Resolves spot lat/lon from DB, then runs swell_physics calculations.
+    """
+    try:
+        from swell_physics import swell_arrivals, format_arrival_summary, StormPosition
+        from datetime import datetime, timezone
+
+        # Resolve spot coordinates from DB
+        spot_lat, spot_lon, spot_name = None, None, spot_slug
+        if supabase:
+            res = supabase.table("spots").select("latitude,longitude,name").eq("slug", spot_slug).maybe_single().execute()
+            if res.data:
+                spot_lat = res.data.get("latitude")
+                spot_lon = res.data.get("longitude")
+                spot_name = res.data.get("name", spot_slug)
+
+        if spot_lat is None or spot_lon is None:
+            return {"error": f"Could not resolve coordinates for spot '{spot_slug}'"}
+
+        positions = []
+        for p in storm_positions:
+            try:
+                ts = datetime.fromisoformat(str(p.get("timestamp", "")).replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                ts = datetime.now(timezone.utc)
+            positions.append(StormPosition(
+                lat=float(p["lat"]),
+                lon=float(p["lon"]),
+                timestamp=ts,
+                sea_height_ft=float(p["sea_height_ft"]),
+                label=p.get("label", ""),
+                confirmed=bool(p.get("confirmed", False)),
+            ))
+
+        arrivals = swell_arrivals(
+            positions, spot_lat, spot_lon, spot_name,
+            off_axis=off_axis, small_fetch=small_fetch,
+        )
+        narrative = format_arrival_summary(arrivals)
+
+        return {
+            "spot_name": spot_name,
+            "narrative": narrative,
+            "arrivals": [
+                {
+                    "storm_label":    a.storm_label,
+                    "distance_nm":    a.distance_nm,
+                    "max_period":     a.max_period,
+                    "bearing_from_spot": a.bearing_from_spot,
+                    "first_arrival": {
+                        "period_s":       a.first_arrival.period_s,
+                        "arrival_utc":    a.first_arrival.arrival_utc.isoformat(),
+                        "swell_height_ft": a.first_arrival.swell_height_ft,
+                    } if a.first_arrival else None,
+                    "peak_arrival": {
+                        "period_s":       a.peak_arrival.period_s,
+                        "arrival_utc":    a.peak_arrival.arrival_utc.isoformat(),
+                        "swell_height_ft": a.peak_arrival.swell_height_ft,
+                    } if a.peak_arrival else None,
+                    "bands": [
+                        {
+                            "period_s":       b.period_s,
+                            "travel_hours":   b.travel_hours,
+                            "arrival_utc":    b.arrival_utc.isoformat(),
+                            "swell_height_ft": b.swell_height_ft,
+                            "is_peak":        b.is_peak,
+                        }
+                        for b in a.bands
+                    ],
+                }
+                for a in arrivals
+            ],
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Endpoint ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/copilot/chat")
+async def copilot_chat(request: CopilotChatRequest):
+    """
+    Copilot chat endpoint.
+    Accepts a message thread and optional context (spot_id, region).
+    Returns {message, artifacts, follow_ups}.
+    """
+    try:
+        tool_registry = {
+            "get_spot_conditions":       _copilot_get_spot_conditions,
+            "get_conditions_window":     _copilot_get_conditions_window,
+            "get_buoy_history":          _copilot_get_buoy_history,
+            "compare_spots":             _copilot_compare_spots,
+            "rank_spots":                _copilot_rank_spots,
+            "calculate_swell_arrival":   _copilot_calculate_swell_arrival,
+        }
+
+        messages = [{"role": m.role, "content": m.content} for m in request.messages]
+        result = await _copilot_handle_chat(messages, request.context, tool_registry)
+        return result
+
+    except Exception as e:
+        print(f"❌ Copilot chat error: {e}")
+        return {
+            "message": "Something went wrong. Please try again.",
+            "artifacts": [],
+            "follow_ups": []
+        }
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SESSIONS — /api/sessions
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SessionCreateRequest(BaseModel):
+    spot_id: str
+    spot_name: str
+    session_date: str          # YYYY-MM-DD
+    start_time: Optional[str] = None   # HH:MM
+    duration_min: Optional[int] = None
+    perceived_size: Optional[str] = None
+    perceived_quality: Optional[int] = None   # 1-10
+    perceived_wind: Optional[str] = None
+    perceived_crowd: Optional[int] = None     # 1-5
+    waves_caught: Optional[int] = None
+    board_display: Optional[str] = None
+    perceived_note: Optional[str] = None
+    log_method: str = "manual"
+
+
+def _session_to_row(session: Dict) -> Dict:
+    """Normalize a DB session row to the shape SessionJournal.jsx expects."""
+    quality = session.get("perceived_quality")
+    return {
+        "id":        session.get("id"),
+        "date":      session.get("session_date"),
+        "spot":      session.get("spot_name"),
+        "spot_id":   session.get("spot_id"),
+        # Scale 1-10 quality to 1-5 dot display; None → 0
+        "rating":    min(5, round(quality / 2)) if quality else 0,
+        "perceived_quality": quality,
+        "duration":  session.get("duration_min"),
+        "waves":     session.get("waves_caught"),
+        "size":      session.get("perceived_size"),
+        "wind":      session.get("perceived_wind"),
+        "note":      session.get("perceived_note"),
+        "board":     session.get("board_display"),
+        "start_time": session.get("start_time"),
+        "log_method": session.get("log_method"),
+        "created_at": session.get("created_at"),
+    }
+
+
+@app.post("/api/sessions")
+async def create_session(
+    body: SessionCreateRequest,
+    user: Optional[Dict] = Depends(optional_auth),
+):
+    """Create a new surf session log entry."""
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        admin_client = get_supabase_admin_client()
+        if not admin_client:
+            return {"error": "Database admin client unavailable"}
+
+        row = {
+            "user_id":          user["user_id"],
+            "spot_id":          body.spot_id,
+            "spot_name":        body.spot_name,
+            "session_date":     body.session_date,
+            "start_time":       body.start_time,
+            "duration_min":     body.duration_min,
+            "perceived_size":   body.perceived_size,
+            "perceived_quality": body.perceived_quality,
+            "perceived_wind":   body.perceived_wind,
+            "perceived_crowd":  body.perceived_crowd,
+            "waves_caught":     body.waves_caught,
+            "board_display":    body.board_display,
+            "perceived_note":   body.perceived_note,
+            "log_method":       body.log_method,
+        }
+        # Remove None values — let DB use defaults
+        row = {k: v for k, v in row.items() if v is not None}
+
+        result = admin_client.table("sessions").insert(row).execute()
+
+        if not result.data:
+            return {"error": "Failed to create session"}
+
+        session = result.data[0]
+        print(f"✅ Session logged: {session['id']} — {body.spot_name} {body.session_date}")
+
+        return {
+            "success": True,
+            "session": _session_to_row(session),
+        }
+
+    except Exception as e:
+        print(f"❌ Create session error: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/sessions")
+async def list_sessions(
+    limit: int = 50,
+    offset: int = 0,
+    spot_id: Optional[str] = None,
+    user: Optional[Dict] = Depends(optional_auth),
+):
+    """List the authenticated user's sessions, newest first."""
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    try:
+        query = supabase.table("sessions") \
+            .select("*") \
+            .eq("user_id", user["user_id"]) \
+            .order("session_date", desc=True) \
+            .limit(limit) \
+            .offset(offset)
+
+        if spot_id:
+            query = query.eq("spot_id", spot_id)
+
+        result = query.execute()
+        rows = result.data or []
+
+        return {
+            "sessions": [_session_to_row(r) for r in rows],
+            "total":    len(rows),
+            "limit":    limit,
+            "offset":   offset,
+        }
+
+    except Exception as e:
+        print(f"❌ List sessions error: {e}")
         return {"error": str(e)}

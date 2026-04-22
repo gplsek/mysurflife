@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from './AuthContext';
 import AISpotAnalysis from './AISpotAnalysis';
+import LogoPulse from './design/LogoPulse';
 import './SpotDetail.css';
 
 // Skeleton loader component
@@ -207,8 +208,8 @@ const SpotDetail = () => {
 
   if (loading) {
     return (
-      <div className="spot-detail-loading">
-        <div className="loading-spinner">🌊 Loading...</div>
+      <div className="spot-detail-loading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
+        <LogoPulse size={64} />
       </div>
     );
   }

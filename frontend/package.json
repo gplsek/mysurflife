@@ -14,10 +14,18 @@
     "recharts": "^3.3.0"
   },
   "scripts": {
+    "prestart": "mkdir -p src/config && cp ../backend/config/ramps.json src/config/ramps.json",
+    "prebuild": "mkdir -p src/config && cp ../backend/config/ramps.json src/config/ramps.json && bash scripts/lint-no-hex.sh",
+    "lint:hex": "bash scripts/lint-no-hex.sh",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "favicons": "node scripts/generate-favicons.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.0",
+    "png-to-ico": "^2.1.8"
   },
   "proxy": "http://127.0.0.1:8000",
   "browserslist": {

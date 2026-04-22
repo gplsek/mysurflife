@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { getAuthHeaders } from './supabaseClient';
+import LogoPulse from './design/LogoPulse';
 import './ManageUsers.css';
 
 const ManageUsers = () => {
@@ -180,8 +181,8 @@ const ManageUsers = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="manage-users-container">
-        <div className="loading">Loading...</div>
+      <div className="manage-users-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
+        <LogoPulse size={56} />
       </div>
     );
   }

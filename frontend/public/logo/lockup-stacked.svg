@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <g transform="translate(80 70)" stroke="#E5743D" fill="none" stroke-linecap="round">
+    <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="2.4"/>
+    <path d="M-30 0 A30 30 0 0 1 30 0" stroke-width="1.8" opacity="0.5"/>
+    <path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="1.4" opacity="0.25"/>
+  </g>
+  <circle cx="80" cy="70" r="6" fill="#3EC9D4"/>
+  <text x="80" y="124" text-anchor="middle" font-family="Geist, ui-sans-serif, sans-serif" font-weight="700" font-size="20" letter-spacing="-0.4" fill="#f4f1ea">mysurflife</text>
+</svg>

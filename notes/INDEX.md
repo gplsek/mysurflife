@@ -19,10 +19,16 @@ Complete index of all project documentation, organized by category.
 - **[RELEASE_SCRIPT.md](./RELEASE_SCRIPT.md)** - ⭐ Automated release script documentation
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Earlier deployment notes
 
+### Active Roadmap (Q2 2026)
+- **[WAVE_PERFORMANCE_V2_PLAN.md](./WAVE_PERFORMANCE_V2_PLAN.md)** - ⭐ 🚧 Windy-class overlay performance plan (tiles + WebGL)
+- **[GLOBAL_DATA_EXPANSION_PLAN.md](./GLOBAL_DATA_EXPANSION_PLAN.md)** - ⭐ 🚧 Global dataset expansion (waves, wind, buoys, spots) — companion to V2
+- **[DESIGN_V2_INTEGRATION_PLAN.md](./DESIGN_V2_INTEGRATION_PLAN.md)** - ⭐ 🚧 Claude Design integration (tokens, themes, MapLibre, Supabase sequencing)
+- **[SUPABASE_SESSIONS_SCHEMA.md](./SUPABASE_SESSIONS_SCHEMA.md)** - ⭐ 🚧 Session Journal + Favorites schema (Supabase Stage 1)
+
 ### Performance & Monitoring
 - **[PERFORMANCE_OPTIMIZATION_PLAN.md](./PERFORMANCE_OPTIMIZATION_PLAN.md)** - Performance optimization strategies
-- **[performance-ideas.md](./performance-ideas.md)** - Performance improvement ideas
-- **[WAVE_PERFORMANCE_PLAN.md](./WAVE_PERFORMANCE_PLAN.md)** - Wave overlay performance optimization
+- **[performance-ideas.md](./performance-ideas.md)** - 📝 Performance improvement ideas (superseded by V2 plan)
+- **[WAVE_PERFORMANCE_PLAN.md](./WAVE_PERFORMANCE_PLAN.md)** - 📝 Wave overlay performance optimization (original, pre-V2)
 
 ---
 
@@ -181,8 +187,8 @@ Production considerations...
 
 ---
 
-**Last Updated**: 2026-01-28
-**Total Documents**: 46
+**Last Updated**: 2026-04-19
+**Total Documents**: 48
 **Categories**: 9
 
 ---

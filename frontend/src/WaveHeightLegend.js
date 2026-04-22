@@ -36,7 +36,7 @@ export default function WaveHeightLegend({ units = 'imperial' }) {
       width: '280px',
       userSelect: 'none'
     }}>
-      <div style={{ fontSize: '11px', color: '#444', fontWeight: 'bold' }}>
+      <div style={{ fontSize: '11px', color: 'var(--fg-2)', fontWeight: 'bold' }}>
         Wave Height ({units === 'imperial' ? 'FEET' : 'METERS'})
       </div>
       <div style={{
@@ -52,7 +52,7 @@ export default function WaveHeightLegend({ units = 'imperial' }) {
         display: 'flex',
         justifyContent: 'space-between',
         fontSize: '10px',
-        color: '#444',
+        color: 'var(--fg-2)',
         marginTop: '2px'
       }}>
         {STOPS.map((s, idx) => (

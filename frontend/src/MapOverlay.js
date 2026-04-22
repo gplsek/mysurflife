@@ -280,9 +280,21 @@ export default function MapOverlay() {
   const [hoveredWaveFrameIndex, setHoveredWaveFrameIndex] = useState(null);
   const wavePlayTimerRef = useRef(null);
 
-  // PERFORMANCE: Debounce and cancellation refs for wave slider
-  const waveSliderDebounceRef = useRef(null);
+  // PERFORMANCE: Render token for wave canvas stale-render prevention
   const waveRenderTokenRef = useRef(0);
+
+  // V2: Fetch debounce timers + AbortControllers for wind and wave overlay fetches
+  const windFetchDebounceRef = useRef(null);
+  const waveFetchDebounceRef = useRef(null);
+  const windFetchAbortRef = useRef(null);
+  const waveFetchAbortRef = useRef(null);
+  // V2: Idle-prefetch timers (fire ±3/±6 frame warmup after 400ms of slider inactivity)
+  const windIdlePrefetchRef = useRef(null);
+  const waveIdlePrefetchRef = useRef(null);
+  // Refs that mirror wave state so they're accessible inside fetch-effect closures without
+  // adding them to the dependency array (which would cause extra re-runs)
+  const waveFramesRef = useRef(null);
+  const selectedWaveFrameIndexRef = useRef(0);
 
   // Wind frames (time slider) state
   const [windFrames, setWindFrames] = useState(null); // {model, run, date, cycle, hours, cadence_note}
@@ -415,39 +427,39 @@ export default function MapOverlay() {
   }, [roundBbox]);
   
   // Fetch wind frame with caching
-  const fetchWindFrame = useCallback(async ({ model, bbox, hour }) => {
+  const fetchWindFrame = useCallback(async ({ model, bbox, hour, signal }) => {
     const key = makeWindKey({ model, bbox, hour });
-    
+
     // Return cached data if available
     if (windDataCacheRef.current.has(key)) {
       console.log(`📦 Using cached wind data for ${model} hour ${hour}`);
       return windDataCacheRef.current.get(key);
     }
-    
+
     // Fetch new data
     const url = `/api/wind-overlay?model=${model}&forecast_hour=${hour}&bounds=${bbox}&real_data=true`;
     console.log(`🌬️ Fetching wind overlay: forecast_hour=${hour}, bounds=${bbox}`);
-    
+
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, signal ? { signal } : undefined);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const data = await res.json();
-      
+
       // Cache the result
       windDataCacheRef.current.set(key, data);
       console.log(`✅ Cached wind overlay frame: +${hour}h, vectors: ${data.vectors?.length ?? 0}`);
-      
+
       return data;
     } catch (err) {
-      console.error(`❌ Error fetching wind frame:`, err);
+      if (err.name !== 'AbortError') console.error(`❌ Error fetching wind frame:`, err);
       throw err;
     }
   }, [makeWindKey]);
   
   // Fetch wave data with caching and zoom-based source selection
-  const fetchWaveData = useCallback(async ({ model, bbox, hour = 0, zoom = null }) => {
+  const fetchWaveData = useCallback(async ({ model, bbox, hour = 0, zoom = null, signal }) => {
     // Minimum zoom level check - prevent massive bbox requests at low zoom
     // At zoom < 4, the bbox becomes too large (entire Pacific) and causes:
     // 1. OPeNDAP timeouts or very slow responses
@@ -487,12 +499,12 @@ export default function MapOverlay() {
     console.log(`🌊 Fetching wave overlay: forecast_hour=${hour}, bounds=${bbox}, source=${source} (zoom=${zoom})`);
     
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, signal ? { signal } : undefined);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const rawData = await res.json();
-      
+
       // Normalize and validate vectors (Task S2)
       if (rawData.vectors && Array.isArray(rawData.vectors)) {
         const normalizedVectors = rawData.vectors.map(v => {
@@ -538,7 +550,7 @@ export default function MapOverlay() {
       
       return rawData;
     } catch (err) {
-      console.error(`❌ Error fetching wave data:`, err);
+      if (err.name !== 'AbortError') console.error(`❌ Error fetching wave data:`, err);
       throw err;
     }
   }, [makeWaveKey]);
@@ -1101,37 +1113,17 @@ export default function MapOverlay() {
     };
   }, [isWavePlaying, overlayType, waveFrames]);
 
-  // PERFORMANCE: Debounced handler for wave frame changes
-  // Prevents multiple overlapping fetches/renders when scrubbing slider
+  // Wave frame handler: update state immediately (slider thumb moves), increment token to
+  // cancel any in-progress canvas render. The fetch useEffect debounces the actual HTTP call.
   const handleWaveFrameChange = useCallback((newIndex) => {
-    // Cancel any pending debounced fetch
-    if (waveSliderDebounceRef.current) {
-      clearTimeout(waveSliderDebounceRef.current);
-    }
-
-    // Update UI immediately for responsive feedback
     setSelectedWaveFrameIndex(newIndex);
-
-    // Increment render token to invalidate any in-flight renders
+    selectedWaveFrameIndexRef.current = newIndex;
     waveRenderTokenRef.current++;
-    const currentToken = waveRenderTokenRef.current;
-
-    // Debounce the actual data fetch/render (150ms)
-    waveSliderDebounceRef.current = setTimeout(() => {
-      console.log(`🎬 Wave frame changed to index ${newIndex} (token=${currentToken})`);
-      // The useEffect watching selectedWaveForecastHour will trigger fetch
-      // No need to manually fetch here - just let the effect handle it
-    }, 150);
   }, []);
 
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (waveSliderDebounceRef.current) {
-        clearTimeout(waveSliderDebounceRef.current);
-      }
-    };
-  }, []);
+  // Keep waveFramesRef in sync so the wave fetch effect can access it without adding waveFrames
+  // to the dependency array (which would cause unnecessary re-fetches).
+  useEffect(() => { waveFramesRef.current = waveFrames; }, [waveFrames]);
 
   // Handle wind play/pause animation
   useEffect(() => {
@@ -1194,55 +1186,68 @@ export default function MapOverlay() {
       bounds.getEast()
     ].join(',');
     
-    let cancelled = false;
-    
-    // Fetch current frame and prefetch next
-    (async () => {
+    // Abort any previous in-flight fetch and start a fresh controller
+    if (windFetchAbortRef.current) windFetchAbortRef.current.abort();
+    const controller = new AbortController();
+    windFetchAbortRef.current = controller;
+
+    // 120ms debounce: if the slider moves again before the timer fires, the cleanup
+    // above will abort() before the fetch even starts.
+    clearTimeout(windFetchDebounceRef.current);
+    windFetchDebounceRef.current = setTimeout(async () => {
       try {
-        // Fetch current frame (uses cache if available)
-        const data = await fetchWindFrame({ 
-          model: selectedWindModel, 
-          bbox, 
-          hour: selectedForecastHour 
+        const data = await fetchWindFrame({
+          model: selectedWindModel,
+          bbox,
+          hour: selectedForecastHour,
+          signal: controller.signal,
         });
-        
-        if (!cancelled) {
+
+        if (!controller.signal.aborted) {
           setWindData(data);
         }
-        
-        // Prefetch next frame
-        const nextIndex = Math.min(selectedFrameIndex + 1, (windFrames?.hours?.length ?? 1) - 1);
-        const nextHour = windFrames?.hours?.[nextIndex];
-        if (nextHour != null && nextHour !== selectedForecastHour && !cancelled) {
-          // Prefetch in background (don't await, just cache it)
-          fetchWindFrame({ 
-            model: selectedWindModel, 
-            bbox, 
-            hour: nextHour 
-          }).catch(() => {
-            // Silently fail prefetch - not critical
-          });
+
+        if (controller.signal.aborted || !windFrames?.hours) return;
+        const hours = windFrames.hours;
+
+        // Immediate +1 warmup
+        const nextIdx = Math.min(selectedFrameIndex + 1, hours.length - 1);
+        const nextHour = hours[nextIdx];
+        if (nextHour != null && nextHour !== selectedForecastHour) {
+          fetchWindFrame({ model: selectedWindModel, bbox, hour: nextHour }).catch(() => {});
         }
+
+        // Idle: after 400ms of no slider activity, warm ±3 and ±6 adjacent frames
+        clearTimeout(windIdlePrefetchRef.current);
+        windIdlePrefetchRef.current = setTimeout(() => {
+          if (controller.signal.aborted) return;
+          const warmed = new Set([selectedForecastHour, nextHour].filter(h => h != null));
+          for (const offset of [-6, -3, 3, 6]) {
+            const idx = Math.max(0, Math.min(hours.length - 1, selectedFrameIndex + offset));
+            const h = hours[idx];
+            if (h != null && !warmed.has(h)) {
+              warmed.add(h);
+              fetchWindFrame({ model: selectedWindModel, bbox, hour: h }).catch(() => {});
+            }
+          }
+          console.log(`🌬️ Wind idle prefetch: warmed ±3/±6 adjacent frames`);
+        }, 400);
       } catch (err) {
-        if (!cancelled) {
+        if (err.name !== 'AbortError' && !controller.signal.aborted) {
           console.error(`❌ Error fetching wind overlay:`, err);
           setWindData(null);
         }
       }
-    })();
-    
+    }, 120);
+
     // Also listen for map move/zoom events to refetch with new bounds
     let mapChangeTimeout = null;
     const map = mapRef.current;
     const handleMapChange = () => {
-      // Clear existing timeout
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
-      
-      // Debounce map changes (wait 300ms after last movement)
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
+
       mapChangeTimeout = setTimeout(() => {
-        if (overlayType === 'wind' && selectedForecastHour != null && mapRef.current && !cancelled) {
+        if (overlayType === 'wind' && selectedForecastHour != null && mapRef.current && !controller.signal.aborted) {
           const newBounds = mapRef.current.getBounds();
           const newBbox = [
             newBounds.getSouth(),
@@ -1250,34 +1255,34 @@ export default function MapOverlay() {
             newBounds.getNorth(),
             newBounds.getEast()
           ].join(',');
-          
-          // Use fetchWindFrame for map changes too (with caching)
-          fetchWindFrame({ 
-            model: selectedWindModel, 
-            bbox: newBbox, 
-            hour: selectedForecastHour 
+
+          fetchWindFrame({
+            model: selectedWindModel,
+            bbox: newBbox,
+            hour: selectedForecastHour,
+            signal: controller.signal,
           }).then(data => {
-            if (!cancelled) {
+            if (!controller.signal.aborted) {
               console.log(`✅ Wind overlay updated (map moved): +${selectedForecastHour}h, vectors: ${data.vectors?.length ?? 0}`);
               setWindData(data);
             }
           }).catch(err => {
-            if (!cancelled) {
+            if (err.name !== 'AbortError' && !controller.signal.aborted) {
               console.error(`❌ Error updating wind overlay:`, err);
             }
           });
         }
       }, 300);
     };
-    
+
     map.on('moveend', handleMapChange);
     map.on('zoomend', handleMapChange);
-    
+
     return () => {
-      cancelled = true;
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
+      controller.abort();
+      clearTimeout(windFetchDebounceRef.current);
+      clearTimeout(windIdlePrefetchRef.current);
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
       map.off('moveend', handleMapChange);
       map.off('zoomend', handleMapChange);
     };
@@ -1303,179 +1308,129 @@ export default function MapOverlay() {
     }
   }, [overlayType, waveData]);
   
-  // Fetch wave data when waves overlay is enabled OR when map bounds change (zoom/pan)
+  // Fetch wave data: handles initial load, slider scrub, and map pan/zoom in one effect.
+  // AbortController cancels in-flight fetches when the hour changes or the effect re-runs.
+  // 120ms debounce prevents rapid slider scrubs from firing multiple concurrent requests.
   useEffect(() => {
     if (overlayType !== 'waves') {
       setWaveData(null);
       return;
     }
-    
-    let cancelled = false;
+
+    if (waveFetchAbortRef.current) waveFetchAbortRef.current.abort();
+    const controller = new AbortController();
+    waveFetchAbortRef.current = controller;
+
     let mapChangeTimeout = null;
-    
-    // Function to fetch wave data for current map bounds
-    const fetchWaveDataForBounds = async (retryCount = 0) => {
-      // Prevent infinite retries
+    let retryTimeout = null;
+
+    const fetchForBounds = async (retryCount = 0) => {
+      if (controller.signal.aborted) return;
       if (retryCount > 50) {
         console.warn('🌊 Wave data fetch: Max retries reached, map may not be ready');
         return;
       }
-      
-      // Wait for map to be initialized
       if (!mapRef.current) {
-        console.log(`🌊 Wave data fetch: Map not ready, retry ${retryCount + 1}`);
-        setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        retryTimeout = setTimeout(() => fetchForBounds(retryCount + 1), 100);
         return;
       }
-      
-      // Ensure map has loaded and has valid bounds
       const map = mapRef.current;
-      
-      // Check if map has valid bounds (this works even if load event hasn't fired)
       let bounds;
       try {
         bounds = map.getBounds();
       } catch (e) {
-        console.log(`🌊 Wave data fetch: Cannot get bounds yet, retry ${retryCount + 1}`);
-        setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+        retryTimeout = setTimeout(() => fetchForBounds(retryCount + 1), 100);
         return;
       }
-      
       if (!bounds || !bounds.isValid()) {
-        console.log(`🌊 Wave data fetch: Bounds not valid, retry ${retryCount + 1}`);
-        // If map hasn't loaded, wait for load event; otherwise retry
         if (!map.loaded) {
-          console.log('🌊 Wave data fetch: Waiting for map load event');
-          map.once('load', () => {
-            if (!cancelled) {
-              fetchWaveDataForBounds(retryCount);
-            }
-          });
+          map.once('load', () => { if (!controller.signal.aborted) fetchForBounds(retryCount); });
         } else {
-          setTimeout(() => fetchWaveDataForBounds(retryCount + 1), 100);
+          retryTimeout = setTimeout(() => fetchForBounds(retryCount + 1), 100);
         }
         return;
       }
-      
       try {
-        
         const bbox = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()].join(',');
         const zoom = map.getZoom();
         console.log('🌊 Wave data fetch: Map ready, fetching data...');
-
-        const data = await fetchWaveData({ model: 'ww3', bbox, hour: selectedWaveForecastHour, zoom });
-        if (!cancelled) {
+        const data = await fetchWaveData({ model: 'ww3', bbox, hour: selectedWaveForecastHour, zoom, signal: controller.signal });
+        if (!controller.signal.aborted) {
           setWaveData(data);
+
+          // Idle: after 400ms of no slider activity, warm ±3 and ±6 adjacent wave frames
+          clearTimeout(waveIdlePrefetchRef.current);
+          waveIdlePrefetchRef.current = setTimeout(() => {
+            if (controller.signal.aborted || !waveFramesRef.current?.hours) return;
+            const hours = waveFramesRef.current.hours;
+            const currentIdx = selectedWaveFrameIndexRef.current;
+            const warmed = new Set([selectedWaveForecastHour]);
+            for (const offset of [-6, -3, 3, 6]) {
+              const idx = Math.max(0, Math.min(hours.length - 1, currentIdx + offset));
+              const h = hours[idx];
+              if (h != null && !warmed.has(h)) {
+                warmed.add(h);
+                fetchWaveData({ model: 'ww3', bbox, hour: h, zoom }).catch(() => {});
+              }
+            }
+            console.log(`🌊 Wave idle prefetch: warmed ±3/±6 adjacent frames`);
+          }, 400);
         }
       } catch (err) {
-        if (!cancelled) {
-          console.error('Error fetching wave data:', err);
+        if (err.name !== 'AbortError' && !controller.signal.aborted) {
+          console.error('❌ Error fetching wave data:', err);
         }
       }
     };
-    
-    fetchWaveDataForBounds();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [overlayType, fetchWaveData, selectedWaveForecastHour]);
-  
-  // Update wave data on map move/zoom (similar to wind)
-  useEffect(() => {
-    if (overlayType !== 'waves') return;
-    
-    let cancelled = false;
-    let mapChangeTimeout = null;
+    // Debounce the initial fetch so rapid slider scrubs don't stack requests
+    clearTimeout(waveFetchDebounceRef.current);
+    waveFetchDebounceRef.current = setTimeout(() => fetchForBounds(), 120);
+
+    // Map pan handler (100ms debounce)
     const map = mapRef.current;
     const handleMapChange = () => {
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
-      
-      // Use a shorter timeout for zoomend to ensure we fetch data quickly after zoom completes
-      // This is critical when zooming out - we need data for the expanded area immediately
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
       mapChangeTimeout = setTimeout(() => {
-        if (overlayType === 'waves' && mapRef.current && !cancelled) {
-          // Get bounds after a small delay to ensure they're fully updated
-          requestAnimationFrame(() => {
-            const newBounds = mapRef.current.getBounds();
-            if (!newBounds || !newBounds.isValid()) {
-              return;
-            }
-            
-            const newBbox = [
-              newBounds.getSouth(),
-              newBounds.getWest(),
-              newBounds.getNorth(),
-              newBounds.getEast()
-            ].join(',');
-            
-            const currentZoom = mapRef.current.getZoom();
-            
-            // Always fetch on map change (zoom or pan) to ensure data covers new bounds
-            // This is critical when zooming out - we need data for the expanded area
-            console.log(`🌊 Map changed (zoom/pan), fetching wave data for new bounds (zoom=${currentZoom}, bbox=${newBbox}, hour=${selectedWaveForecastHour})...`);
-            fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom }).then(data => {
-              if (!cancelled) {
-                console.log(`✅ Wave overlay updated (map moved/zoomed): vectors: ${data.vectors?.length ?? 0}`);
-                setWaveData(data);
-              }
-            }).catch(err => {
-              if (!cancelled) {
-                console.error(`❌ Error updating wave overlay:`, err);
-              }
-            });
-          });
-        }
-      }, 100); // Shorter debounce for better responsiveness on zoom
-    };
-    
-    // Separate handler for zoomend to fetch data immediately with updated bounds
-    // CRITICAL: On zoom out, bounds expand, so we need to fetch data for the expanded area
-    // zoomend fires after bounds are fully updated, so we get the correct expanded bounds
-    const handleZoomEnd = () => {
-      // Clear any pending timeout from moveend handler
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-        mapChangeTimeout = null;
-      }
-      // Fetch immediately on zoomend (bounds are fully updated by now)
-      if (overlayType === 'waves' && mapRef.current && !cancelled) {
-        const newBounds = mapRef.current.getBounds();
-        if (newBounds && newBounds.isValid()) {
-          const newBbox = [
-            newBounds.getSouth(),
-            newBounds.getWest(),
-            newBounds.getNorth(),
-            newBounds.getEast()
-          ].join(',');
+        if (!mapRef.current || controller.signal.aborted) return;
+        requestAnimationFrame(() => {
+          const newBounds = mapRef.current.getBounds();
+          if (!newBounds || !newBounds.isValid()) return;
+          const newBbox = [newBounds.getSouth(), newBounds.getWest(), newBounds.getNorth(), newBounds.getEast()].join(',');
           const currentZoom = mapRef.current.getZoom();
-          console.log(`🌊 Zoom ended, fetching wave data for expanded bounds (zoom=${currentZoom}, bbox=${newBbox}, hour=${selectedWaveForecastHour})...`);
-          fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom }).then(data => {
-            if (!cancelled) {
-              console.log(`✅ Wave overlay updated (zoom ended): vectors: ${data.vectors?.length ?? 0}`);
-              setWaveData(data);
-            }
-          }).catch(err => {
-            if (!cancelled) {
-              console.error(`❌ Error updating wave overlay:`, err);
-            }
-          });
-        }
-      }
+          console.log(`🌊 Map moved, fetching wave data (zoom=${currentZoom})...`);
+          fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom, signal: controller.signal })
+            .then(data => { if (!controller.signal.aborted) { console.log(`✅ Wave overlay updated (map moved): vectors: ${data.vectors?.length ?? 0}`); setWaveData(data); } })
+            .catch(err => { if (err.name !== 'AbortError' && !controller.signal.aborted) console.error(`❌ Error updating wave overlay:`, err); });
+        });
+      }, 100);
     };
-    
+
+    // Zoom-end handler: bounds fully updated by now, fetch immediately
+    const handleZoomEnd = () => {
+      if (mapChangeTimeout) { clearTimeout(mapChangeTimeout); mapChangeTimeout = null; }
+      if (!mapRef.current || controller.signal.aborted) return;
+      const newBounds = mapRef.current.getBounds();
+      if (!newBounds || !newBounds.isValid()) return;
+      const newBbox = [newBounds.getSouth(), newBounds.getWest(), newBounds.getNorth(), newBounds.getEast()].join(',');
+      const currentZoom = mapRef.current.getZoom();
+      console.log(`🌊 Zoom ended, fetching wave data for expanded bounds (zoom=${currentZoom})...`);
+      fetchWaveData({ model: 'ww3', bbox: newBbox, hour: selectedWaveForecastHour, zoom: currentZoom, signal: controller.signal })
+        .then(data => { if (!controller.signal.aborted) { console.log(`✅ Wave overlay updated (zoom ended): vectors: ${data.vectors?.length ?? 0}`); setWaveData(data); } })
+        .catch(err => { if (err.name !== 'AbortError' && !controller.signal.aborted) console.error(`❌ Error updating wave overlay:`, err); });
+    };
+
     if (map) {
       map.on('moveend', handleMapChange);
-      map.on('zoomend', handleZoomEnd); // Separate handler for immediate fetch on zoom
+      map.on('zoomend', handleZoomEnd);
     }
-    
+
     return () => {
-      cancelled = true;
-      if (mapChangeTimeout) {
-        clearTimeout(mapChangeTimeout);
-      }
+      controller.abort();
+      clearTimeout(waveFetchDebounceRef.current);
+      clearTimeout(waveIdlePrefetchRef.current);
+      if (mapChangeTimeout) clearTimeout(mapChangeTimeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       if (map) {
         map.off('moveend', handleMapChange);
         map.off('zoomend', handleZoomEnd);
@@ -2357,363 +2312,221 @@ export default function MapOverlay() {
   }
 
   return (
-      <div style={{ position: 'relative', height: 'calc(100vh - 80px)', width: '100%', paddingBottom: overlayType === 'waves' ? '70px' : overlayType === 'wind' ? '92px' : '0px' }}>
+      <div style={{ position: 'relative', height: '100%', width: '100%', paddingBottom: overlayType === 'waves' ? '70px' : overlayType === 'wind' ? '92px' : '0px' }}>
         {/* Control Panel - Hide on mobile when detail view is shown */}
         {!(isMobile && showMobileDetail) && (
         <div style={{
           position: 'absolute',
-          top: '10px',
-          right: '10px',
-          zIndex: 1000,
-          backgroundColor: 'white',
+          top: '80px',
+          right: '16px',
+          zIndex: 50,
+          background: 'var(--panel)',
+          backdropFilter: 'var(--panel-blur)',
+          WebkitBackdropFilter: 'var(--panel-blur)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-l)',
           padding: '12px',
-          borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-          minWidth: '220px'
+          minWidth: '192px',
+          maxWidth: '210px',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.35)',
         }}>
-          <button
+
+          {/* Refresh + status row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: '10px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+              {lastUpdated ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'}
+            </span>
+            <button
               onClick={fetchBuoyData}
               disabled={loading}
+              title="Refresh buoy data"
               style={{
-                width: '100%',
-                padding: '8px 16px',
-                backgroundColor: loading ? '#ccc' : '#0066cc',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '4px 8px',
+                background: loading ? 'var(--bg-3)' : 'var(--accent-2)',
+                color: loading ? 'var(--muted)' : 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold'
+                fontSize: '10px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
               }}
-          >
-            {loading ? 'Loading...' : '🔄 Refresh Data'}
-          </button>
-          
-          {/* Units Selector */}
-          <div style={{ marginTop: '12px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
-              Units:
-            </label>
-            <select
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M9 5A4 4 0 1 1 5 1M9 1v4H5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {loading ? 'Loading' : 'Refresh'}
+            </button>
+          </div>
+
+          {/* Units + Timezone */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: '10px' }}>
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>
+                Units
+              </label>
+              <select
                 value={units}
                 onChange={(e) => setUnits(e.target.value)}
                 style={{
-                  width: '100%',
-                  padding: '6px',
-                  borderRadius: '4px',
-                  border: '1px solid #ccc',
-                  fontSize: '12px'
+                  width: '100%', padding: '4px 6px',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-3)',
+                  color: 'var(--fg)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
                 }}
-            >
-              <option value="imperial">Imperial (ft, °F)</option>
-              <option value="metric">Metric (m, °C)</option>
-            </select>
-          </div>
-
-          {/* Timezone Selector */}
-          <div style={{ marginTop: '8px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
-              Timezone:
-            </label>
-            <select
+              >
+                <option value="imperial">ft / °F</option>
+                <option value="metric">m / °C</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>
+                Time
+              </label>
+              <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
                 style={{
-                  width: '100%',
-                  padding: '6px',
-                  borderRadius: '4px',
-                  border: '1px solid #ccc',
-                  fontSize: '12px'
-                }}
-            >
-              <option value="local">Local Time</option>
-              <option value="utc">UTC</option>
-            </select>
-          </div>
-
-          {/* Map Layers Toggle */}
-          <div style={{
-            marginTop: '12px',
-            paddingTop: '12px',
-            borderTop: '2px solid #eee'
-          }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-              Map Layers:
-            </label>
-
-            {/* Buoys Toggle */}
-            <div style={{ marginBottom: '8px' }}>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                fontSize: '13px'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showBuoys}
-                  onChange={(e) => setShowBuoys(e.target.checked)}
-                  style={{
-                    marginRight: '8px',
-                    cursor: 'pointer',
-                    width: '16px',
-                    height: '16px'
-                  }}
-                />
-                <span style={{ color: '#333' }}>🟢 Show Buoys</span>
-              </label>
-            </div>
-
-            {/* Surf Spots Toggle */}
-            <div>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                fontSize: '13px'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showSurfSpots}
-                  onChange={(e) => setShowSurfSpots(e.target.checked)}
-                  style={{
-                    marginRight: '8px',
-                    cursor: 'pointer',
-                    width: '16px',
-                    height: '16px'
-                  }}
-                />
-                <span style={{ color: '#333' }}>🏄 Show Surf Spots</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Waves Mode Toggle (Default) */}
-          <div style={{ 
-            marginTop: '12px', 
-            paddingTop: '12px', 
-            borderTop: '2px solid #eee' 
-          }}>
-            <button
-              onClick={() => handleOverlayTypeToggle('waves')}
-              style={{
-                width: '100%',
-                padding: '8px 16px',
-                backgroundColor: overlayType === 'waves' ? '#0066cc' : '#e0e0e0',
-                color: overlayType === 'waves' ? 'white' : '#333',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}
-            >
-              🌊 {overlayType === 'waves' ? 'Waves Mode (On)' : 'Waves Mode (Off)'}
-            </button>
-            
-            {/* Particle Layer Toggle - Only show when waves mode is active */}
-            {overlayType === 'waves' && (
-              <>
-                <div style={{
-                  marginTop: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '12px',
-                  padding: '6px 8px',
-                  backgroundColor: '#f9f9f9',
-                  borderRadius: '4px'
-                }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    width: '100%'
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={showWaveParticles}
-                      onChange={(e) => setShowWaveParticles(e.target.checked)}
-                      style={{
-                        marginRight: '8px',
-                        cursor: 'pointer'
-                      }}
-                    />
-                    <span style={{ color: '#333' }}>Show Particles</span>
-                  </label>
-                </div>
-
-                {/* Zoom Warning - Show when zoomed out too far */}
-                {currentZoom < 4 && (
-                  <div style={{
-                    marginTop: '8px',
-                    padding: '8px',
-                    backgroundColor: '#fff3cd',
-                    border: '1px solid #ffc107',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    color: '#856404',
-                    lineHeight: '1.4'
-                  }}>
-                    <strong>⚠️ Zoom in to see wave data</strong>
-                    <br />
-                    Wave overlay requires zoom level 4 or higher to prevent performance issues. Current zoom: {currentZoom}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Wind Mode Toggle */}
-          <div style={{ 
-            marginTop: '12px', 
-            paddingTop: '12px', 
-            borderTop: '2px solid #eee' 
-          }}>
-            <button
-              onClick={() => handleOverlayTypeToggle('wind')}
-              style={{
-                width: '100%',
-                padding: '8px 16px',
-                backgroundColor: overlayType === 'wind' ? '#0066cc' : '#e0e0e0',
-                color: overlayType === 'wind' ? 'white' : '#333',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}
-            >
-              🌬️ {overlayType === 'wind' ? 'Wind Mode (On)' : 'Wind Mode (Off)'}
-            </button>
-            
-            {/* Particle Layer Toggle - Only show when wind mode is active */}
-            {overlayType === 'wind' && (
-              <div style={{
-                marginTop: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '12px',
-                padding: '6px 8px',
-                backgroundColor: '#f9f9f9',
-                borderRadius: '4px'
-              }}>
-                <label style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                  width: '100%', padding: '4px 6px',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-3)',
+                  color: 'var(--fg)',
+                  fontSize: '11px',
                   cursor: 'pointer',
-                  userSelect: 'none',
-                  width: '100%'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={showWindParticles}
-                    onChange={(e) => setShowWindParticles(e.target.checked)}
-                    style={{
-                      marginRight: '8px',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{ color: '#333' }}>Show Particles</span>
-                </label>
+                }}
+              >
+                <option value="local">Local</option>
+                <option value="utc">UTC</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Layers section */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', marginBottom: '10px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '8px' }}>
+              Layers
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '12px', color: 'var(--fg)', marginBottom: '6px' }}>
+              <input type="checkbox" checked={showBuoys} onChange={(e) => setShowBuoys(e.target.checked)} style={{ cursor: 'pointer', accentColor: 'var(--accent)' }} />
+              Buoys
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '12px', color: 'var(--fg)' }}>
+              <input type="checkbox" checked={showSurfSpots} onChange={(e) => setShowSurfSpots(e.target.checked)} style={{ cursor: 'pointer', accentColor: 'var(--accent)' }} />
+              Surf Spots
+            </label>
+          </div>
+
+          {/* Overlay mode toggles */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', marginBottom: '10px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '8px' }}>
+              Overlay
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => handleOverlayTypeToggle('waves')}
+                style={{
+                  flex: 1, padding: '5px 0',
+                  background: overlayType === 'waves' ? 'var(--accent-2)' : 'var(--bg-3)',
+                  color: overlayType === 'waves' ? 'var(--bg)' : 'var(--fg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  cursor: 'pointer',
+                  fontSize: '10px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+                }}
+              >
+                Waves
+              </button>
+              <button
+                onClick={() => handleOverlayTypeToggle('wind')}
+                style={{
+                  flex: 1, padding: '5px 0',
+                  background: overlayType === 'wind' ? 'var(--accent-2)' : 'var(--bg-3)',
+                  color: overlayType === 'wind' ? 'var(--bg)' : 'var(--fg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  cursor: 'pointer',
+                  fontSize: '10px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+                }}
+              >
+                Wind
+              </button>
+            </div>
+
+            {/* Particles toggle — shown when an overlay is active */}
+            {overlayType === 'waves' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>
+                <input type="checkbox" checked={showWaveParticles} onChange={(e) => setShowWaveParticles(e.target.checked)} style={{ cursor: 'pointer', accentColor: 'var(--accent)' }} />
+                Show particles
+              </label>
+            )}
+            {overlayType === 'wind' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>
+                <input type="checkbox" checked={showWindParticles} onChange={(e) => setShowWindParticles(e.target.checked)} style={{ cursor: 'pointer', accentColor: 'var(--accent)' }} />
+                Show particles
+              </label>
+            )}
+
+            {/* Zoom warning */}
+            {(overlayType === 'waves' || overlayType === 'wind') && currentZoom < 4 && (
+              <div style={{
+                marginTop: '8px', padding: '6px 8px',
+                background: 'oklch(0.75 0.15 75 / 0.12)',
+                border: '1px solid oklch(0.75 0.15 75 / 0.4)',
+                borderRadius: 'var(--radius)',
+                fontSize: '10px', color: 'var(--fg)', lineHeight: 1.4,
+              }}>
+                Zoom to level 4+ to load overlay data (current: {currentZoom})
               </div>
             )}
           </div>
 
-          {/* Time Slider UI - Only show when wind mode is active */}
+          {/* Wind forecast info */}
           {overlayType === 'wind' && windFramesLoading && (
-            <div style={{ 
-              marginTop: '12px', 
-              paddingTop: '12px', 
-              borderTop: '2px solid #eee',
-              fontSize: '12px',
-              color: '#666',
-              textAlign: 'center'
-            }}>
-              Loading forecast frames...
+            <div style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', padding: '4px 0' }}>
+              Loading forecast…
             </div>
           )}
-          
-          {overlayType === 'wind' && windFrames && windFrames.hours && windFrames.hours.length > 0 && (
-            <div style={{ 
-              marginTop: '12px', 
-              paddingTop: '12px', 
-              borderTop: '2px solid #eee' 
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <div style={{ fontSize: '11px', color: '#666', lineHeight: '1.5' }}>
-                  <div><strong>Run:</strong> {windFrames.run}</div>
-                  <div><strong>Forecast:</strong> +{windFrames.hours[selectedFrameIndex]}h</div>
-                  <div><strong>UTC:</strong> {forecastUtcLabel}</div>
-                  <div><strong>Local:</strong> {forecastLocalLabel}</div>
-                  <div style={{ marginTop: '8px', fontSize: '10px', color: '#999', fontStyle: 'italic' }}>
-                    Timeline controls are in the footer.
-                  </div>
-                </div>
+          {overlayType === 'wind' && windFrames?.hours?.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                  Forecast
+                </span>
                 <button
                   onClick={handleRefreshWindFrames}
                   disabled={windFramesLoading}
+                  title="Refresh forecast frames"
                   style={{
-                    padding: '4px 8px',
-                    backgroundColor: windFramesLoading ? '#ccc' : '#0066cc',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
+                    padding: '3px 6px',
+                    background: 'var(--bg-3)',
+                    color: 'var(--muted)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
                     cursor: windFramesLoading ? 'not-allowed' : 'pointer',
                     fontSize: '10px',
-                    fontWeight: 'bold',
-                    minWidth: '60px'
                   }}
-                  title="Refresh forecast frames"
                 >
-                  {windFramesLoading ? '...' : '🔄'}
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M9 5A4 4 0 1 1 5 1M9 1v4H5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </div>
-              
-              {/* Debug UI - temporary */}
-              <div style={{ 
-                fontSize: '10px', 
-                color: '#666', 
-                marginTop: '8px', 
-                padding: '6px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '4px',
-                border: '1px solid #ddd'
-              }}>
-                <div><strong>Debug:</strong></div>
-                <div>Frame: +{selectedForecastHour}h</div>
-                <div>Vectors: {windData?.vectors?.length ?? '—'}</div>
+              <div style={{ fontSize: '10px', color: 'var(--muted)', lineHeight: 1.6 }}>
+                <div>Run: {windFrames.run}</div>
+                <div>+{windFrames.hours[selectedFrameIndex]}h — {forecastLocalLabel}</div>
               </div>
             </div>
           )}
-          
-          {lastUpdated && (
-              <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
-                Last updated:<br/>
-                {lastUpdated.toLocaleTimeString()}
-              </div>
-          )}
-          
+
+          {/* Error */}
           {error && (
-              <div style={{ fontSize: '12px', marginTop: '8px', color: '#d32f2f', fontWeight: 'bold' }}>
-                ⚠️ Error: {error}
-              </div>
+            <div style={{ fontSize: '11px', color: 'var(--fire)', marginTop: '8px', lineHeight: 1.4 }}>
+              {error}
+            </div>
           )}
-          
-          {/* Legend */}
-          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #eee' }}>
-            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>
-              Surf Score:
-            </div>
-            <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
-              <span style={{ color: 'green' }}>🟢</span> Excellent (3)<br/>
-              <span style={{ color: 'orange' }}>🟠</span> Good (2)<br/>
-              <span style={{ color: 'red' }}>🔴</span> Fair (1)<br/>
-              <span style={{ color: 'grey' }}>⚫</span> Poor/No Data (0)
-            </div>
-          </div>
         </div>
         )}
 
@@ -2831,8 +2644,8 @@ export default function MapOverlay() {
                       {hasError && (
                         <>
                           <br/>
-                          <span style={{ color: '#d32f2f', fontSize: '12px' }}>
-                            ⚠️ {buoy.error}
+                          <span style={{ color: 'var(--fire)', fontSize: '12px' }}>
+                            {buoy.error}
                           </span>
                         </>
                       )}
@@ -2864,19 +2677,19 @@ export default function MapOverlay() {
                     {conditions && (
                       <>
                         <div style={{
-                          fontSize: '32px',
-                          margin: '12px 0',
-                          color: score >= 7 ? '#22c55e' : score >= 5 ? '#f59e0b' : '#ef4444'
+                          fontSize: '28px',
+                          margin: '8px 0',
+                          color: score >= 7 ? 'var(--good)' : score >= 5 ? 'var(--fire)' : 'var(--muted)'
                         }}>
-                          {conditions.emoji} {score}/10
+                          {score}/10
                         </div>
-                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#666' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--fg)' }}>
                           {conditions.rating}
                         </div>
-                        <div style={{ fontSize: '12px', marginTop: '10px', color: '#444' }}>
+                        <div style={{ fontSize: '12px', marginTop: '8px', color: 'var(--muted)' }}>
                           {conditions.adjusted_height_ft}ft @ {conditions.period_sec}s
                         </div>
-                        <div style={{ fontSize: '11px', marginTop: '6px', color: '#888' }}>
+                        <div style={{ fontSize: '11px', marginTop: '4px', color: 'var(--muted)' }}>
                           {spot.spot_characteristics?.break_type} · {spot.spot_characteristics?.skill_level}
                         </div>
                         <a
@@ -2884,19 +2697,17 @@ export default function MapOverlay() {
                           style={{
                             display: 'inline-block',
                             marginTop: '12px',
-                            padding: '8px 16px',
-                            backgroundColor: '#3b82f6',
-                            color: 'white',
+                            padding: '6px 14px',
+                            background: 'var(--accent-2)',
+                            color: 'var(--bg)',
                             textDecoration: 'none',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            transition: 'background-color 0.2s'
+                            borderRadius: 'var(--radius)',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
                           }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
                         >
-                          View Details →
+                          View Details
                         </a>
                       </>
                     )}
@@ -2971,24 +2782,27 @@ export default function MapOverlay() {
         {selectedBuoy && (isMobile ? showMobileDetail : true) && (
           <div style={{
             position: 'absolute',
-            top: isMobile ? '0' : '10px',
-            left: isMobile ? '0' : '10px',
+            top: isMobile ? '0' : '80px',
+            left: isMobile ? '0' : '16px',
             right: isMobile ? '0' : 'auto',
             bottom: isMobile ? '0' : 'auto',
-            zIndex: 1000,
-            backgroundColor: 'white',
+            zIndex: 50,
+            background: 'var(--bg-2)',
+            backdropFilter: 'var(--panel-blur)',
+            WebkitBackdropFilter: 'var(--panel-blur)',
+            border: isMobile ? 'none' : '1px solid var(--border)',
             padding: '16px',
-            borderRadius: isMobile ? '0' : '8px',
-            boxShadow: isMobile ? 'none' : '0 2px 8px rgba(0,0,0,0.2)',
+            borderRadius: isMobile ? '0' : 'var(--radius-l)',
+            boxShadow: isMobile ? 'none' : '0 4px 24px rgba(0,0,0,0.35)',
             minWidth: isMobile ? 'auto' : '280px',
             maxWidth: isMobile ? 'none' : '320px',
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? '100%' : 'auto',
-            maxHeight: isMobile ? 'none' : 'calc(100vh - 20px)',
+            maxHeight: isMobile ? 'none' : 'calc(100vh - 100px)',
             overflowY: 'auto'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: isMobile ? '20px' : '16px', color: '#0066cc' }}>
+              <h3 style={{ margin: 0, fontSize: isMobile ? '20px' : '16px', color: 'var(--accent)' }}>
                 {selectedBuoy.name || `Buoy ${selectedBuoy.station}`}
               </h3>
               <button
@@ -2998,7 +2812,7 @@ export default function MapOverlay() {
                   border: 'none',
                   fontSize: isMobile ? '28px' : '20px',
                   cursor: 'pointer',
-                  color: '#666',
+                  color: 'var(--muted)',
                   padding: '0',
                   width: isMobile ? '32px' : '24px',
                   height: isMobile ? '32px' : '24px',
@@ -3015,7 +2829,7 @@ export default function MapOverlay() {
             {/* Buoy Selector - Mobile Only */}
             {isMobile && buoys.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '6px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
                   Switch Buoy:
                 </label>
                 <select
@@ -3030,9 +2844,10 @@ export default function MapOverlay() {
                     width: '100%',
                     padding: '10px',
                     fontSize: '14px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    backgroundColor: 'white'
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    background: 'var(--bg-3)',
+                    color: 'var(--fg)',
                   }}
                 >
                   {buoys.map(buoy => (
@@ -3045,13 +2860,13 @@ export default function MapOverlay() {
             )}
             
             {selectedBuoy.error ? (
-              <div style={{ color: '#d32f2f', fontSize: '14px' }}>
-                ⚠️ Error: {selectedBuoy.error}
+              <div style={{ color: 'var(--fire)', fontSize: '14px' }}>
+                Error: {selectedBuoy.error}
               </div>
             ) : (
               <div style={{ fontSize: '14px', lineHeight: '1.8' }}>
-                <div style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #eee' }}>
-                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>SURF SCORE</div>
+                <div style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px' }}>SURF SCORE</div>
                   <div style={{ 
                     fontSize: '24px', 
                     fontWeight: 'bold',
@@ -3064,28 +2879,28 @@ export default function MapOverlay() {
                 <table style={{ width: '100%', fontSize: '13px' }}>
                   <tbody>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Swell Height:</td>
-                      <td style={{ padding: '4px 0', fontWeight: 'bold', color: '#0066cc', fontSize: '14px' }}>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Swell Height:</td>
+                      <td style={{ padding: '4px 0', fontWeight: 'bold', color: 'var(--accent)', fontSize: '14px' }}>
                       {formatWaveHeight(selectedBuoy.wave_height_m)}
                         
                         <TrendIndicator trend={selectedBuoy.wave_trend} />
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666', fontSize: '11px' }}>Max Face Height:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)', fontSize: '11px' }}>Max Face Height:</td>
                       <td style={{ padding: '4px 0', fontSize: '11px' }}>
                       {formatSurfSize(selectedBuoy.surf_height_m)}
                         
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Period:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Period:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {selectedBuoy.dominant_period_sec} sec
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Dir:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Wave Dir:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {selectedBuoy.mean_wave_dir}°
                         <DirectionArrow degrees={parseFloat(selectedBuoy.mean_wave_dir)} color="#0066cc" />
@@ -3093,13 +2908,13 @@ export default function MapOverlay() {
                     </tr>
                     {selectedBuoy.wave_energy && (
                       <tr>
-                        <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wave Energy:</td>
+                        <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Wave Energy:</td>
                         <td style={{ padding: '4px 0' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ flex: 1, minWidth: '80px' }}>
                               <div style={{
                                 height: '18px',
-                                backgroundColor: '#e5e7eb',
+                                background: 'var(--bg-3)',
                                 borderRadius: '9px',
                                 overflow: 'hidden',
                                 position: 'relative'
@@ -3125,19 +2940,19 @@ export default function MapOverlay() {
                         </td>
                       </tr>
                     )}
-                    <tr style={{ borderTop: '1px solid #eee' }}>
-                      <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>💨 Wind Speed:</td>
+                    <tr style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 8px 4px 0', color: 'var(--muted)' }}>💨 Wind Speed:</td>
                       <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold' }}>
                         {formatWindSpeed(selectedBuoy.wind_speed_ms)}
                         {selectedBuoy.wind_source && selectedBuoy.wind_source !== 'buoy' && selectedBuoy.wind_source !== 'N/A' && (
-                          <div style={{ fontSize: '10px', color: '#888', fontWeight: 'normal' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 'normal' }}>
                             via {selectedBuoy.wind_source}
                           </div>
                         )}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wind Dir:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Wind Dir:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {getWindDirection(selectedBuoy.wind_dir)}
                         <DirectionArrow degrees={selectedBuoy.wind_dir} color="#FF6B35" />
@@ -3145,32 +2960,32 @@ export default function MapOverlay() {
                     </tr>
                     {selectedBuoy.wind_gust_ms && (
                       <tr>
-                        <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Wind Gust:</td>
+                        <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Wind Gust:</td>
                         <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                           {formatWindSpeed(selectedBuoy.wind_gust_ms)}
                         </td>
                       </tr>
                     )}
-                    <tr style={{ borderTop: '1px solid #eee' }}>
-                      <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>Water Temp:</td>
+                    <tr style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 8px 4px 0', color: 'var(--muted)' }}>Water Temp:</td>
                       <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold' }}>
                         {formatTemp(selectedBuoy.water_temp_c)}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Air Temp:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Air Temp:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold' }}>
                         {formatTemp(selectedBuoy.air_temp_c)}
                       </td>
                     </tr>
-                    <tr style={{ borderTop: '1px solid #eee' }}>
-                      <td style={{ padding: '8px 8px 4px 0', color: '#666' }}>Station ID:</td>
+                    <tr style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 8px 4px 0', color: 'var(--muted)' }}>Station ID:</td>
                       <td style={{ padding: '8px 0 4px 0', fontWeight: 'bold', fontFamily: 'monospace' }}>
                         {selectedBuoy.station}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '4px 8px 4px 0', color: '#666' }}>Updated:</td>
+                      <td style={{ padding: '4px 8px 4px 0', color: 'var(--muted)' }}>Updated:</td>
                       <td style={{ padding: '4px 0', fontWeight: 'bold', fontSize: '12px' }}>
                         {formatTime(selectedBuoy.timestamp_utc)}
                       </td>
@@ -3189,38 +3004,37 @@ export default function MapOverlay() {
                   style={{
                     width: '100%',
                     marginTop: '12px',
-                    padding: '10px',
-                    backgroundColor: '#0066cc',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
+                    padding: '8px',
+                    background: 'var(--accent-2)',
+                    color: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
                     cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
-                    transition: 'background-color 0.2s'
                   }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = '#0052a3'}
-                  onMouseOut={(e) => e.target.style.backgroundColor = '#0066cc'}
                 >
-                  <span>{showChart ? '📊 Hide Charts' : '📈 Show Wave History'}</span>
+                  <span>{showChart ? 'Hide Charts' : 'Wave History'}</span>
                 </button>
 
                 {/* Historical Charts */}
                 {showChart && (
-                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #eee' }}>
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h4 style={{ margin: 0, fontSize: '14px', color: '#333' }}>
-                        📈 Wave History & Forecast
+                      <h4 style={{ margin: 0, fontSize: '13px', color: 'var(--fg)', fontWeight: 600 }}>
+                        Wave History & Forecast
                       </h4>
-                      <label style={{ 
-                        fontSize: '11px', 
-                        color: '#666', 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                      <label style={{
+                        fontSize: '11px',
+                        color: 'var(--muted)',
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: '4px',
                         cursor: 'pointer'
                       }}>
@@ -3241,14 +3055,14 @@ export default function MapOverlay() {
                     </div>
                     
                     {chartLoading && (
-                      <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                        Loading chart data...
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)' }}>
+                        Loading chart data…
                       </div>
                     )}
-                    
+
                     {chartError && (
-                      <div style={{ padding: '12px', backgroundColor: '#fee', borderRadius: '6px', color: '#d32f2f', fontSize: '12px' }}>
-                        ⚠️ {chartError}
+                      <div style={{ padding: '12px', background: 'oklch(0.4 0.15 25 / 0.15)', borderRadius: 'var(--radius)', color: 'var(--fire)', fontSize: '12px', border: '1px solid var(--fire)' }}>
+                        {chartError}
                       </div>
                     )}
                     
@@ -3256,13 +3070,13 @@ export default function MapOverlay() {
                       <>
                         {/* Wave Height Chart */}
                         <div style={{ marginBottom: '20px' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                             Wave Height & Face Height
-                            {forecastLoading && <span style={{ color: '#999', fontWeight: 'normal', marginLeft: '8px' }}>(Loading forecast...)</span>}
+                            {forecastLoading && <span style={{ color: 'var(--muted)', fontWeight: 'normal', marginLeft: '8px' }}>(Loading…)</span>}
                           </div>
                           <ResponsiveContainer width="100%" height={200}>
                             <LineChart data={showForecast ? [...historicalData, ...forecastData] : historicalData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                               <XAxis 
                                 dataKey="time" 
                                 tick={{ fontSize: 10 }}
@@ -3333,12 +3147,12 @@ export default function MapOverlay() {
 
                         {/* Period Chart */}
                         <div style={{ marginBottom: '20px' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                             Wave Period
                           </div>
                           <ResponsiveContainer width="100%" height={150}>
                             <LineChart data={showForecast ? [...historicalData, ...forecastData] : historicalData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                               <XAxis 
                                 dataKey="time" 
                                 tick={{ fontSize: 10 }}
@@ -3385,12 +3199,12 @@ export default function MapOverlay() {
 
                         {/* Energy Chart */}
                         <div>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '8px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                             Wave Energy Index
                           </div>
                           <ResponsiveContainer width="100%" height={150}>
                             <LineChart data={showForecast ? [...historicalData, ...forecastData] : historicalData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                               <XAxis 
                                 dataKey="time" 
                                 tick={{ fontSize: 10 }}
@@ -3438,7 +3252,7 @@ export default function MapOverlay() {
                     )}
                     
                     {!chartLoading && !chartError && historicalData.length === 0 && (
-                      <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
                         No historical data available
                       </div>
                     )}
@@ -3457,27 +3271,30 @@ export default function MapOverlay() {
             left: 0,
             right: 0,
             height: '92px',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            borderTop: '2px solid #ddd',
+            background: 'var(--panel)',
+            backdropFilter: 'var(--panel-blur)',
+            WebkitBackdropFilter: 'var(--panel-blur)',
+            borderTop: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             padding: '0 20px',
-            zIndex: 1000,
-            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+            zIndex: 50,
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
           }}>
             {/* Left: Play/Pause */}
             <div style={{ width: '80px', display: 'flex', justifyContent: 'center' }}>
               <button
                 onClick={handlePlayPause}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: isPlaying ? '#dc3545' : '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
+                  width: 36, height: 36,
+                  background: isPlaying ? 'var(--fire)' : 'var(--accent-2)',
+                  color: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '50%',
                   cursor: 'pointer',
                   fontSize: '14px',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 {isPlaying ? '⏸' : '▶'}
@@ -3521,7 +3338,7 @@ export default function MapOverlay() {
                       transform: 'translateX(-50%)',
                       height: '20px',
                       width: '1px',
-                      backgroundColor: '#333',
+                      background: 'var(--border)',
                       top: '0px'
                     }}
                   />
@@ -3536,10 +3353,10 @@ export default function MapOverlay() {
                   transform: 'translateX(-50%)',
                   width: '3px',
                   height: '30px',
-                  backgroundColor: '#0066cc',
+                  background: 'var(--accent)',
                   top: '0px',
                   zIndex: 10,
-                  boxShadow: '0 0 4px rgba(0, 102, 204, 0.6)'
+                  boxShadow: '0 0 6px var(--accent)'
                 }}
               />
 
@@ -3551,15 +3368,15 @@ export default function MapOverlay() {
                     left: `${(selectedFrameIndex / (windFrames.hours.length - 1)) * 100}%`,
                     transform: 'translateX(-50%)',
                     bottom: '32px',
-                    backgroundColor: '#0066cc',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
+                    background: 'var(--accent)',
+                    color: 'var(--bg)',
+                    padding: '3px 7px',
+                    borderRadius: 'var(--radius)',
                     fontSize: '11px',
-                    fontWeight: 'bold',
+                    fontWeight: 600,
                     whiteSpace: 'nowrap',
                     zIndex: 11,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
                   }}
                 >
                   {isPlaying ? formatTimelineHourOnly(selectedTimeUtc) : formatTimelineDayTime(selectedTimeUtc)}
@@ -3574,16 +3391,16 @@ export default function MapOverlay() {
                     left: `${(hoveredFrameIndex / (windFrames.hours.length - 1)) * 100}%`,
                     transform: 'translateX(-50%)',
                     bottom: '32px',
-                    backgroundColor: 'rgba(255, 215, 0, 0.95)',
-                    color: '#111',
-                    padding: '3px 6px',
-                    borderRadius: '3px',
+                    background: 'var(--bg-2)',
+                    color: 'var(--fg)',
+                    padding: '3px 7px',
+                    borderRadius: 'var(--radius)',
                     fontSize: '11px',
                     whiteSpace: 'nowrap',
                     zIndex: 12,
                     pointerEvents: 'none',
-                    border: '1px solid rgba(0,0,0,0.2)',
-                    fontWeight: 'bold'
+                    border: '1px solid var(--border)',
+                    fontWeight: 600
                   }}
                 >
                   {formatTimelineDayTime(windFrames?.times_utc?.[hoveredFrameIndex])}
@@ -3603,9 +3420,9 @@ export default function MapOverlay() {
                       transform: 'translateX(-50%)',
                       top: '22px',
                       fontSize: '10px',
-                      color: '#666',
+                      color: 'var(--muted)',
                       whiteSpace: 'nowrap',
-                      fontWeight: 'bold'
+                      fontWeight: 600
                     }}
                   >
                     {tick.label}
@@ -3623,10 +3440,10 @@ export default function MapOverlay() {
               gap: '16px'
             }}>
               <WindSpeedLegend units="mph" />
-              <div style={{ textAlign: 'right', fontSize: '11px', color: '#666', minWidth: '120px' }}>
+              <div style={{ textAlign: 'right', fontSize: '11px', color: 'var(--fg)', minWidth: '120px' }}>
                 <div><strong>+{windFrames.hours[selectedFrameIndex]}h</strong></div>
                 <div>{selectedWindModel.toUpperCase()}</div>
-                <div style={{ fontSize: '10px', color: '#999' }}>
+                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
                   {forecastUtcLabel.split(' ')[4] || '—'}
                 </div>
               </div>
@@ -3642,27 +3459,30 @@ export default function MapOverlay() {
             left: 0,
             right: 0,
             height: '92px',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            borderTop: '2px solid #ddd',
+            background: 'var(--panel)',
+            backdropFilter: 'var(--panel-blur)',
+            WebkitBackdropFilter: 'var(--panel-blur)',
+            borderTop: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             padding: '0 20px',
-            zIndex: 1000,
-            boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+            zIndex: 50,
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
           }}>
             {/* Left: Play/Pause */}
             <div style={{ width: '80px', display: 'flex', justifyContent: 'center' }}>
               <button
                 onClick={handleWavePlayPause}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: isWavePlaying ? '#dc3545' : '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
+                  width: 36, height: 36,
+                  background: isWavePlaying ? 'var(--fire)' : 'var(--accent-2)',
+                  color: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '50%',
                   cursor: 'pointer',
                   fontSize: '14px',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 {isWavePlaying ? '⏸' : '▶'}
@@ -3706,7 +3526,7 @@ export default function MapOverlay() {
                       transform: 'translateX(-50%)',
                       height: '20px',
                       width: '1px',
-                      backgroundColor: '#333',
+                      background: 'var(--border)',
                       top: '0px'
                     }}
                   />
@@ -3721,10 +3541,10 @@ export default function MapOverlay() {
                   transform: 'translateX(-50%)',
                   width: '3px',
                   height: '30px',
-                  backgroundColor: '#0066cc',
+                  background: 'var(--accent)',
                   top: '0px',
                   zIndex: 10,
-                  boxShadow: '0 0 4px rgba(0, 102, 204, 0.6)'
+                  boxShadow: '0 0 6px var(--accent)'
                 }}
               />
 
@@ -3736,15 +3556,15 @@ export default function MapOverlay() {
                     left: `${(selectedWaveFrameIndex / (waveFrames.hours.length - 1)) * 100}%`,
                     transform: 'translateX(-50%)',
                     bottom: '32px',
-                    backgroundColor: '#0066cc',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
+                    background: 'var(--accent)',
+                    color: 'var(--bg)',
+                    padding: '3px 7px',
+                    borderRadius: 'var(--radius)',
                     fontSize: '11px',
-                    fontWeight: 'bold',
+                    fontWeight: 600,
                     whiteSpace: 'nowrap',
                     zIndex: 11,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
                   }}
                 >
                   {isWavePlaying ? formatTimelineHourOnly(selectedWaveTimeUtc) : formatTimelineDayTime(selectedWaveTimeUtc)}
@@ -3759,16 +3579,16 @@ export default function MapOverlay() {
                     left: `${(hoveredWaveFrameIndex / (waveFrames.hours.length - 1)) * 100}%`,
                     transform: 'translateX(-50%)',
                     bottom: '32px',
-                    backgroundColor: 'rgba(255, 215, 0, 0.95)',
-                    color: '#111',
-                    padding: '3px 6px',
-                    borderRadius: '3px',
+                    background: 'var(--bg-2)',
+                    color: 'var(--fg)',
+                    padding: '3px 7px',
+                    borderRadius: 'var(--radius)',
                     fontSize: '11px',
                     whiteSpace: 'nowrap',
                     zIndex: 12,
                     pointerEvents: 'none',
-                    border: '1px solid rgba(0,0,0,0.2)',
-                    fontWeight: 'bold'
+                    border: '1px solid var(--border)',
+                    fontWeight: 600
                   }}
                 >
                   {formatTimelineDayTime(waveFrames?.times_utc?.[hoveredWaveFrameIndex])}
@@ -3788,9 +3608,9 @@ export default function MapOverlay() {
                       transform: 'translateX(-50%)',
                       top: '22px',
                       fontSize: '10px',
-                      color: '#666',
+                      color: 'var(--muted)',
                       whiteSpace: 'nowrap',
-                      fontWeight: 'bold'
+                      fontWeight: 600
                     }}
                   >
                     {tick.label}
@@ -3808,10 +3628,10 @@ export default function MapOverlay() {
               gap: '16px'
             }}>
               <WaveHeightLegend units={units} />
-              <div style={{ textAlign: 'right', fontSize: '11px', color: '#666', minWidth: '120px' }}>
+              <div style={{ textAlign: 'right', fontSize: '11px', color: 'var(--fg)', minWidth: '120px' }}>
                 <div><strong>+{waveFrames.hours[selectedWaveFrameIndex]}h</strong></div>
                 <div>WW3</div>
-                <div style={{ fontSize: '10px', color: '#999' }}>
+                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
                   {waveForecastUtcLabel.split(' ')[4] || '—'}
                 </div>
               </div>

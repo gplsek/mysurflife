@@ -1,0 +1,108 @@
+/* tokens.css — MySurfLife design system tokens
+ * Single source of truth for all color, spacing, and typography tokens.
+ * Component styles live in their own files; only primitives here.
+ * Three themes: ocean (default) | dawn | daylight
+ */
+
+:root {
+  /* Ocean theme (default dark) */
+  --bg:           oklch(0.16 0.018 230);
+  --bg-2:         oklch(0.20 0.020 230);
+  --bg-3:         oklch(0.24 0.022 230);
+  --panel:        oklch(0.19 0.018 230 / 0.88);
+  --panel-solid:  oklch(0.19 0.018 230);
+  --border:       oklch(1 0 0 / 0.08);
+  --border-strong:oklch(1 0 0 / 0.14);
+  --fg:           oklch(0.96 0.008 90);
+  --fg-2:         oklch(0.78 0.012 90);
+  --muted:        oklch(0.58 0.014 230);
+  --muted-2:      oklch(0.42 0.012 230);
+  --accent:       oklch(0.82 0.16 195);
+  --accent-2:     oklch(0.72 0.18 210);
+  --fire:         oklch(0.75 0.19 45);
+  --good:         oklch(0.80 0.15 150);
+  --panel-blur:   saturate(180%) blur(14px);
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --density:  1;
+
+  --font-ui:    'Geist', ui-sans-serif, system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  --font-mono:  'Geist Mono', ui-monospace, SFMono-Regular, 'Courier New', monospace;
+  --font-serif: 'Instrument Serif', 'Times New Roman', serif;
+
+  /* D1 logo dot color — aqua on dark themes, AA-safe aqua on daylight */
+  --logo-dot: var(--accent);
+}
+
+[data-theme="dawn"] {
+  --bg:           oklch(0.17 0.020 50);
+  --bg-2:         oklch(0.21 0.022 50);
+  --bg-3:         oklch(0.26 0.024 50);
+  --panel:        oklch(0.20 0.020 50 / 0.88);
+  --panel-solid:  oklch(0.20 0.020 50);
+  --border:       oklch(1 0.02 50 / 0.08);
+  --border-strong:oklch(1 0.02 50 / 0.14);
+  /* fg/muted inherit from :root (dark-on-dark still works) */
+  --accent:       oklch(0.80 0.17 45);
+  --accent-2:     oklch(0.72 0.19 30);
+  --fire:         oklch(0.72 0.20 25);
+  --good:         oklch(0.78 0.16 95);
+}
+
+[data-theme="daylight"] {
+  /* AA-safe aqua (#0a8a9e) for the origin dot on paper/light backgrounds */
+  --logo-dot: #0a8a9e;
+  --bg:           oklch(0.96 0.005 230);
+  --bg-2:         oklch(0.99 0.003 230);
+  --bg-3:         oklch(0.92 0.008 230);
+  --panel:        oklch(0.99 0.003 230 / 0.90);
+  --panel-solid:  oklch(0.99 0.003 230);
+  --border:       oklch(0 0 0 / 0.08);
+  --border-strong:oklch(0 0 0 / 0.16);
+  --fg:           oklch(0.22 0.020 230);
+  --fg-2:         oklch(0.38 0.015 230);
+  --muted:        oklch(0.55 0.010 230);
+  --muted-2:      oklch(0.72 0.008 230);
+  --accent:       oklch(0.55 0.18 240);
+  --accent-2:     oklch(0.50 0.20 250);
+  --fire:         oklch(0.60 0.22 30);
+  --good:         oklch(0.60 0.18 150);
+}
+
+/* Base reset that tokens.css owns */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root { height: 100vh; }
+
+/* Pulse-ring keyframes for LogoPulse and any CSS-driven loading states.
+ * The LogoPulse React component uses SVG SMIL <animate> instead (broader
+ * compatibility), but this keyframe is available for CSS-only contexts. */
+@keyframes pulse-ring {
+  0%   { opacity: 0.6; r: 4; }
+  100% { opacity: 0;   r: 28; }
+}
+
+/* Utility: visually hidden (accessible) */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border-width: 0;
+}

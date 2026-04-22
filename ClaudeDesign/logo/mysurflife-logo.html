@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mysurflife · logo explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.16 0.018 230);
+    --bg-2: oklch(0.20 0.020 230);
+    --bg-3: oklch(0.24 0.022 230);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --border: oklch(1 0 0 / 0.08);
+    --accent: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  .page { padding: 48px 56px 80px; max-width: 1400px; margin: 0 auto; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 10px;
+  }
+  h1 { margin: 0 0 12px; font-size: 38px; letter-spacing: -0.02em; font-weight: 500; }
+  .sub { color: var(--fg-2); font-size: 14px; max-width: 640px; line-height: 1.5; }
+  .note { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 16px; color: var(--fg-2); margin-top: 10px; }
+
+  .section-head {
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+    margin: 40px 0 16px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .section-head .rationale { font-family: 'Instrument Serif', serif; font-style: italic; text-transform: none; letter-spacing: normal; color: var(--fg-2); font-size: 14px; }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .cell {
+    background: var(--bg-2);
+    min-height: 220px;
+    display: flex; flex-direction: column;
+    padding: 32px 28px;
+  }
+  .cell-label {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; color: var(--muted);
+    margin-top: auto;
+    padding-top: 20px;
+    display: flex; justify-content: space-between;
+  }
+  .cell-label .name { color: var(--fg); }
+  .mark-wrap { flex: 1; display: flex; align-items: center; justify-content: flex-start; }
+
+  /* Usage showcase */
+  .showcase { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px; }
+  .hero {
+    background: radial-gradient(120% 80% at 20% 0%, oklch(0.26 0.03 200) 0%, var(--bg) 60%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 56px 48px;
+    min-height: 320px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .app-header {
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 14px;
+    margin-top: 16px;
+  }
+  .favicons {
+    display: flex; gap: 20px; align-items: flex-end; padding: 24px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .fav-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .fav-block .sz { font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; }
+
+  .mono-swatch-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .mono-swatch {
+    padding: 40px 20px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 140px;
+  }
+  .mono-swatch.w-bg { background: #f4f1ea; color: #0a1218; }
+  .mono-swatch.k-bg { background: #0a1218; color: #f4f1ea; }
+  .mono-swatch.aqua-bg { background: oklch(0.82 0.16 195); color: #0a1218; }
+  .mono-swatch.coral-bg { background: oklch(0.75 0.19 45); color: #0a1218; }
+
+  .recommend {
+    margin-top: 48px; padding: 28px 32px;
+    border: 1px solid oklch(from var(--accent) l c h / 0.3);
+    background: oklch(from var(--accent) l c h / 0.05);
+    border-radius: 12px;
+  }
+  .recommend h3 { margin: 0 0 8px; font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; font-size: 24px; letter-spacing: -0.01em; }
+  .recommend p { color: var(--fg-2); line-height: 1.55; font-size: 14px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">LOGO EXPLORATIONS · 9 DIRECTIONS</div>
+    <h1>mysurflife<span style="color:var(--muted);">.</span></h1>
+    <p class="sub">Two concepts, six variations each, plus contextual usage. <strong>Swell-ring mark</strong> (echoes the map's swell-generation rings) and <strong>M-as-wave monogram</strong>. Bold & athletic mood, optimized for horizontal header + hero use.</p>
+    <p class="note">The thinking: the app's core metaphor is <em>a storm, somewhere, sending waves to your spot</em>. The mark should carry that. Pure wordmarks feel weak for a surf brand — we commit to a symbol.</p>
+  </header>
+
+  <!-- Concept A: Swell rings -->
+  <div class="section-head">
+    <span>A · Swell Rings — concentric rings radiating from a storm point</span>
+    <span class="rationale">the mark is literally the product: a pulse going out into the world</span>
+  </div>
+  <div class="grid">
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- A1: concentric half rings + bold wordmark -->
+        <svg width="240" height="70" viewBox="0 0 240 70">
+          <g stroke="var(--accent)" fill="none" stroke-width="2.2" stroke-linecap="round">
+            <path d="M10 50 A20 20 0 0 1 50 50"/>
+            <path d="M4 50 A26 26 0 0 1 56 50" opacity="0.7"/>
+            <path d="M-2 50 A32 32 0 0 1 62 50" opacity="0.4"/>
+          </g>
+          <circle cx="30" cy="50" r="3" fill="var(--fire)"/>
+          <text x="78" y="56" font-family="Geist" font-weight="700" font-size="28" letter-spacing="-0.03em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">A1</span><span>Classic horizontal · heavy weight</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- A2: rings as full circles dot at center -->
+        <svg width="240" height="70" viewBox="0 0 240 70">
+          <g stroke="var(--accent)" fill="none">
+            <circle cx="34" cy="40" r="8" stroke-width="1.6"/>
+            <circle cx="34" cy="40" r="16" stroke-width="1.4" opacity="0.55"/>
+            <circle cx="34" cy="40" r="24" stroke-width="1.2" opacity="0.3"/>
+          </g>
+          <circle cx="34" cy="40" r="2.5" fill="var(--accent)"/>
+          <text x="80" y="36" font-family="Geist" font-weight="600" font-size="20" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+          <text x="80" y="54" font-family="Geist Mono" font-size="9" letter-spacing="0.22em" fill="var(--muted)">AI SURF FORECAST</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">A2</span><span>Lockup with tagline</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- A3: dot.wordmark with rings integrated -->
+        <svg width="260" height="70" viewBox="0 0 260 70">
+          <text x="4" y="52" font-family="Geist" font-weight="800" font-size="32" letter-spacing="-0.04em" fill="var(--fg)">mysurf</text>
+          <g transform="translate(128 42)">
+            <g stroke="var(--fire)" fill="none" stroke-linecap="round">
+              <circle cx="0" cy="0" r="4" stroke-width="1.5"/>
+              <path d="M-10 0 A10 10 0 0 1 10 0" stroke-width="1.3" opacity="0.6"/>
+              <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="1.1" opacity="0.3"/>
+            </g>
+            <circle cx="0" cy="0" r="1.6" fill="var(--fire)"/>
+          </g>
+          <text x="148" y="52" font-family="Geist" font-weight="800" font-size="32" letter-spacing="-0.04em" fill="var(--fg)">life</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">A3</span><span>Rings as punctuation</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- A4: dense rings, compass marks -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(40 40)" stroke="var(--accent)" fill="none">
+            <circle r="6" stroke-width="1.5"/>
+            <circle r="14" stroke-width="1.2" opacity="0.6"/>
+            <circle r="22" stroke-width="1" opacity="0.35"/>
+            <circle r="30" stroke-width="1" opacity="0.2" stroke-dasharray="2 3"/>
+            <g stroke-width="1.2">
+              <line x1="0" y1="-34" x2="0" y2="-30"/>
+              <line x1="0" y1="30" x2="0" y2="34"/>
+              <line x1="-34" y1="0" x2="-30" y2="0"/>
+              <line x1="30" y1="0" x2="34" y2="0"/>
+            </g>
+          </g>
+          <text x="82" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">A4</span><span>Technical / targetry feel</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- A5: single curved ring hugging text -->
+        <svg width="260" height="70" viewBox="0 0 260 70">
+          <path d="M4 50 Q130 20 256 50" stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M4 58 Q130 32 256 58" stroke="var(--accent)" stroke-width="1.4" fill="none" opacity="0.5" stroke-linecap="round"/>
+          <text x="130" y="44" font-family="Geist" font-weight="700" font-size="26" letter-spacing="-0.03em" fill="var(--fg)" text-anchor="middle">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">A5</span><span>Swell arc cradling wordmark</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- A6: big square-icon ready -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="oklch(0.22 0.03 200)" stroke="var(--border)" />
+          <g transform="translate(32 50)" stroke="var(--accent)" fill="none" stroke-linecap="round">
+            <circle r="4" stroke-width="1.5"/>
+            <path d="M-10 0 A10 10 0 0 1 10 0" stroke-width="1.3" opacity="0.7"/>
+            <path d="M-16 0 A16 16 0 0 1 16 0" stroke-width="1.1" opacity="0.4"/>
+            <path d="M-22 0 A22 22 0 0 1 22 0" stroke-width="1" opacity="0.2"/>
+          </g>
+          <circle cx="32" cy="50" r="1.8" fill="var(--fire)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">A6</span><span>App-icon-ready container</span></div>
+    </div>
+  </div>
+
+  <!-- Concept B: M-wave monogram -->
+  <div class="section-head">
+    <span>B · M-Wave Monogram — the "M" crossbar becomes a wave</span>
+    <span class="rationale">a pure letterform solution that reads at any size</span>
+  </div>
+  <div class="grid">
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- B1: M with curved middle -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(8 10)">
+            <path d="M0 56 L0 4 L6 4 L16 28 Q24 44 32 28 L42 4 L48 4 L48 56" stroke="var(--accent)" stroke-width="4" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+          </g>
+          <text x="72" y="48" font-family="Geist" font-weight="800" font-size="28" letter-spacing="-0.04em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">B1</span><span>M with rolling crossbar</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- B2: filled M with negative space wave -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(8 10)">
+            <path d="M0 0 L0 60 L10 60 L10 24 Q14 14 24 24 Q34 34 44 24 L44 60 L54 60 L54 0 L44 0 L38 20 Q28 38 16 20 L10 0 Z" fill="var(--accent)"/>
+          </g>
+          <text x="78" y="48" font-family="Geist" font-weight="800" font-size="28" letter-spacing="-0.04em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">B2</span><span>Solid block, wave cutout</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- B3: MSL monogram stacked -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="8" width="60" height="60" rx="10" fill="var(--accent)"/>
+          <text x="34" y="46" font-family="Geist" font-weight="900" font-size="26" letter-spacing="-0.05em" fill="var(--bg)" text-anchor="middle">MSL</text>
+          <path d="M14 56 Q24 50 34 56 T54 56" stroke="var(--bg)" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.8"/>
+          <text x="78" y="40" font-family="Geist" font-weight="600" font-size="18" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+          <text x="78" y="56" font-family="Geist Mono" font-size="9" letter-spacing="0.2em" fill="var(--muted)">EST. 2026</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">B3</span><span>MSL container + full name</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- B4: ultra-heavy M, three-line wave built in -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(10 14)">
+            <path d="M0 52 L0 0 L8 0 L20 24 L32 0 L40 0 L40 52 L34 52 L34 10 L22 32 L18 32 L6 10 L6 52 Z" fill="var(--fg)"/>
+            <g stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round" transform="translate(0 44)">
+              <path d="M-2 0 Q10 -8 20 0 T42 0"/>
+              <path d="M-2 6 Q10 -2 20 6 T42 6" opacity="0.5"/>
+            </g>
+          </g>
+          <text x="62" y="48" font-family="Geist" font-weight="800" font-size="26" letter-spacing="-0.04em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">B4</span><span>M over layered swell</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- B5: wordmark only with serif accent -->
+        <svg width="280" height="70" viewBox="0 0 280 70">
+          <text x="4" y="48" font-family="Geist" font-weight="800" font-size="34" letter-spacing="-0.04em" fill="var(--fg)">mysurf</text>
+          <text x="140" y="48" font-family="Instrument Serif" font-style="italic" font-weight="400" font-size="38" letter-spacing="-0.02em" fill="var(--accent)">life</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">B5</span><span>Wordmark only · serif contrast</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap">
+        <!-- B6: lowercase m shaped like a wave -->
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(10 20)">
+            <path d="M0 44 L0 8 Q8 -4 18 8 L18 44 M18 8 Q26 -4 36 8 L36 44"
+                  stroke="var(--accent)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="0" cy="44" r="2.5" fill="var(--fire)"/>
+          </g>
+          <text x="62" y="48" font-family="Geist" font-weight="700" font-size="26" letter-spacing="-0.03em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">B6</span><span>Lowercase m-wave glyph</span></div>
+    </div>
+  </div>
+
+  <!-- Refined: A6 structure + A3 orange rings -->
+  <div class="section-head">
+    <span>A6 · REFINED — orange swell rings inside container</span>
+    <span class="rationale">A6's structure, A3's fire color — six treatments of the ring density</span>
+  </div>
+  <div class="grid">
+    <!-- R1: single ring, just like A3 -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="oklch(0.22 0.03 200)" stroke="var(--border)" />
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <circle r="5" stroke-width="1.6"/>
+            <path d="M-12 0 A12 12 0 0 1 12 0" stroke-width="1.4"/>
+          </g>
+          <circle cx="32" cy="50" r="1.8" fill="var(--fire)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">R1 · single arc</span><span>cleanest · reads at 16px</span></div>
+    </div>
+
+    <!-- R2: two rings fading -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="oklch(0.22 0.03 200)" stroke="var(--border)" />
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <circle r="4" stroke-width="1.5"/>
+            <path d="M-10 0 A10 10 0 0 1 10 0" stroke-width="1.3" opacity="0.6"/>
+            <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="1.1" opacity="0.3"/>
+          </g>
+          <circle cx="32" cy="50" r="1.6" fill="var(--fire)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">R2 · A3 rings, exact</span><span>the fading pulse from A3</span></div>
+    </div>
+
+    <!-- R3: three rings fading (more like A6 but orange) -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="oklch(0.22 0.03 200)" stroke="var(--border)" />
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <circle r="4" stroke-width="1.5"/>
+            <path d="M-10 0 A10 10 0 0 1 10 0" stroke-width="1.3" opacity="0.7"/>
+            <path d="M-16 0 A16 16 0 0 1 16 0" stroke-width="1.1" opacity="0.4"/>
+            <path d="M-22 0 A22 22 0 0 1 22 0" stroke-width="1" opacity="0.2"/>
+          </g>
+          <circle cx="32" cy="50" r="1.8" fill="var(--fire)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">R3 · three fading arcs</span><span>more pulse · more energy</span></div>
+    </div>
+
+    <!-- R4: single ring, darker container, orange pop -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="#0a1218" stroke="var(--border)" />
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <circle r="5" stroke-width="1.8"/>
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.5"/>
+          </g>
+          <circle cx="32" cy="50" r="2" fill="var(--fire)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">R4 · dark container · single</span><span>maximum orange pop</span></div>
+    </div>
+
+    <!-- R5: orange container, dark mark -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="var(--fire)" />
+          <g transform="translate(32 50)" stroke="#0a1218" fill="none" stroke-linecap="round">
+            <circle r="5" stroke-width="1.8"/>
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.6"/>
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.3" opacity="0.5"/>
+          </g>
+          <circle cx="32" cy="50" r="2" fill="#0a1218"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">R5 · orange container</span><span>inverted · brand-forward</span></div>
+    </div>
+
+    <!-- R6: no container, orange rings, aqua dot -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <circle r="5" stroke-width="1.8"/>
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.6"/>
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.3" opacity="0.5"/>
+            <path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/>
+          </g>
+          <circle cx="32" cy="50" r="2.5" fill="var(--accent)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">R6 · aqua center dot</span><span>two brand colors meet at the origin</span></div>
+    </div>
+  </div>
+
+  <!-- R6 deep dive -->
+  <div class="section-head">
+    <span>R6 · AQUA-DOT VARIATIONS</span>
+    <span class="rationale">pushing the two-color idea — orange swell, aqua origin</span>
+  </div>
+  <div class="grid">
+    <!-- D1: bigger aqua dot with outer ring -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/>
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/>
+            <path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/>
+          </g>
+          <circle cx="32" cy="50" r="4" fill="var(--accent)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">D1 · bigger aqua dot</span><span>drops inner circle · lets dot be the anchor</span></div>
+    </div>
+
+    <!-- D2: in container, orange rings + aqua dot -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="oklch(0.22 0.03 200)" stroke="var(--border)" />
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <path d="M-11 0 A11 11 0 0 1 11 0" stroke-width="1.5"/>
+            <path d="M-17 0 A17 17 0 0 1 17 0" stroke-width="1.2" opacity="0.5"/>
+            <path d="M-23 0 A23 23 0 0 1 23 0" stroke-width="1" opacity="0.25"/>
+          </g>
+          <circle cx="32" cy="50" r="3.5" fill="var(--accent)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">D2 · contained</span><span>R6 concept + A6 container</span></div>
+    </div>
+
+    <!-- D3: dark container -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <rect x="4" y="12" width="56" height="56" rx="12" fill="#0a1218" />
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <path d="M-11 0 A11 11 0 0 1 11 0" stroke-width="1.6"/>
+            <path d="M-17 0 A17 17 0 0 1 17 0" stroke-width="1.3" opacity="0.55"/>
+            <path d="M-23 0 A23 23 0 0 1 23 0" stroke-width="1.1" opacity="0.28"/>
+          </g>
+          <circle cx="32" cy="50" r="3.5" fill="var(--accent)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">D3 · deep dark container</span><span>aqua & orange both glow</span></div>
+    </div>
+
+    <!-- D4: aqua dot with subtle glow ring -->
+    <div class="cell">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(32 50)">
+            <g stroke="var(--fire)" fill="none" stroke-linecap="round">
+              <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/>
+              <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/>
+              <path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/>
+            </g>
+            <circle r="5" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.4"/>
+            <circle r="3" fill="var(--accent)"/>
+          </g>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">D4 · glowing aqua core</span><span>subtle halo · signals "active"</span></div>
+    </div>
+
+    <!-- D5: 16px test at scale -->
+    <div class="cell">
+      <div class="mark-wrap" style="gap: 20px; flex-direction: column; align-items: flex-start; justify-content: center;">
+        <svg width="200" height="50" viewBox="0 0 240 80">
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/>
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/>
+            <path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/>
+          </g>
+          <circle cx="32" cy="50" r="4" fill="var(--accent)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+        <svg width="120" height="30" viewBox="0 0 240 80">
+          <g transform="translate(32 50)" stroke="var(--fire)" fill="none" stroke-linecap="round">
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/>
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/>
+            <path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/>
+          </g>
+          <circle cx="32" cy="50" r="4" fill="var(--accent)"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="var(--fg)">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">D5 · scale test</span><span>D1 at 100% / 50%</span></div>
+    </div>
+
+    <!-- D6: mono — test it still works -->
+    <div class="cell" style="background: #f4f1ea; color: #0a1218;">
+      <div class="mark-wrap">
+        <svg width="240" height="80" viewBox="0 0 240 80">
+          <g transform="translate(32 50)" stroke="#0a1218" fill="none" stroke-linecap="round">
+            <path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/>
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/>
+            <path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/>
+          </g>
+          <circle cx="32" cy="50" r="4" fill="#0a1218"/>
+          <text x="78" y="47" font-family="Geist" font-weight="700" font-size="22" letter-spacing="-0.02em" fill="#0a1218">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label" style="color: #6b7684;"><span class="name" style="color: #0a1218;">D6 · mono fallback</span><span>proves the form works</span></div>
+    </div>
+  </div>
+
+  <div class="recommend">
+    <h3>Locked: D1 — orange swell rings, aqua origin dot, no container</h3>
+    <p>Usage board below is now refreshed to use D1 everywhere: hero, 64/32/16 app icons, in-app header, and all four mono/color field tests. The form holds cleanly on light, dark, aqua, and coral grounds.</p>
+  </div>
+
+  <div class="section-head"><span>USAGE · A6 IN CONTEXT</span></div>
+  <div class="showcase">
+    <div class="hero">
+      <div style="font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: var(--muted);">MARKETING HERO</div>
+      <div>
+        <svg width="460" height="110" viewBox="0 0 460 110">
+          <g transform="translate(44 72)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-18 0 A18 18 0 0 1 18 0" stroke-width="2.2"/>
+            <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.7" opacity="0.5"/>
+            <path d="M-38 0 A38 38 0 0 1 38 0" stroke-width="1.3" opacity="0.25"/>
+          </g>
+          <circle cx="44" cy="72" r="5.5" fill="oklch(0.82 0.16 195)"/>
+          <text x="104" y="80" font-family="Geist" font-weight="800" font-size="48" letter-spacing="-0.04em" fill="var(--fg)">mysurflife</text>
+        </svg>
+        <div style="margin-top: 14px; font-family: 'Instrument Serif', serif; font-style: italic; font-size: 22px; color: var(--fg-2); max-width: 500px; line-height: 1.3;">An AI that learns how <em>you</em> read a forecast, then wakes you up when your spot is firing.</div>
+      </div>
+    </div>
+    <div>
+      <div class="favicons">
+        <div class="fav-block">
+          <svg width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="oklch(0.22 0.03 200)"/><g transform="translate(32 38)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="1.8"/><path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.4" opacity="0.5"/><path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="38" r="4" fill="oklch(0.82 0.16 195)"/></svg>
+          <span class="sz">64 · APP ICON</span>
+        </div>
+        <div class="fav-block">
+          <svg width="32" height="32" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="oklch(0.22 0.03 200)"/><g transform="translate(32 38)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="1.8"/><path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.4" opacity="0.5"/><path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="38" r="4" fill="oklch(0.82 0.16 195)"/></svg>
+          <span class="sz">32</span>
+        </div>
+        <div class="fav-block">
+          <svg width="16" height="16" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="oklch(0.22 0.03 200)"/><g transform="translate(32 38)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/><path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.5" opacity="0.5"/></g><circle cx="32" cy="38" r="4.5" fill="oklch(0.82 0.16 195)"/></svg>
+          <span class="sz">16 · FAVICON</span>
+        </div>
+      </div>
+      <div class="app-header">
+        <svg width="28" height="28" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="oklch(0.22 0.03 200)"/><g transform="translate(32 38)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="1.8"/><path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.4" opacity="0.5"/><path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="38" r="4" fill="oklch(0.82 0.16 195)"/></svg>
+        <span style="font-weight: 700; font-size: 15px; letter-spacing: -0.02em;">mysurflife</span>
+        <span style="margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);">IN-APP HEADER</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-head"><span>MONOCHROME + COLOR FIELD TESTS</span></div>
+  <div class="mono-swatch-row">
+    <div class="mono-swatch w-bg">
+      <svg width="220" height="64" viewBox="0 0 240 80"><g transform="translate(32 50)" stroke="#0a1218" fill="none" stroke-linecap="round"><path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/><path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/><path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="50" r="4" fill="#0a1218"/><text x="78" y="57" font-family="Geist" font-weight="700" font-size="26" letter-spacing="-0.03em" fill="#0a1218">mysurflife</text></svg>
+    </div>
+    <div class="mono-swatch k-bg">
+      <svg width="220" height="64" viewBox="0 0 240 80"><g transform="translate(32 50)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/><path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/><path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="50" r="4" fill="oklch(0.82 0.16 195)"/><text x="78" y="57" font-family="Geist" font-weight="700" font-size="26" letter-spacing="-0.03em" fill="#f4f1ea">mysurflife</text></svg>
+    </div>
+    <div class="mono-swatch aqua-bg">
+      <svg width="220" height="64" viewBox="0 0 240 80"><g transform="translate(32 50)" stroke="#0a1218" fill="none" stroke-linecap="round"><path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/><path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/><path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="50" r="4" fill="#0a1218"/><text x="78" y="57" font-family="Geist" font-weight="700" font-size="26" letter-spacing="-0.03em" fill="#0a1218">mysurflife</text></svg>
+    </div>
+    <div class="mono-swatch coral-bg">
+      <svg width="220" height="64" viewBox="0 0 240 80"><g transform="translate(32 50)" stroke="#0a1218" fill="none" stroke-linecap="round"><path d="M-13 0 A13 13 0 0 1 13 0" stroke-width="1.8"/><path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="1.4" opacity="0.5"/><path d="M-27 0 A27 27 0 0 1 27 0" stroke-width="1.1" opacity="0.25"/></g><circle cx="32" cy="50" r="4" fill="oklch(0.82 0.16 195)"/><text x="78" y="57" font-family="Geist" font-weight="700" font-size="26" letter-spacing="-0.03em" fill="#0a1218">mysurflife</text></svg>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
