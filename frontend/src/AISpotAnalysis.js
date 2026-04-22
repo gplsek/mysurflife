@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { getAuthHeaders } from './supabaseClient';
+import LogoPulse from './design/LogoPulse';
 import './AISpotAnalysis.css';
 
 /**
@@ -147,9 +148,8 @@ const AISpotAnalysis = ({ spotSlug, spotName, onClose }) => {
           <h3>🤖 AI Spot Analysis</h3>
           {onClose && <button onClick={onClose} className="close-btn">✕</button>}
         </div>
-        <div className="ai-analysis-loading">
-          <div className="spinner"></div>
-          <p>Loading analysis...</p>
+        <div className="ai-analysis-loading" style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+          <LogoPulse size={48} />
         </div>
       </div>
     );

@@ -31,6 +31,9 @@
   --font-ui:    'Geist', ui-sans-serif, system-ui, -apple-system, Helvetica, Arial, sans-serif;
   --font-mono:  'Geist Mono', ui-monospace, SFMono-Regular, 'Courier New', monospace;
   --font-serif: 'Instrument Serif', 'Times New Roman', serif;
+
+  /* D1 logo dot color — aqua on dark themes, AA-safe aqua on daylight */
+  --logo-dot: var(--accent);
 }
 
 [data-theme="dawn"] {
@@ -49,6 +52,8 @@
 }
 
 [data-theme="daylight"] {
+  /* AA-safe aqua (#0a8a9e) for the origin dot on paper/light backgrounds */
+  --logo-dot: #0a8a9e;
   --bg:           oklch(0.96 0.005 230);
   --bg-2:         oklch(0.99 0.003 230);
   --bg-3:         oklch(0.92 0.008 230);
@@ -82,3 +87,22 @@ html, body {
 }
 
 #root { height: 100vh; }
+
+/* Pulse-ring keyframes for LogoPulse and any CSS-driven loading states.
+ * The LogoPulse React component uses SVG SMIL <animate> instead (broader
+ * compatibility), but this keyframe is available for CSS-only contexts. */
+@keyframes pulse-ring {
+  0%   { opacity: 0.6; r: 4; }
+  100% { opacity: 0;   r: 28; }
+}
+
+/* Utility: visually hidden (accessible) */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border-width: 0;
+}

@@ -89,7 +89,13 @@ Four phases designed to parallelize with V2 Phase 1/2/3 and Global Data Phase 1/
    - New file: `frontend/src/design/ramps.js` with `rampStops()`, `rampDomain()`, `sampleRamp()`. See `WAVE_PERFORMANCE_V2_PLAN.md` Phase 2 task 3 for the reference implementation.
 
 5. **CI lint rule.**
-   - Add to `.eslintrc.js` custom rule OR a shell-script pre-commit hook: reject `#[0-9a-fA-F]{3,8}` in any file matching `frontend/src/**/*Legend.js` or `frontend/src/**/*Layer*.js`. Message: "Hex color literals forbidden — import from frontend/src/design/ramps.js".
+   - Add to `.eslintrc.js` custom rule OR a shell-script pre-commit hook: reject `#[0-9a-fA-F]{3,8}` in any file matching `frontend/src/**/*Legend.js`, `frontend/src/**/*Layer*.js`, or `frontend/src/design/Logo*.{js,jsx}`. Message: "Hex color literals forbidden — import from frontend/src/design/ramps.js".
+
+6. **Extract and ship logo SVG components.** See §3.5.7 A6 for full spec. Creates `frontend/public/logo/*.svg` (11 variants) and `frontend/src/design/Logo.jsx` + `LogoPulse.jsx`.
+
+7. **Generate favicon pack.** See §3.5.7 A7 for full spec. Creates raster favicons 16/32/64/96/180/512, `favicon.ico`, `site.webmanifest`, wires into `public/index.html`.
+
+8. **Branded loading overlay animation.** See §3.5.7 A8 for full spec. Adds `@keyframes pulse-ring` to `design/tokens.css`, implements `LogoPulse` component.
 
 #### Acceptance criteria for Phase A
 
@@ -152,6 +158,7 @@ Four phases designed to parallelize with V2 Phase 1/2/3 and Global Data Phase 1/
 - All 4 top-level screens (Map, Dashboard, Journal, Alerts) render with live data from real endpoints.
 - All 3 themes look correct — no hardcoded colors anywhere in the new component tree.
 - Loading/error/offline/empty states each have a reproducible trigger (dev tools throttle, API 500, `navigator.onLine = false`, fresh user).
+- **Every production loading state uses `<LogoPulse>`** (§3.5.9 checklist). `grep -r "Loading..." frontend/src/` returns zero hits outside comments and tests. `grep -r "className=\"spinner\"" frontend/src/` returns zero hits. Emoji in loading states is zero.
 - No `window.SPOTS`, `window.SESSIONS`, or `window.ALERTS` references remain in production code.
 - Lighthouse Performance score does not regress vs. pre-migration baseline.
 
@@ -180,6 +187,260 @@ These each deserve their own plan file when the time comes:
 
 - `notes/STORM_TRACKER_PLAN.md` — TBD
 - `notes/AI_INSIGHT_PLAN.md` — TBD
+
+---
+
+## 3.5 Brand Identity & Logo System (D1)
+
+The redesign ships alongside a new brand mark — the "D1" logo — defined in `ClaudeDesign/logo/mysurflife-logo-export.html`. This is a complete identity system with marks, lockups, favicons, apparel, and animated loading — not just a decorative icon. It must be adopted as a component, not copy-pasted SVG, so that theme changes propagate automatically.
+
+### 3.5.1 Mark Anatomy
+
+The D1 mark is three nested half-rings (the "swell" radiating outward) above a filled origin dot (the "spot"). Conceptually: a spot marker emitting concentric waves.
+
+```
+                ╭────────────╮      ← outer ring  r=28  stroke=1.2  opacity=0.25
+             ╭──╯            ╰──╮
+          ╭──╯  ╭────────╮      ╰──╮  ← middle ring r=21  stroke=1.6  opacity=0.50
+       ╭──╯    ╭╯        ╰╮        ╰──╮
+     ╭─╯   ╭───╯          ╰───╮       ╰─╮ ← inner ring  r=14  stroke=2.0  opacity=1.00
+             ●                           ← dot at (32, 40) r=4
+```
+
+**Canonical specs** (authoritative values live in `ramps.json` `brand.mark_d1`):
+
+| Property | Value |
+|---|---|
+| viewBox | `0 0 64 64` |
+| Origin (dot center) | `(32, 40)` |
+| Dot radius | `4px` |
+| Dot fill | `var(--accent)` — theme-resolved (aqua on dark, `#0a8a9e` AA-safe on light) |
+| Ring stroke | `var(--fire)` — theme-resolved (orange in Ocean/Dawn/Daylight) |
+| Ring radii | 14 / 21 / 28 (inner → outer; 7px spacing) |
+| Ring strokes | 2.0 / 1.6 / 1.2 |
+| Ring opacity | 1.00 / 0.50 / 0.25 |
+| Ring line-cap | round |
+| Clear space | Equal to dot radius (4px at native; scales proportionally) |
+| Minimum size | 16px |
+| Degraded mode | Below 24px, drop outer two rings — render only inner ring + dot |
+
+### 3.5.2 Variant Pack
+
+From the export pack (`ClaudeDesign/logo/mysurflife-logo-export.html`), 11 canonical variants must ship:
+
+| # | Variant | Use case | File slug |
+|---|---|---|---|
+| 1 | Mark — ink | Dark surfaces, default in Ocean theme | `mark-ink.svg` |
+| 2 | Mark — paper | Light surfaces, default in Daylight theme | `mark-paper.svg` |
+| 3 | Mark — aqua | Aqua background (marketing, tee) | `mark-aqua.svg` |
+| 4 | Mark — fire | Fire background (marketing, tee) | `mark-fire.svg` |
+| 5 | Horizontal — mark + wordmark | Default header lockup | `lockup-horizontal.svg` |
+| 6 | Horizontal — with tagline | Landing page hero, footer | `lockup-horizontal-tagline.svg` |
+| 7 | Horizontal — mono (paper) | Print-ready single-color | `lockup-horizontal-mono.svg` |
+| 8 | Stacked | Square contexts (badges, cards) | `lockup-stacked.svg` |
+| 9 | App icon — rounded rect (ink) | iOS/Android home-screen icon | `app-icon-ink.svg` |
+| 10 | App icon — rounded rect (paper) | Light-mode alt icon | `app-icon-paper.svg` |
+| 11 | Animated loading | MapLoadingOverlay, PanelSkeleton hero | React component `<LogoPulse />` |
+
+All ship as vector components (not raster). See 3.5.5 for favicon raster generation.
+
+### 3.5.3 Typography Lockup Rules
+
+From the export pack spec table:
+
+- **Wordmark:** `Geist` weight 800, tracking −0.04em, lowercase, literal text: `mysurflife`.
+- **Tagline:** `Geist Mono` weight 500, 10px, tracking +0.24em, uppercase, literal text: `AI SURF FORECAST`. Color: `var(--muted)`.
+- **Editorial accents** (session notes, dashboard hero): `Instrument Serif` italic.
+
+Spacing in horizontal lockup: mark width + `0.5 × cap-height` → wordmark starts. Tagline (when present) sits below the wordmark baseline, indented to align with the 'm'.
+
+### 3.5.4 Theme Resolution
+
+The mark uses **two** CSS custom properties resolved at runtime:
+
+```css
+/* Logo reads these; ramps.json `theme_accents` defines per-theme values */
+:root[data-theme="ocean"]    { --accent: oklch(0.82 0.16 195); --fire: oklch(0.75 0.19 45); }
+:root[data-theme="dawn"]     { --accent: oklch(0.80 0.17  45); --fire: oklch(0.72 0.20 25); }
+:root[data-theme="daylight"] { --accent: oklch(0.55 0.18 240); --fire: oklch(0.60 0.22 30); }
+```
+
+The React component (`Logo.jsx`) never hardcodes colors — it uses `stroke="currentColor"` + CSS variables so a theme swap instantly retints the mark without re-render.
+
+### 3.5.5 File Manifest
+
+```
+frontend/
+  public/
+    logo/
+      mark-ink.svg                  # variants 1–4
+      mark-paper.svg
+      mark-aqua.svg
+      mark-fire.svg
+      lockup-horizontal.svg         # variants 5–8
+      lockup-horizontal-tagline.svg
+      lockup-horizontal-mono.svg
+      lockup-stacked.svg
+      app-icon-ink.svg              # variants 9–10
+      app-icon-paper.svg
+      favicon.ico                   # legacy, 16+32 multi-res
+      favicon-16.png
+      favicon-32.png
+      favicon-64.png                # PWA manifest
+      favicon-96.png
+      favicon-180.png               # apple-touch-icon
+      favicon-512.png               # PWA splash
+      site.webmanifest              # PWA manifest referencing icons
+  src/
+    design/
+      Logo.jsx                      # single React component, prop-driven
+      LogoPulse.jsx                 # animated loading variant
+      logo-symbol.js                # <symbol id="mark-d1"> string export (for inlining)
+```
+
+### 3.5.6 Logo React Component API
+
+```jsx
+// frontend/src/design/Logo.jsx
+<Logo
+  variant="mark"               // "mark" | "horizontal" | "horizontal-tagline" | "stacked" | "app-icon"
+  size={32}                    // number (px) — auto-drops outer rings < 24
+  surface="auto"               // "auto" | "dark" | "light" — controls dot color on Daylight theme
+  title="mysurflife"           // <title> for a11y; null = aria-hidden
+  className=""
+/>
+
+// Example: header logo
+<Logo variant="horizontal" size={28} />
+
+// Example: loading state
+<LogoPulse size={96} />
+```
+
+`LogoPulse.jsx` implements the three-ring pulse animation from `brand.pulse_animation` in ramps.json — `animation-duration: 2.4s`, staggered `0 / 800 / 1600ms`, each ring expands from the dot radius outward while fading to 0 opacity. Use `@keyframes pulse-ring` with CSS variable-driven `transform: scale(...)`.
+
+### 3.5.7 Phase A Subtasks (new)
+
+Added to Phase A § "Tasks for Claude Code" — these run alongside the token/font/ramps work:
+
+**A6. Extract and ship logo SVG components.**
+- From `ClaudeDesign/logo/mysurflife-logo-export.html`, extract the 11 variants and write them as standalone SVG files in `frontend/public/logo/`.
+- The `<symbol id="mark-d1">` definition (see `brand.mark_d1.svg_symbol` in ramps.json) is the canonical source — all variants reference it via `<use href="#mark-d1">`.
+- Build `frontend/src/design/Logo.jsx` with the prop API above. The component's internal SVG uses `stroke="currentColor"` for rings and `fill="var(--accent)"` for the dot — no hex literals.
+- Build `frontend/src/design/LogoPulse.jsx` consuming `brand.pulse_animation` params (durations, stagger, radii).
+
+**A7. Generate favicon pack.**
+- Create raster favicons from `mark-ink.svg` at 16/32/64/96/180/512 px using Node build script `frontend/scripts/generate-favicons.js` (use `sharp` — add as devDependency).
+- Output to `frontend/public/logo/favicon-*.png`.
+- Also emit `favicon.ico` (multi-resolution: 16+32+48) via `png-to-ico` package.
+- Generate `site.webmanifest` referencing the 192/512 PNGs; wire into `public/index.html` `<link rel="manifest">`.
+- Update `public/index.html` head:
+  ```html
+  <link rel="icon" type="image/png" sizes="16x16" href="/logo/favicon-16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/logo/favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/logo/favicon-180.png" />
+  <link rel="manifest" href="/logo/site.webmanifest" />
+  <link rel="shortcut icon" href="/logo/favicon.ico" />
+  ```
+- Favicon regeneration runs as `npm run favicons` and is **not** part of the main build — run manually when the mark changes.
+
+**A8. LogoPulse as the universal loading indicator.**
+- Implement `<LogoPulse>` with the full API specified in §3.5.9 (size/compact/continuous/label props). Enforce the 4-size policy (96/48/24/12) via PropTypes warning for non-canonical sizes.
+- Implement `@keyframes pulse-ring` in `design/tokens.css` (add to Phase A task 1). Use CSS variable-driven `transform: scale()` so the component is size-agnostic — one keyframe set handles all 4 recipes.
+- Replace the placeholder loading spinner in `States.jsx` `MapLoadingOverlay` with `<LogoPulse size={96} label="loading your surf" />` centered over a faint `backdrop-filter: blur(6px)` backdrop.
+- **Migrate all 15 existing loading indicators** per §3.5.9 checklist. Phase B owns the per-component migrations (since each one ships alongside its component's port), but the LogoPulse primitive itself ships in Phase A.
+- Expand the Phase A task 5 CI lint to reject emoji+"Loading" strings, `className="spinner"`, `className="loading-spinner"`, `className="ai-pulse"` outside the reference folders.
+
+### 3.5.8 Canonical domain — note for Claude Code
+
+The export pack's browser-chrome preview shows the URL `mysurf.life`. **This is a design flourish only.** The canonical production domain is `mysurflife.com` (confirmed with George, 2026-04-19). Do not register `mysurf.life`, do not reference it in `og:url`, canonical tags, email templates, or anywhere else in the codebase. Treat any `mysurf.life` string in `ClaudeDesign/` as visual filler — replace with `mysurflife.com` during extraction.
+
+### 3.5.9 LogoPulse — unified loading indicator
+
+**Policy:** every loading state in the app uses `<LogoPulse>` or a LogoPulse-variant primitive. No emoji spinners (`🌊 Loading...`), no text-only "Loading..." placeholders, no generic CSS `.spinner` divs, no ad-hoc dot animations. This is a brand-level consistency rule enforced via CI lint in Phase A task 5.
+
+**Why:** the pulse-rings animation *is* the brand — it's literally the logo mark in motion. Reusing it everywhere loading happens reinforces the mark, replaces 5+ one-off indicators with one component, and eliminates the jarring cognitive context switch between emoji/text/CSS spinners scattered across the app.
+
+#### Size recipes
+
+LogoPulse scales to 4 canonical sizes. Each has its own rules for which rings render and how fast they pulse, derived from `brand.mark_d1.drop_outer_rings_below_px` (24) and the pulse timing in `brand.pulse_animation`.
+
+| Size | Rings shown | Pulse duration | Stagger | Use case | Props |
+|--:|---|--:|--:|---|---|
+| 96 | All 3 rings + dot | 2400ms | 0 / 800 / 1600 | Full-page splash, MapLoadingOverlay, route gate | `<LogoPulse size={96} label="loading your surf" />` |
+| 48 | All 3 rings + dot | 1800ms | 0 / 600 / 1200 | Panel/card loading, SpotDetailPanel PanelSkeleton hero, dashboard tile | `<LogoPulse size={48} />` |
+| 24 | Inner + middle only (no outer) + dot | 1200ms | 0 / 400 | Inline list row, table cell, chart block | `<LogoPulse size={24} compact />` |
+| 12 | Inner ring + dot only | 900ms | 0 | Button inline, AI "thinking", eyebrow tag | `<LogoPulse size={12} compact />` (replaces `.ai-pulse`) |
+
+The `compact` prop enforces the ring-drop rule without the caller having to know about the 24px threshold. Below 24, pulse runs faster (because the visual distance is shorter — keeps apparent angular velocity constant).
+
+#### Production migration checklist
+
+Every production loading indicator today is a migration target. Claude Code replaces each one while migrating the surrounding component in Phase B. Table below lists exact current state → target state.
+
+| # | File | Current indicator | Target | Size |
+|--:|---|---|---|--:|
+| 1 | `AuthContext.js` (app boot) | `loading` state with no visual | `<LogoPulse />` full-screen splash behind route tree while auth resolves | 96 |
+| 2 | `MapOverlay.js:241` `loading` | No visual gate today (map renders bare) | `<MapLoadingOverlay>` (States.jsx primitive) wrapping `<LogoPulse />` + "loading your surf" | 96 |
+| 3 | `MapOverlay.js:247` `chartLoading` | `<div>Loading chart…</div>` | `<LogoPulse compact />` inline in chart container | 24 |
+| 4 | `MapOverlay.js:251` `forecastLoading` | text "Loading forecast…" | `<LogoPulse compact />` over forecast bars | 24 |
+| 5 | `MapOverlay.js:275` `waveFramesLoading` | text | `<LogoPulse compact />` in timeline slider knob area | 24 |
+| 6 | `SpotDetail.js:211` | `🌊 Loading...` emoji | `<LogoPulse size={48} label="" />` centered in `.spot-detail-loading` | 48 |
+| 7 | `SpotDetail.js:814` `timelineLoading` | inline state | `<LogoPulse compact />` in timeline panel | 24 |
+| 8 | `SpotDetail.js:1198` `modelLoading` | inline state | `<LogoPulse compact />` in model card | 24 |
+| 9 | `SpotDetail.js:1271` `buoyLoading` | inline state | `<LogoPulse compact />` in buoy card | 24 |
+| 10 | `AISpotAnalysis.js:151` | `<div className="spinner"></div>` + "Loading analysis..." | `<LogoPulse size={48} label="analyzing" />` (editorial italic label, Instrument Serif) | 48 |
+| 11 | `Login.js:146` button | text "Please wait..." | text stays; prepend `<LogoPulse size={12} compact />` inside the button | 12 |
+| 12 | `ManageUsers.js:184` | text "Loading..." in `.loading` div | `<LogoPulse size={48} />` replacing the text | 48 |
+| 13 | `ManagePersonas.js:120` | text "Loading..." | `<LogoPulse size={48} />` | 48 |
+| 14 | `SpotDetailPanel.jsx:124` (design source) `.ai-pulse` | 3-dot CSS pulse | `<LogoPulse size={12} compact continuous />` — `continuous` prop keeps it running while AI response streams in | 12 |
+| 15 | `MobileCompanion.jsx:70` (design source, dev-only) `.ai-pulse` | same | same LogoPulse with `continuous` | 12 |
+
+Phase B commits that migrate each surrounding component must migrate its loading indicator in the same PR — no "hold the old spinner, swap later" commits.
+
+#### `<LogoPulse>` component API (final)
+
+```jsx
+// frontend/src/design/LogoPulse.jsx
+<LogoPulse
+  size={48}                 // 96 | 48 | 24 | 12 (enforced via PropTypes warning on other values)
+  compact={false}           // bool — auto-true when size < 24. Drops outer 1-2 rings.
+  continuous={false}        // bool — if true, animation runs indefinitely (for AI "thinking" states).
+                            //         if false (default), animation runs for 3 cycles then repeats
+                            //         at lower opacity until the parent unmounts — prevents
+                            //         hypnotic over-animation on long loads.
+  label={null}              // string | null — optional text beneath the pulse, Instrument Serif italic
+                            //         color var(--fg-2), only renders at size >= 48
+  aria-label="Loading"      // a11y (default: "Loading" if label is null)
+  className=""
+/>
+```
+
+#### Rules for future contributors
+
+1. **No new spinner components.** Need a loading indicator? Use LogoPulse. Pick the size from the recipe table above.
+2. **Never pair LogoPulse with another spinner** in the same surface. It reads as "double loading" and weakens the brand.
+3. **No emoji in loading states.** Ever. `🌊 Loading...` is forbidden — the mark IS the wave.
+4. **AI thinking states** use `continuous` prop. Loading states don't. The distinction is: AI thinking = waiting for a response of unknown length; loading = fetching a known-bounded resource.
+5. **For pages with multiple loading regions** (e.g., SpotDetail has buoy + model + timeline all fetching in parallel), use `size=24 compact` for each. Do not hoist to a single `size=96` overlay — it hides the granular loading progress from the user.
+
+#### CI lint expansion
+
+Phase A task 5's lint rule expands to also reject:
+
+- Literal strings `"Loading..."`, `"Loading"`, `"Please wait..."` in JSX children (grep pattern: `>\s*Loading\.\.\.?\s*<`)
+- The emoji `🌊` adjacent to the word "Loading"
+- `className="spinner"`, `className="loading-spinner"`, `className="ai-pulse"` (post-migration)
+
+Exception list: permitted in `__tests__/**`, `ClaudeDesign/**` (reference), and in comments.
+
+### 3.5.10 Acceptance for logo integration (additive to Phase A acceptance)
+
+- Toggling `data-theme` on `document.documentElement` instantly retints the logo mark in the header, dashboard, and loading overlay — no remount, no flash.
+- Favicon renders correctly in Chrome, Safari, Firefox browser tabs and as an iOS home-screen icon.
+- At `size=16`, `<Logo variant="mark" />` renders the inner ring + dot only (no visual clipping).
+- All mark SVG files validate as clean SVG 1.1 (no Inkscape/Illustrator metadata, no inline styles that would override theme CSS).
+- No hardcoded `#3EC9D4`, `#E5743D`, or `#0a1218` appear in any `frontend/src/**/*.{js,jsx,css}` file (enforced by the Phase A5 CI lint rule, which expands its scope to include `*Logo*.{js,jsx}`).
 
 ---
 
@@ -368,6 +629,9 @@ Two things from the design that **do not** ship to production:
 - `frontend/src/design/fonts.css`
 - `frontend/src/design/ramps.js`
 - `frontend/src/design/ThemeProvider.js`
+- `frontend/src/design/Logo.jsx` ⭐ D1 mark component
+- `frontend/src/design/LogoPulse.jsx` ⭐ animated loading variant
+- `frontend/src/design/logo-symbol.js` ⭐ `<symbol id="mark-d1">` string
 - `frontend/src/config/ramps.json` (symlink to `backend/config/ramps.json`)
 - `frontend/src/Shell.js`
 - `frontend/src/map/MapContainer.js` (MapLibre)
@@ -381,10 +645,20 @@ Two things from the design that **do not** ship to production:
 - `frontend/src/states/MapLoadingOverlay.js`
 - `frontend/src/states/PanelSkeleton.js`
 - `frontend/src/states/EmptyFavorites.js`
+- `frontend/scripts/generate-favicons.js` ⭐ Node build script for raster favicons
 - `frontend/public/fonts/Geist[wght].woff2`
 - `frontend/public/fonts/GeistMono[wght].woff2`
 - `frontend/public/fonts/InstrumentSerif-Regular.woff2`
 - `frontend/public/fonts/InstrumentSerif-Italic.woff2`
+- `frontend/public/logo/mark-{ink,paper,aqua,fire}.svg` ⭐ 4 mark variants
+- `frontend/public/logo/lockup-horizontal.svg`
+- `frontend/public/logo/lockup-horizontal-tagline.svg`
+- `frontend/public/logo/lockup-horizontal-mono.svg`
+- `frontend/public/logo/lockup-stacked.svg`
+- `frontend/public/logo/app-icon-{ink,paper}.svg`
+- `frontend/public/logo/favicon-{16,32,64,96,180,512}.png` ⭐ raster favicons
+- `frontend/public/logo/favicon.ico`
+- `frontend/public/logo/site.webmanifest`
 
 ### New files (backend)
 - `backend/config/ramps.json` ✅ already created
@@ -395,9 +669,10 @@ Two things from the design that **do not** ship to production:
 - `frontend/package.json` — remove `react-leaflet`, `leaflet`; add `maplibre-gl`, `react-map-gl`
 - `frontend/src/App.js` — switch to Shell + routing
 - `frontend/src/index.js` — import tokens.css + fonts.css
-- `frontend/public/index.html` — add font preload tags
+- `frontend/public/index.html` — add font preload tags; add favicon, apple-touch-icon, manifest `<link>` tags
+- `frontend/package.json` — add `sharp` and `png-to-ico` as devDependencies (for favicon generation script); add `"favicons": "node scripts/generate-favicons.js"` to `scripts`
 - `backend/main.py` — add `rating_label` field, `/api/forecast-heatmap`, `/api/dashboard/{user_id}`
-- `CLAUDE.md` — update map library section (Leaflet → MapLibre), add design token section
+- `CLAUDE.md` — update map library section (Leaflet → MapLibre), add design token section, add Brand Assets section
 
 ### Deleted files
 - `ClaudeDesign/` stays in repo as reference bundle (don't delete — it's the handoff artifact).
@@ -461,12 +736,13 @@ When starting Phase B:
 Run `/review` and `/design-review` after each phase.
 
 Commit discipline:
-- Phase A: ~5 commits (tokens, fonts, theme provider, ramps symlink, CI lint).
+- Phase A: ~8 commits (tokens, fonts, theme provider, ramps symlink, CI lint, logo SVG variants, Logo.jsx + LogoPulse.jsx, favicon pack + MapLoadingOverlay).
 - Phase B: 15–25 commits, one per component + MapLibre migration as 3–5 commits.
 - Phase D: TBD when that phase kicks off.
 
 ---
 
 **Created:** 2026-04-19
+**Last updated:** 2026-04-19 — added §3.5 Brand Identity & Logo System (D1 mark, variants, Phase A subtasks A6–A8).
 **Supersedes:** nothing — new plan
-**Related:** [`WAVE_PERFORMANCE_V2_PLAN.md`](./WAVE_PERFORMANCE_V2_PLAN.md) (overlays), [`GLOBAL_DATA_EXPANSION_PLAN.md`](./GLOBAL_DATA_EXPANSION_PLAN.md) (data), [`SUPABASE_SESSIONS_SCHEMA.md`](./SUPABASE_SESSIONS_SCHEMA.md) (sessions), `ClaudeDesign/README.md` (design source bundle)
+**Related:** [`WAVE_PERFORMANCE_V2_PLAN.md`](./WAVE_PERFORMANCE_V2_PLAN.md) (overlays), [`GLOBAL_DATA_EXPANSION_PLAN.md`](./GLOBAL_DATA_EXPANSION_PLAN.md) (data), [`SUPABASE_SESSIONS_SCHEMA.md`](./SUPABASE_SESSIONS_SCHEMA.md) (sessions), `ClaudeDesign/README.md` (design source bundle), `ClaudeDesign/logo/mysurflife-logo-export.html` (D1 export pack)

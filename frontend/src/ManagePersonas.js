@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { getAuthHeaders } from './supabaseClient';
+import LogoPulse from './design/LogoPulse';
 import './ManagePersonas.css';
 
 const ManagePersonas = () => {
@@ -116,8 +117,8 @@ const ManagePersonas = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="manage-personas-container">
-        <div className="loading">Loading...</div>
+      <div className="manage-personas-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
+        <LogoPulse size={56} />
       </div>
     );
   }

@@ -204,6 +204,131 @@ All visualization layers use **offscreen canvas pattern** for performance:
 - Alternative wave data source for ECMWF forecasts
 - Infrastructure complete, URLs being verified
 
+**`backend/config/ramps.json`** (design system bridge):
+- Source of truth for all color in the app — three top-level keys:
+  - `ramps` — theme-neutral data ramps (wind_speed, wave_height, wave_period) baked into overlay PNG tiles and read by frontend legends
+  - `theme_accents` — per-theme chrome colors for Ocean / Dawn / Daylight themes, consumed at runtime via CSS custom properties
+  - `brand` — universal D1 logo brand tokens (paper/ink, wordmark/tagline specs, mark anatomy, pulse animation)
+- Symlinked from `frontend/src/config/ramps.json` for build-time sync with frontend
+- **Rule:** No hex color literals in `frontend/src/**/*Legend.js`, `*Layer*.js`, or `design/Logo*.{js,jsx}`. Always import from `frontend/src/design/ramps.js`. CI-enforced.
+- See [`notes/DESIGN_V2_INTEGRATION_PLAN.md`](./notes/DESIGN_V2_INTEGRATION_PLAN.md) §3.5 for the logo spec and `notes/WAVE_PERFORMANCE_V2_PLAN.md` Phase 2 for the tile ramp consumer.
+
+## Brand Assets (D1 Logo System)
+
+The "D1" logo is a complete brand identity system — mark, lockups, favicons, apparel, animated loading. Full export pack in `ClaudeDesign/logo/mysurflife-logo-export.html`.
+
+### Logo component — always use, never inline SVG
+
+The D1 mark must always be rendered via the React component, never by copy-pasting SVG paths. This guarantees theme-aware retinting at runtime.
+
+```jsx
+import { Logo, LogoPulse } from '@/design/Logo';
+
+// Header
+<Logo variant="horizontal" size={28} />
+
+// Favicon-scale mark (inner ring + dot only)
+<Logo variant="mark" size={16} />
+
+// Loading state
+<LogoPulse size={96} />
+```
+
+**Valid `variant` values:** `mark | horizontal | horizontal-tagline | stacked | app-icon`
+**Valid `surface` values:** `auto (default) | dark | light` — controls dot color on Daylight theme where accent drops to `#0a8a9e` for AA contrast.
+
+### Mark anatomy (do not improvise — use ramps.json `brand.mark_d1`)
+
+- viewBox: `0 0 64 64`
+- Dot at (32, 40), radius 4, fill `var(--accent)`
+- Three half-rings radiating upward from the dot; stroke `var(--fire)`:
+  - Inner: r=14, stroke-width=2.0, opacity=1.00
+  - Middle: r=21, stroke-width=1.6, opacity=0.50
+  - Outer: r=28, stroke-width=1.2, opacity=0.25
+- Below 24px, drop the outer two rings (keep only inner ring + dot).
+- Minimum size: 16px.
+- Clear space: equal to dot radius (4px at native).
+
+### Brand color palette
+
+| Token | Value | Role |
+|---|---|---|
+| `--accent` (Ocean) | `oklch(0.82 0.16 195)` ≈ `#3EC9D4` | Logo dot — aqua |
+| `--accent` (Daylight, logo only) | `#0a8a9e` | AA-safe aqua on paper background |
+| `--fire` (Ocean) | `oklch(0.75 0.19 45)` ≈ `#E5743D` | Logo rings — sunset orange |
+| `--paper` | `#f4f1ea` | Light surface background (universal) |
+| `--ink` | `#0a1218` | Dark surface background (universal) |
+
+Per-theme accent/fire values live in `backend/config/ramps.json` `theme_accents`. Paper/ink are universal — same in all 3 themes.
+
+### Typography (from `ramps.json brand`)
+
+- **Wordmark:** `Geist` weight 800, tracking `-0.04em`, lowercase — literal text `mysurflife`
+- **Tagline:** `Geist Mono` weight 500, 10px, tracking `+0.24em`, uppercase — literal text `AI SURF FORECAST`
+- **Editorial accents:** `Instrument Serif` italic (session notes, hero headlines)
+
+All three are OFL-1.1 licensed, self-hosted in `frontend/public/fonts/`. Do not load from Google Fonts CDN in production.
+
+### File locations
+
+- SVG mark variants: `frontend/public/logo/{mark,lockup,app-icon}-*.svg` (11 files)
+- Raster favicons: `frontend/public/logo/favicon-{16,32,64,96,180,512}.png`
+- Legacy icon: `frontend/public/logo/favicon.ico`
+- PWA manifest: `frontend/public/logo/site.webmanifest`
+- React components: `frontend/src/design/Logo.jsx`, `LogoPulse.jsx`
+- Favicon build script: `frontend/scripts/generate-favicons.js` (run `npm run favicons` after mark changes)
+- Design reference: `ClaudeDesign/logo/mysurflife-logo-export.html`
+- Spec source of truth: `backend/config/ramps.json` `brand.*`
+
+### When adding a UI surface that needs the logo
+
+1. Pick a variant from the 5 canonical ones — do not create a new lockup.
+2. Use the `<Logo>` component. Never hardcode SVG, never hardcode hex.
+3. For loading/splash states, use `<LogoPulse>` (see policy below).
+4. For OG social cards or email templates (where CSS custom properties don't resolve), use the pre-rendered PNG from `frontend/public/logo/` at the appropriate size.
+
+### LogoPulse — universal loading indicator
+
+**Every loading state in the app uses `<LogoPulse>`.** No emoji spinners, no `.spinner` divs, no text-only "Loading..." placeholders, no ad-hoc dot animations. The pulse-rings animation IS the brand — reusing it everywhere reinforces the mark and replaces 5+ one-off indicators with one component. This is enforced via CI lint.
+
+```jsx
+import { LogoPulse } from '@/design/Logo';
+
+// Full-page splash, MapLoadingOverlay, route gate
+<LogoPulse size={96} label="loading your surf" />
+
+// Panel/card loading (PanelSkeleton hero, dashboard tile, AI analysis)
+<LogoPulse size={48} />
+
+// Inline (chart cell, list row, table cell)
+<LogoPulse size={24} compact />
+
+// Button inline, AI "thinking", eyebrow tag (replaces .ai-pulse)
+<LogoPulse size={12} compact />
+
+// AI streaming response — runs indefinitely while streaming
+<LogoPulse size={12} compact continuous />
+```
+
+**Size recipes:**
+
+| Size | Rings | Pulse | Stagger | Where |
+|--:|---|--:|--:|---|
+| 96 | 3 + dot | 2400ms | 0 / 800 / 1600 | Full-page splash |
+| 48 | 3 + dot | 1800ms | 0 / 600 / 1200 | Panel / card |
+| 24 | inner+middle + dot | 1200ms | 0 / 400 | Inline |
+| 12 | inner + dot | 900ms | 0 | Button / AI thinking |
+
+**Rules:**
+
+1. No new spinner components. Need a loading indicator? Use LogoPulse. Pick the size from the recipe table.
+2. Never pair LogoPulse with another spinner in the same surface — reads as "double loading".
+3. No emoji in loading states. Ever. `🌊 Loading...` is forbidden — the mark IS the wave.
+4. AI thinking states use `continuous`. Loading states don't.
+5. For pages with multiple parallel loading regions (e.g., SpotDetail with buoy + model + timeline), use `size=24 compact` for each. Don't hoist to a single `size=96` overlay — it hides granular progress.
+
+See [`notes/DESIGN_V2_INTEGRATION_PLAN.md`](./notes/DESIGN_V2_INTEGRATION_PLAN.md) §3.5.9 for the full migration checklist mapping every existing loading indicator to its LogoPulse target.
+
 ## Buoy Coverage
 
 **18 California Stations**:

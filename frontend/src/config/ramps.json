@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "generated_by": "design-v2-integration",
-  "description": "Shared color configuration for MySurfLife. Two top-level keys: `ramps` (theme-neutral data-driven ramps baked into PNG tiles and read by frontend legends) and `theme_accents` (per-theme chrome colors for the three Claude Design themes, consumed at runtime by particle shaders and markers). See notes/DESIGN_V2_INTEGRATION_PLAN.md for the full spec.",
+  "description": "Shared color configuration for MySurfLife. Three top-level keys: `ramps` (theme-neutral data-driven ramps baked into PNG tiles and read by frontend legends), `theme_accents` (per-theme chrome colors for the three Claude Design themes, consumed at runtime by particle shaders and markers), and `brand` (universal brand tokens from the D1 logo — paper/ink — shared across all themes). See notes/DESIGN_V2_INTEGRATION_PLAN.md §3.5 for the logo spec and full schema.",
   "ramps": {
     "wind_speed": {
       "domain": [0, 50],
@@ -48,11 +48,11 @@
   },
   "theme_accents": {
     "ocean": {
-      "description": "Default dark theme (Dark Ocean). Aqua/cyan accent with sunset-orange fire. Used for particle colors, marker rings, rating dots, tide arrows, storm tracker iconography.",
-      "accent":   { "oklch": "0.82 0.16 195", "rgb": [ 75, 220, 220] },
-      "accent_2": { "oklch": "0.72 0.18 210", "rgb": [ 60, 180, 220] },
-      "fire":     { "oklch": "0.75 0.19 45",  "rgb": [255, 150,  70] },
-      "good":     { "oklch": "0.80 0.15 150", "rgb": [120, 220, 160] }
+      "description": "Default dark theme (Dark Ocean). Matches the D1 logo brand palette exactly: aqua (swell origin dot) as accent, sunset orange (radiating half-rings) as fire. Used for particle colors, marker rings, rating dots, tide arrows, logo dot+rings in the header, storm tracker iconography.",
+      "accent":   { "oklch": "0.82 0.16 195", "rgb": [ 62, 201, 212], "hex": "#3EC9D4", "brand_role": "logo_dot" },
+      "accent_2": { "oklch": "0.72 0.18 210", "rgb": [ 45, 170, 200], "hex": "#2DAAC8", "brand_role": "logo_dot_shadow" },
+      "fire":     { "oklch": "0.75 0.19 45",  "rgb": [229, 116,  61], "hex": "#E5743D", "brand_role": "logo_rings" },
+      "good":     { "oklch": "0.80 0.15 150", "rgb": [120, 220, 160], "hex": "#78DCA0" }
     },
     "dawn": {
       "description": "Dawn Patrol theme. Warm coral/sunrise palette for early-morning surf sessions. Fire token is nearly identical to accent to reinforce the warm-sky feeling.",
@@ -62,11 +62,106 @@
       "good":     { "oklch": "0.78 0.16 95",  "rgb": [220, 200, 110] }
     },
     "daylight": {
-      "description": "Bright satellite-style theme. High-contrast deep blue accent for visibility on light backgrounds. Used when ambient light is high (daytime mobile use, outdoor viewing).",
-      "accent":   { "oklch": "0.55 0.18 240", "rgb": [ 60,  95, 200] },
-      "accent_2": { "oklch": "0.50 0.20 250", "rgb": [ 45,  70, 210] },
-      "fire":     { "oklch": "0.60 0.22 30",  "rgb": [215,  95,  50] },
-      "good":     { "oklch": "0.60 0.18 150", "rgb": [ 70, 170, 100] }
+      "description": "Bright satellite-style theme. High-contrast deep blue accent for visibility on light backgrounds. Used when ambient light is high (daytime mobile use, outdoor viewing). Logo uses `#0a8a9e` (aqua-on-light AA-safe) for the dot to maintain ≥ 4.5:1 contrast against the paper background.",
+      "accent":   { "oklch": "0.55 0.18 240", "rgb": [ 60,  95, 200], "hex": "#3C5FC8" },
+      "accent_2": { "oklch": "0.50 0.20 250", "rgb": [ 45,  70, 210], "hex": "#2D46D2" },
+      "fire":     { "oklch": "0.60 0.22 30",  "rgb": [215,  95,  50], "hex": "#D75F32" },
+      "good":     { "oklch": "0.60 0.18 150", "rgb": [ 70, 170, 100], "hex": "#46AA64" },
+      "logo_dot_aa":  { "rgb": [10, 138, 158], "hex": "#0a8a9e", "description": "AA-safe aqua for the D1 origin dot when rendered on the paper/light background. Only used in the Daylight theme and in `paper` mark variant." }
+    }
+  },
+  "brand": {
+    "description": "Universal brand tokens from the D1 logo export pack. Theme-neutral — these values are the same in Ocean, Dawn, and Daylight. Used for the wordmark, tagline, apparel, favicons, and paper/ink surface colors that should never shift with theme.",
+    "paper":    { "rgb": [244, 241, 234], "hex": "#f4f1ea", "role": "Background for light surfaces, apparel tees, paper-variant favicon, 'Paper' mark cell in export pack." },
+    "ink":      { "rgb": [ 10,  18,  24], "hex": "#0a1218", "role": "Foreground for light surfaces, apparel text on paper tee, 'Ink' mark on paper, app icon rounded-rect background." },
+    "wordmark": {
+      "font": "Geist",
+      "weight": 800,
+      "tracking_em": -0.04,
+      "case": "lowercase",
+      "text": "mysurflife"
+    },
+    "tagline": {
+      "font": "Geist Mono",
+      "weight": 500,
+      "size_px": 10,
+      "tracking_em": 0.24,
+      "case": "uppercase",
+      "text": "AI SURF FORECAST"
+    },
+    "editorial": {
+      "font": "Instrument Serif",
+      "style": "italic",
+      "role": "Session notes, dashboard hero headline, editorial pull-quotes."
+    },
+    "mark_d1": {
+      "description": "The D1 logo mark: three nested half-rings (orange swell, radiating upward) above an aqua origin dot. 64×64 viewBox. All ring coordinates are relative to the dot at (32, 40). Half-rings sweep from -radius to +radius along the x-axis.",
+      "viewBox": "0 0 64 64",
+      "origin": [32, 40],
+      "dot_radius": 4,
+      "dot_fill": "accent (theme-resolved)",
+      "rings": [
+        { "radius": 14, "stroke_width": 2.0, "opacity": 1.00, "label": "inner"  },
+        { "radius": 21, "stroke_width": 1.6, "opacity": 0.50, "label": "middle" },
+        { "radius": 28, "stroke_width": 1.2, "opacity": 0.25, "label": "outer"  }
+      ],
+      "ring_stroke": "fire (theme-resolved)",
+      "min_size_px": 16,
+      "drop_outer_rings_below_px": 24,
+      "clear_space_rule": "Equal to dot_radius (4px at native size — scales proportionally).",
+      "svg_symbol": "<symbol id=\"mark-d1\" viewBox=\"0 0 64 64\"><g transform=\"translate(32 40)\" stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\"><path d=\"M-14 0 A14 14 0 0 1 14 0\" stroke-width=\"2\"/><path d=\"M-21 0 A21 21 0 0 1 21 0\" stroke-width=\"1.6\" opacity=\"0.5\"/><path d=\"M-28 0 A28 28 0 0 1 28 0\" stroke-width=\"1.2\" opacity=\"0.25\"/></g><circle cx=\"32\" cy=\"40\" r=\"4\" fill=\"var(--dot, currentColor)\"/></symbol>"
+    },
+    "pulse_animation": {
+      "description": "Branded loading animation (`<LogoPulse>` component). The pulse-rings animation is the universal loading indicator across the entire app — all spinners, skeletons, and 'Loading…' placeholders migrate to this. Size recipes drop outer rings and accelerate pulse timing at smaller sizes to keep apparent angular velocity constant. See notes/DESIGN_V2_INTEGRATION_PLAN.md §3.5.9 for the migration checklist and usage policy.",
+      "opacity_start": 0.6,
+      "opacity_end": 0.0,
+      "easing": "cubic-bezier(0.22, 1, 0.36, 1)",
+      "size_recipes": {
+        "96": {
+          "description": "Full-page splash, MapLoadingOverlay, route gate. Label rendered in Instrument Serif italic beneath.",
+          "duration_ms": 2400,
+          "stagger_ms": 800,
+          "rings": [
+            { "delay_ms":    0, "radius_start": 4, "radius_end": 14 },
+            { "delay_ms":  800, "radius_start": 4, "radius_end": 21 },
+            { "delay_ms": 1600, "radius_start": 4, "radius_end": 28 }
+          ],
+          "label_allowed": true
+        },
+        "48": {
+          "description": "Panel / card loading — PanelSkeleton hero, dashboard tile, AI analysis loading.",
+          "duration_ms": 1800,
+          "stagger_ms": 600,
+          "rings": [
+            { "delay_ms":    0, "radius_start": 4, "radius_end": 14 },
+            { "delay_ms":  600, "radius_start": 4, "radius_end": 21 },
+            { "delay_ms": 1200, "radius_start": 4, "radius_end": 28 }
+          ],
+          "label_allowed": true
+        },
+        "24": {
+          "description": "Inline — chart cell, list row, table cell, timeline slider knob. Compact (drops outer ring).",
+          "duration_ms": 1200,
+          "stagger_ms": 400,
+          "compact": true,
+          "rings": [
+            { "delay_ms":   0, "radius_start": 4, "radius_end": 14 },
+            { "delay_ms": 400, "radius_start": 4, "radius_end": 21 }
+          ],
+          "label_allowed": false
+        },
+        "12": {
+          "description": "Button inline, AI 'thinking' indicator (replaces legacy .ai-pulse), eyebrow tag. Compact (drops outer two rings — inner only).",
+          "duration_ms": 900,
+          "stagger_ms": 0,
+          "compact": true,
+          "rings": [
+            { "delay_ms": 0, "radius_start": 4, "radius_end": 14 }
+          ],
+          "label_allowed": false,
+          "supports_continuous": true
+        }
+      }
     }
   },
   "consumers": {
