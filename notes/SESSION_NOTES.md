@@ -1,5 +1,93 @@
 # 🌊 MySurfLife - Session Notes
 
+---
+
+## 📍 Current Status (Apr 21, 2026)
+
+### Session Summary — Backend Hardening + Module Split
+
+Eight backend tasks completed across two context sessions. The codebase is now structurally clean: `main.py` went from a 4550-line monolith to ~4260 lines (with real logic extracted into separate modules), the wind model roster has expanded to four sources, and the Copilot has new data hooks for storm tracking.
+
+### Tasks Completed
+
+**#16 — Remove duplicate AI route trees**
+Audited `main.py` and removed the dead old `/api/ai/*` route tree that had been superseded by the persona-based system. No breaking change — only the stale routes were removed.
+
+**#13 — Parallelize forecast-timeline endpoint**
+`get_surf_spot_forecast_timeline()` previously fired 60 sequential OPeNDAP calls (one per hour). Rewrote with `asyncio.gather()` + two helpers (`_closest_vector()`, `_fetch_timeline_hour()`). Latency dropped from ~60s to ~2s. Identical response shape — no API contract change.
+
+**#15 — Point-lookup for /conditions WW3 call**
+`get_surf_spot_conditions()` was calling the full wave overlay endpoint (bounding box, thousands of points) just to get the wave height at one lat/lon. Replaced with `_get_wave_overlay_impl()` + `_closest_vector()` — fetches the same WW3 grid but extracts a single point rather than returning the whole field to the caller.
+
+**#21 — Invite-only: remove signup from frontend**
+Stripped the signup tab and `supabase.auth.signUp` branch from `Login.js`. App now shows sign-in only with an "Access is by invitation only" note. Supabase dashboard left untouched — no need to lock it there since users have no direct access path.
+
+**#17 — Split main.py into modules**
+Extracted three logical slices into `backend/routes/`:
+- `routes/auth.py` — `GET /api/auth/check-admin`
+- `routes/admin.py` — AI personas CRUD + user management (list, invite, role, delete)
+- `routes/sessions.py` — `POST /api/sessions`, `GET /api/sessions`
+
+All three registered on `app` via `include_router()`. Route files import directly from `database.py` / `auth.py` — never from `main.py` — to avoid circular imports.
+
+Also moved `json_sanitize`, `calculate_surf_height`, and `_times_utc_for_run` into `backend/utils.py` so they're importable by route modules without pulling in all of main.py.
+
+**#14 — Background buoy refresh + Open-Meteo fallback**
+Created `backend/jobs/buoy_refresh.py`: a background loop (20s startup delay, 5-min interval) that pre-warms the buoy cache via `asyncio.gather`. Started via `asyncio.create_task()` in the `startup` lifespan handler.
+
+Added `fetch_wind_from_open_meteo(lat, lon)` as a third-tier wind fallback in `fetch_buoy_data()`: NDBC buoy → NOS CO-OPS station → Open-Meteo free API. Open-Meteo requires no API key and covers any global lat/lon.
+
+**#12 — WW3 OPeNDAP → GRIB filter**
+Added `fetch_real_noaa_ww3_grib()` (~170 lines) that hits the NOMADS GRIB2 filter service instead of OPeNDAP. Faster and more reliable under high load. `_get_wave_overlay_impl()` tries GRIB first, falls back to OPeNDAP on failure. Updated `ww3_grid_registry.json` with `grib_filter_script`, `grib_file_prefix`, and `grib_dir_pattern` for all three domains (global, epacif, atlocn).
+
+**#18 — ECMWF Open Data wind + High Seas bulletin parser**
+Two new backend modules:
+
+`backend/ecmwf_wind.py` — fetches ECMWF IFS 10m wind (U10/V10) via the free `ecmwf-opendata` Python package (no API key required). 0.25° resolution, 00z/12z runs, 0–360h forecast. Synchronous download wrapped in `run_in_executor` with 60s timeout. Parses with cfgrib/xarray into the same vector dict format as GFS. Graceful `ImportError` — if the package isn't installed, returns `None` and the wind overlay falls back to GFS silently.
+
+`backend/high_seas.py` — fetches and parses NOAA NWS High Seas Forecasts from the NWS Products API (no key required) for North Pacific, South Pacific, and North Atlantic. Extracts structured storm/system entries: type, lat/lon, pressure_mb, wind_kts, sea_height_ft, movement. 3-hour cache. Registers `GET /api/high-seas/{ocean}`. Intended as the data source for a future `scan_active_storms` Copilot tool.
+
+ECMWF wired into `_do_fetch_wind_overlay()` as `model="ecmwf"` (GFS fallback if ECMWF download fails). Added to `GET /api/overlays/models`. `ecmwf-opendata>=0.3.3` added to `requirements.txt`.
+
+### New Files
+
+| File | Purpose |
+|---|---|
+| `backend/utils.py` | `json_sanitize`, `calculate_surf_height`, `_times_utc_for_run` |
+| `backend/routes/__init__.py` | Package marker |
+| `backend/routes/auth.py` | `GET /api/auth/check-admin` |
+| `backend/routes/admin.py` | Persona + user management endpoints |
+| `backend/routes/sessions.py` | Session log endpoints |
+| `backend/jobs/__init__.py` | Package marker |
+| `backend/jobs/buoy_refresh.py` | Background buoy cache-warming loop |
+| `backend/ecmwf_wind.py` | ECMWF IFS wind fetcher |
+| `backend/high_seas.py` | NOAA High Seas bulletin parser + `/api/high-seas/{ocean}` |
+
+### API Surface (new endpoints)
+
+```
+GET  /api/high-seas/{ocean}          north-pacific | south-pacific | north-atlantic
+GET  /api/swell/arrivals             (from swell_physics — wired in prior session)
+GET  /api/swell/decay
+GET  /api/swell/distance
+GET  /api/swell/category             (from swell_tables — wired in prior session)
+GET  /api/swell/sea-height
+GET  /api/tides/timeline             (from tides — wired in prior session)
+GET  /api/tides/hilo
+```
+
+Wind models now: `gfs | hrrr | nam | ecmwf`
+
+### What's Next
+
+- Wire `calculate_swell_arrival` Copilot tool in `backend/copilot.py` (see `ClaudeSuggestions /SWELL_ARRIVAL_PHYSICS.md`)
+- Build `scan_active_storms` tool that reads High Seas bulletin output + WW3 to auto-surface storm positions for Copilot
+- Add `swell_arrival` artifact renderer in `Copilot.jsx`
+- Merge tide data into `conditions_timeline` artifact (see `ClaudeSuggestions /TIDES_ENDPOINT.md` §3)
+- Continue Design V2 phases B → C → D (see `notes/DESIGN_V2_INTEGRATION_PLAN.md`)
+
+---
+
 ## 📍 Current Status (Oct 21, 2025)
 
 ### ✅ Completed Features
