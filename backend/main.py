@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, List, Tuple, Any
 from netCDF4 import Dataset
 import numpy as np
+import pickle
 import tempfile
 import os
 import time
@@ -100,6 +101,21 @@ except ImportError as e:
     print(f"⚠️  Failed to import buoy_registry: {e}")
     get_all_buoys = None
     get_buoy_by_id = None
+
+
+def get_all_spots() -> Optional[List[Dict]]:
+    """Return list of {slug, latitude, longitude} for all published spots."""
+    if not supabase:
+        return None
+    try:
+        result = supabase.table("spots") \
+            .select("slug, latitude, longitude") \
+            .eq("is_published", True) \
+            .execute()
+        return result.data or []
+    except Exception as e:
+        print(f"⚠️  get_all_spots failed: {e}")
+        return None
 
 # Disk cache directory for raw responses (optional)
 DISK_CACHE_DIR = Path(__file__).parent / "cache" / "ww3"
@@ -265,6 +281,9 @@ async def startup():
     )
     from jobs.buoy_refresh import run_buoy_refresh_loop
     asyncio.create_task(run_buoy_refresh_loop(fetch_buoy_data, get_all_buoys))
+
+    from jobs.fetch_forecasts import run_forecast_prebake_loop
+    asyncio.create_task(run_forecast_prebake_loop(get_all_spots, _redis_client))
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -3544,7 +3563,7 @@ async def _fetch_timeline_hour(
 async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
     """
     Get forecast timeline for a spot showing wave and wind conditions over time.
-    Returns data points every 6 hours from 0 to {hours}, fetched in parallel.
+    Reads from pre-baked Redis cache when available; falls back to live fetch.
     """
     if not supabase:
         return {"error": "Database not configured"}
@@ -3559,10 +3578,36 @@ async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
 
         spot = spot_result.data
         lat, lon = spot['latitude'], spot['longitude']
-        bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
 
+        # ── Check pre-baked Redis cache ────────────────────────────────────
+        if _redis_client:
+            try:
+                from jobs.fetch_forecasts import latest_gfs_run
+                run_date, run_cycle = latest_gfs_run()
+                redis_key = f"forecast:{slug}:{run_date}:{run_cycle}".encode()
+                cached = _redis_client.get(redis_key)
+                if cached:
+                    timeline = pickle.loads(cached)
+                    # Trim to requested hours
+                    timeline = [pt for pt in timeline if pt.get("hour", 0) <= hours]
+                    print(f"📦 Pre-baked cache hit: {slug} ({run_date} {run_cycle}z, {len(timeline)} pts)")
+                    return json_sanitize({
+                        "spot_name":      spot["name"],
+                        "spot_slug":      slug,
+                        "latitude":       lat,
+                        "longitude":      lon,
+                        "forecast_hours": [pt["hour"] for pt in timeline],
+                        "timeline":       timeline,
+                        "total_points":   len(timeline),
+                        "source":         "prebaked",
+                    })
+            except Exception as e:
+                print(f"⚠️  Pre-baked cache read failed for {slug}: {e}")
+
+        # ── Live fetch fallback ────────────────────────────────────────────
+        bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
         forecast_hours = list(range(0, min(hours + 1, 181), 6))
-        print(f"🔮 Fetching forecast timeline for {slug}: {len(forecast_hours)} points (parallel)")
+        print(f"🔮 Live fetch forecast timeline for {slug}: {len(forecast_hours)} points (parallel)")
 
         raw = await asyncio.gather(
             *[_fetch_timeline_hour(h, bounds, lat, lon) for h in forecast_hours],
@@ -3572,13 +3617,14 @@ async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
         timeline = [r for r in raw if isinstance(r, dict)]
 
         return json_sanitize({
-            'spot_name': spot['name'],
-            'spot_slug': slug,
-            'latitude': lat,
-            'longitude': lon,
-            'forecast_hours': forecast_hours,
-            'timeline': timeline,
-            'total_points': len(timeline),
+            "spot_name":      spot["name"],
+            "spot_slug":      slug,
+            "latitude":       lat,
+            "longitude":      lon,
+            "forecast_hours": forecast_hours,
+            "timeline":       timeline,
+            "total_points":   len(timeline),
+            "source":         "live",
         })
 
     except Exception as e:
