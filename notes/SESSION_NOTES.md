@@ -2,7 +2,56 @@
 
 ---
 
-## 📍 Current Status (Apr 21, 2026)
+## 📍 Current Status (Apr 21, 2026) — Session 2
+
+### Session Summary — Surf Scoring Fixes + Schema Validation
+
+Short follow-up session. Completed the three remaining priorities from the previous session.
+
+**Priority 3 — Surf scoring: swell table formula + size_perception_bias**
+
+Fixed a circular import that had been lurking since the module split: `surf_scoring.py` was importing `calculate_surf_height` from `main` instead of `utils`. Changed to `from utils import calculate_surf_height`.
+
+Added `size_bias: float = 1.0` parameter to `calculate_spot_score()` and threaded it through to `calculate_surf_height()`. The bias is now applied at the `surf_height_ft` output field, so authenticated users with a `user_spot_profiles` record get a personalized estimate (e.g. Blacks Beach canyon bias of 1.35 adds ~35% to the face height output).
+
+Wired the lookup into `get_surf_spot_conditions()` in `main.py`:
+- Added `optional_auth` as a FastAPI dependency (already available from prior auth work)
+- If user is authenticated, queries `user_spot_profiles` for `(user_id, spot_id)` → pulls `size_perception_bias`
+- Defaults to 1.0 if no profile (< 3 sessions logged) or no auth
+- `size_bias` included in the conditions response so the frontend can show it
+
+**Priority 4 — Sessions schema validation**
+
+Confirmed all tables are already live in Supabase:
+- `public.sessions` ✅
+- `public.user_favorites` ✅
+- `public.user_spot_profiles` ✅ (including `size_perception_bias` column)
+- `session_deltas` view ✅
+- `session-photos` storage bucket ✅
+
+Migration `backend/migrations/006_sessions_core.sql` had been applied in a prior session. No action needed.
+
+**Priority 5 — Homepage**
+
+Homepage was already fully implemented in `frontend/src/screens/Home.jsx` (663 lines) and `Home.css` (653 lines), and already wired in `App.js` as the unauthenticated root route (`/` → `<Home />` when logged out, `<Shell />` when logged in). Production build compiles clean at 308kB gzip.
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `backend/surf_scoring.py` | Fixed `from main` → `from utils` import; added `size_bias` param to `calculate_spot_score()` |
+| `backend/main.py` | `get_surf_spot_conditions()`: added `optional_auth` dep; size_perception_bias lookup; passes `size_bias` to scoring |
+
+### What's Next
+
+- Build `scan_active_storms` Copilot tool (reads `high_seas.py` output + WW3 to auto-surface storm positions)
+- Continue Design V2 phases B → C → D
+- Quick-log UI for session journal (tap spot → rate → 30s done)
+- `conditions_timeline` artifact: tide track chart render (data merge already wired in backend)
+
+---
+
+## 📍 Current Status (Apr 21, 2026) — Session 1
 
 ### Session Summary — Backend Hardening + Module Split
 
