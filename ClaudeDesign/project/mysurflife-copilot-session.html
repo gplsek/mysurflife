@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mysurflife · Copilot session</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a1218;
+    --paper: #f4f1ea;
+    --bg: oklch(0.16 0.018 230);
+    --bg-2: oklch(0.20 0.020 230);
+    --bg-3: oklch(0.24 0.022 230);
+    --bg-4: oklch(0.28 0.024 230);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --border: oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --aqua: oklch(0.82 0.16 195);
+    --aqua-d: oklch(0.62 0.14 195);
+    --fire: oklch(0.75 0.19 45);
+    --lime: oklch(0.82 0.16 140);
+    --coral: oklch(0.72 0.16 20);
+    --gold: oklch(0.82 0.14 85);
+    --violet: oklch(0.70 0.14 290);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+  /* ---------- App shell ---------- */
+  .app { display: grid; grid-template-columns: 260px 1fr 340px; grid-template-rows: 52px 1fr; height: 100vh; }
+  .topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; padding: 0 20px; border-bottom: 1px solid var(--border); background: oklch(0.14 0.02 230 / 0.8); backdrop-filter: blur(10px); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; font-size: 15px; }
+  .brand-mark { width: 28px; height: 28px; }
+  .brand .dot-sep { color: var(--muted); font-weight: 400; }
+  .topbar .session-pill { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); padding: 5px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--fire), var(--coral)); display: grid; place-items: center; font-weight: 700; color: var(--ink); font-size: 11px; }
+
+  /* ---------- Left rail ---------- */
+  .rail { border-right: 1px solid var(--border); padding: 20px 14px; overflow-y: auto; background: oklch(0.15 0.018 230); }
+  .rail-section { margin-bottom: 22px; }
+  .rail-head { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); padding: 4px 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .rail-head button { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .rail-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; font-size: 13px; color: var(--fg-2); cursor: pointer; position: relative; }
+  .rail-item:hover { background: var(--bg-2); color: var(--fg); }
+  .rail-item.active { background: var(--bg-2); color: var(--fg); }
+  .rail-item.active::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--aqua); border-radius: 2px; }
+  .rail-item .ic { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; }
+  .rail-item .meta { margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; }
+  .rail-item .live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 6px var(--lime); }
+  .new-chat { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; background: linear-gradient(to bottom, oklch(0.26 0.03 200), var(--bg-2)); border: 1px solid var(--border-2); color: var(--fg); font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 20px; width: 100%; }
+
+  /* ---------- Center (conversation) ---------- */
+  .conv { overflow-y: auto; position: relative; }
+  .conv-inner { max-width: 780px; margin: 0 auto; padding: 36px 28px 160px; }
+  .ctx-header { display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 28px; font-size: 12px; color: var(--fg-2); }
+  .ctx-header .ic { color: var(--aqua); width: 14px; height: 14px; }
+  .ctx-header b { color: var(--fg); font-weight: 600; }
+  .ctx-header .sep { color: var(--muted); margin: 0 6px; }
+  .ctx-header .time { margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: var(--muted); }
+
+  /* Messages */
+  .msg { margin-bottom: 28px; display: flex; gap: 14px; }
+  .msg-avatar { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0; display: grid; place-items: center; font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; }
+  .msg.user .msg-avatar { background: linear-gradient(135deg, var(--fire), var(--coral)); color: var(--ink); }
+  .msg.bot .msg-avatar { background: var(--bg-2); border: 1px solid var(--border); color: var(--aqua); padding: 4px; }
+  .msg-body { flex: 1; min-width: 0; }
+  .msg-meta { font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; display: flex; gap: 10px; align-items: center; }
+  .msg-meta b { color: var(--fg-2); font-weight: 600; }
+  .msg-content { font-size: 15px; line-height: 1.6; color: var(--fg); }
+  .msg.user .msg-content { color: var(--fg); font-weight: 500; }
+  .msg-content p { margin: 0 0 12px; }
+  .msg-content p:last-child { margin-bottom: 0; }
+  .msg-content em { font-family: 'Instrument Serif', serif; font-style: italic; color: var(--fg-2); font-size: 16px; }
+  .msg-content code { font-family: 'Geist Mono', monospace; font-size: 13px; background: var(--bg-2); padding: 2px 6px; border-radius: 4px; color: var(--aqua); }
+  .msg-content .lead { font-size: 17px; font-weight: 500; color: var(--fg); letter-spacing: -0.005em; margin-bottom: 14px; }
+  .msg-content .muted { color: var(--fg-2); font-size: 14px; }
+
+  /* Tool call */
+  .tool-call { display: inline-flex; align-items: center; gap: 8px; background: var(--bg-2); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--fg-2); margin-bottom: 12px; }
+  .tool-call .ic { color: var(--aqua); }
+  .tool-call .tname { color: var(--fg); }
+  .tool-call .spinner { width: 10px; height: 10px; border: 1.5px solid var(--muted); border-top-color: var(--aqua); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tool-call.done .spinner { display: none; }
+  .tool-call.done::after { content: '✓'; color: var(--lime); font-family: 'Geist', sans-serif; }
+
+  /* ---------- Inline components ---------- */
+  .card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 14px 0; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+  .card-head .title { font-weight: 600; font-size: 13px; letter-spacing: -0.005em; }
+  .card-head .eyebrow { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+  /* Spot summary card */
+  .spot-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin: 14px 0; }
+  .spot-card-head { padding: 16px 18px; display: flex; align-items: flex-start; gap: 14px; border-bottom: 1px solid var(--border); }
+  .spot-score { position: relative; width: 62px; height: 62px; flex-shrink: 0; }
+  .spot-score svg { position: absolute; inset: 0; }
+  .spot-score .num { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 22px; letter-spacing: -0.04em; }
+  .spot-card-head .meta { flex: 1; min-width: 0; }
+  .spot-card-head .name { font-weight: 700; font-size: 17px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .spot-card-head .name .tag { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.12em; padding: 2px 6px; border-radius: 4px; background: oklch(0.82 0.16 195 / 0.15); color: var(--aqua); font-weight: 500; text-transform: uppercase; }
+  .spot-card-head .sub { color: var(--fg-2); font-size: 13px; margin-top: 3px; }
+  .spot-card-head .distance { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: var(--muted); margin-top: 6px; text-transform: uppercase; }
+  .spot-metrics { display: grid; grid-template-columns: repeat(4, 1fr); padding: 14px 18px; gap: 12px; border-bottom: 1px solid var(--border); }
+  .metric { display: flex; flex-direction: column; gap: 3px; }
+  .metric .lbl { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .metric .val { font-weight: 700; font-size: 16px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .metric .val .unit { font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 3px; letter-spacing: 0; }
+  .metric .trend { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--fg-2); }
+  .metric .trend.up { color: var(--lime); }
+  .metric .trend.down { color: var(--coral); }
+  .spot-window { padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; background: oklch(0.18 0.02 230); font-size: 12px; }
+  .spot-window .label { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .spot-window .val { color: var(--fg); font-weight: 500; }
+
+  /* Comparison table */
+  .cmp { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 14px 0; background: var(--bg-2); }
+  .cmp-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .cmp-head .title { font-weight: 600; font-size: 13px; }
+  .cmp-head .eyebrow { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  table.cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  table.cmp-table th { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 500; text-align: left; padding: 10px 14px; background: oklch(0.18 0.02 230); }
+  table.cmp-table td { padding: 12px 14px; border-top: 1px solid var(--border); color: var(--fg-2); }
+  table.cmp-table td:first-child { color: var(--fg); font-weight: 600; font-size: 13px; }
+  table.cmp-table tr.winner td { background: oklch(0.82 0.16 195 / 0.04); }
+  table.cmp-table tr.winner td:first-child { color: var(--aqua); position: relative; }
+  table.cmp-table tr.winner td:first-child::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 2px; background: var(--aqua); }
+  table.cmp-table .pill { font-family: 'Geist Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.04em; font-weight: 600; }
+  .pill.good { background: oklch(0.82 0.16 140 / 0.15); color: var(--lime); }
+  .pill.ok   { background: oklch(0.82 0.14 85 / 0.15); color: var(--gold); }
+  .pill.poor { background: oklch(0.72 0.16 20 / 0.15); color: var(--coral); }
+
+  /* Wind timeline chart */
+  .chart-block { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .chart-block h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; letter-spacing: -0.005em; }
+  .chart-block .sub { color: var(--fg-2); font-size: 12px; margin-bottom: 14px; }
+  .chart-svg { width: 100%; height: 120px; display: block; }
+
+  /* Session log form (inline in chat) */
+  .sess-form { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .sess-form h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+  .sess-form .sub { color: var(--fg-2); font-size: 12px; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; display: block; }
+  .field-val { font-size: 14px; color: var(--fg); padding: 8px 10px; background: oklch(0.18 0.02 230); border-radius: 6px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .field-val .edit { color: var(--muted); font-family: 'Geist Mono', monospace; font-size: 10px; cursor: pointer; }
+  .field-val.active { border-color: var(--aqua); background: oklch(0.82 0.16 195 / 0.04); }
+  .rating-row { display: flex; gap: 6px; margin-top: 2px; }
+  .rating-dot { flex: 1; height: 24px; border-radius: 5px; background: oklch(0.18 0.02 230); border: 1px solid var(--border); display: grid; place-items: center; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted); cursor: pointer; font-weight: 600; }
+  .rating-dot.on { background: oklch(0.82 0.16 140 / 0.15); border-color: var(--lime); color: var(--lime); }
+  .rating-dot.sel { background: var(--lime); color: var(--ink); }
+  .sess-form .compare { margin-top: 14px; padding: 12px; background: oklch(0.82 0.16 195 / 0.06); border: 1px solid oklch(0.82 0.16 195 / 0.2); border-radius: 8px; font-size: 12px; color: var(--fg); display: flex; gap: 10px; align-items: flex-start; }
+  .sess-form .compare b { color: var(--aqua); }
+
+  /* Equipment rec */
+  .eq-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 14px 0; }
+  .eq-row { padding: 14px 18px; display: flex; gap: 14px; align-items: center; border-bottom: 1px solid var(--border); }
+  .eq-row:last-child { border-bottom: none; }
+  .eq-row.primary { background: oklch(0.82 0.16 195 / 0.04); }
+  .eq-row .ic-big { width: 44px; height: 32px; flex-shrink: 0; }
+  .eq-row .main { flex: 1; }
+  .eq-row .main .tag { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+  .eq-row.primary .main .tag { color: var(--aqua); }
+  .eq-row .main .name { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; }
+  .eq-row .main .rationale { color: var(--fg-2); font-size: 12px; margin-top: 2px; }
+
+  /* Why panel */
+  .why { background: var(--bg-2); border-left: 2px solid var(--aqua); border-radius: 0 10px 10px 0; padding: 14px 16px; margin: 14px 0; }
+  .why h4 { margin: 0 0 10px; font-size: 12px; font-family: 'Geist Mono', monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--aqua); font-weight: 500; }
+  .why ul { margin: 0; padding-left: 18px; list-style: none; }
+  .why li { position: relative; padding: 4px 0; font-size: 13px; color: var(--fg-2); }
+  .why li::before { content: ''; position: absolute; left: -14px; top: 11px; width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
+  .why li.plus::before { background: var(--lime); }
+  .why li.minus::before { background: var(--coral); }
+  .why li b { color: var(--fg); font-weight: 600; }
+
+  /* Tide graph */
+  .tide-chart { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .tide-chart h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+  .tide-chart .sub { color: var(--fg-2); font-size: 12px; margin-bottom: 14px; }
+
+  /* Follow-up chips */
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .chip { background: var(--bg-2); border: 1px solid var(--border); border-radius: 16px; padding: 7px 12px; font-size: 12px; color: var(--fg-2); cursor: pointer; transition: all 0.12s; }
+  .chip:hover { background: var(--bg-3); color: var(--fg); border-color: var(--border-2); }
+
+  /* Composer */
+  .composer-wrap { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, var(--bg) 60%, transparent); padding: 24px 28px 20px; }
+  .composer-wrap-inner { max-width: 780px; margin: 0 auto; }
+  .composer { background: var(--bg-2); border: 1px solid var(--border-2); border-radius: 14px; padding: 4px; display: flex; gap: 0; align-items: flex-end; box-shadow: 0 8px 24px oklch(0 0 0 / 0.3); }
+  .composer textarea { flex: 1; background: transparent; border: none; outline: none; color: var(--fg); font-size: 15px; font-family: inherit; padding: 12px 14px; resize: none; line-height: 1.5; min-height: 44px; max-height: 140px; }
+  .composer textarea::placeholder { color: var(--muted); }
+  .composer-actions { display: flex; gap: 4px; padding: 6px; }
+  .comp-btn { width: 34px; height: 34px; display: grid; place-items: center; background: transparent; border: none; border-radius: 8px; color: var(--muted); cursor: pointer; }
+  .comp-btn:hover { background: var(--bg-3); color: var(--fg); }
+  .comp-btn.send { background: var(--aqua); color: var(--ink); }
+  .comp-btn.send:hover { background: oklch(0.88 0.16 195); }
+  .composer-hints { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.08em; }
+  .composer-hints .suggest { display: flex; gap: 8px; }
+  .composer-hints .hint-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; font-family: inherit; font-size: inherit; letter-spacing: inherit; }
+  .composer-hints .hint-btn:hover { color: var(--fg-2); }
+
+  /* ---------- Right context pane ---------- */
+  .ctx-pane { border-left: 1px solid var(--border); background: oklch(0.15 0.018 230); overflow-y: auto; padding: 20px 18px; }
+  .ctx-sec { margin-bottom: 22px; }
+  .ctx-sec h5 { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 500; }
+  .ctx-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 12px; color: var(--fg-2); border-bottom: 1px solid var(--border); }
+  .ctx-row:last-child { border-bottom: none; }
+  .ctx-row .k { color: var(--muted); }
+  .ctx-row .v { color: var(--fg); font-family: 'Geist Mono', monospace; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ctx-signals { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .signal { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: 12px; color: var(--fg-2); }
+  .signal:first-child { padding-top: 0; }
+  .signal:last-child { padding-bottom: 0; }
+  .signal .w { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--aqua); flex-shrink: 0; width: 36px; }
+  .signal .t { flex: 1; }
+  .signal b { color: var(--fg); font-weight: 600; }
+  .ctx-tool { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--fg-2); padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .ctx-tool:last-child { border-bottom: none; }
+  .ctx-tool .t { color: var(--aqua); }
+  .ctx-tool .ms { color: var(--muted); font-size: 10px; }
+
+  /* Tweak panel */
+  .tweaks { position: fixed; bottom: 20px; right: 20px; background: var(--bg-2); border: 1px solid var(--border-2); border-radius: 12px; padding: 14px 16px; box-shadow: 0 10px 32px oklch(0 0 0 / 0.4); z-index: 50; display: none; min-width: 220px; }
+  .tweaks.on { display: block; }
+  .tweaks h5 { margin: 0 0 10px; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
+  .tweaks h5 .close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+  .tweak { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 12px; color: var(--fg-2); }
+  .tweak-opts { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 2px; }
+  .tweak-opt { padding: 4px 8px; border-radius: 4px; font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); cursor: pointer; letter-spacing: 0.04em; border: none; background: transparent; text-transform: uppercase; }
+  .tweak-opt.on { background: var(--aqua); color: var(--ink); }
+  .tweaks-toggle { position: fixed; bottom: 20px; right: 20px; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-2); border: 1px solid var(--border-2); color: var(--muted); cursor: pointer; display: grid; place-items: center; z-index: 49; box-shadow: 0 4px 12px oklch(0 0 0 / 0.3); }
+  .tweaks-toggle:hover { color: var(--aqua); }
+  .tweaks.on + .tweaks-toggle { display: none; }
+
+  /* Typing indicator */
+  .typing { display: inline-flex; gap: 4px; padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; }
+  .typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bob 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bob { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+  /* Icons shared */
+  .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 0.06); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 0.12); background-clip: padding-box; border: 2px solid transparent; }
+
+  /* Annotations for this design doc */
+  .annot { position: relative; }
+  .annot::after {
+    content: attr(data-annot);
+    position: absolute; right: -340px; top: 0; width: 300px;
+    font-family: 'Instrument Serif', serif; font-style: italic; font-size: 14px;
+    color: var(--aqua); line-height: 1.45;
+    padding: 10px 0 10px 16px; border-left: 1px dashed oklch(0.82 0.16 195 / 0.4);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  body.annots .annot::after { opacity: 1; }
+  .annot-toggle {
+    position: fixed; top: 64px; right: 360px; z-index: 100;
+    background: var(--bg-2); border: 1px solid var(--border-2); color: var(--fg-2);
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+    padding: 6px 10px; border-radius: 6px; cursor: pointer; text-transform: uppercase;
+  }
+  body.annots .annot-toggle { background: var(--aqua); color: var(--ink); border-color: var(--aqua); }
+
+  @media (max-width: 1200px) {
+    .app { grid-template-columns: 240px 1fr; }
+    .ctx-pane { display: none; }
+    .annot-toggle { right: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Inline mark symbol (D1) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark-d1" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.5"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.25"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--dot, currentColor)"/>
+  </symbol>
+</svg>
+
+<button class="annot-toggle" onclick="document.body.classList.toggle('annots')">✎ Design notes</button>
+
+<div class="app">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 64 64" style="color: var(--fire); --dot: var(--aqua);"><use href="#mark-d1"/></svg>
+      mysurflife
+      <span class="dot-sep">/</span>
+      <span style="color:var(--fg-2); font-weight: 400;">copilot</span>
+    </div>
+    <span class="session-pill">SESSION · #a7f2</span>
+    <div class="topbar-right">
+      <span>Encinitas, CA · 68°F</span>
+      <span style="color:var(--border-2);">|</span>
+      <span>Sun 4:32 PM</span>
+      <div class="avatar">JP</div>
+    </div>
+  </header>
+
+  <!-- Left rail: past sessions -->
+  <aside class="rail">
+    <button class="new-chat">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      New conversation
+    </button>
+
+    <div class="rail-section">
+      <div class="rail-head">Favorites</div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.5 7h7.5l-6 4.5 2.5 7.5L12 16.5 5.5 21l2.5-7.5-6-4.5h7.5z"/></svg>
+        Cardiff Reef <span class="meta live-dot"></span><span class="meta">6.8</span>
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.5 7h7.5l-6 4.5 2.5 7.5L12 16.5 5.5 21l2.5-7.5-6-4.5h7.5z"/></svg>
+        Seaside Reef <span class="meta">5.4</span>
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.5 7h7.5l-6 4.5 2.5 7.5L12 16.5 5.5 21l2.5-7.5-6-4.5h7.5z"/></svg>
+        Del Mar <span class="meta">7.1</span>
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.5 7h7.5l-6 4.5 2.5 7.5L12 16.5 5.5 21l2.5-7.5-6-4.5h7.5z"/></svg>
+        Blacks <span class="meta">8.2</span>
+      </div>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-head">Today <button title="New">+</button></div>
+      <div class="rail-item active">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Cardiff vs Del Mar, 4pm
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Morning check
+      </div>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-head">Yesterday</div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Logged Cardiff session
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Why was yesterday worse?
+      </div>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-head">Last week</div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Tue AM fish vs. log?
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Best dawn patrol in OC?
+      </div>
+      <div class="rail-item">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12c0 5-4 9-9 9-1.5 0-3-.4-4.3-1L3 21l1-4.7C3.4 15 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9z"/></svg>
+        Blacks accuracy check
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center conversation -->
+  <main class="conv" id="conv">
+    <div class="conv-inner">
+      <!-- Session context banner -->
+      <div class="ctx-header annot" data-annot="Session context banner — shows what Copilot knows about you going in, builds trust, keeps the conversation grounded in reality.">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8z"/></svg>
+        <b>Jordan P.</b>
+        <span class="sep">·</span>
+        <span>Intermediate · longboard + fish</span>
+        <span class="sep">·</span>
+        <span>2.3mi from Cardiff Reef</span>
+        <span class="sep">·</span>
+        <span>31 sessions logged</span>
+        <span class="time">APR 21 · 4:32 PM</span>
+      </div>
+
+      <!-- M1: user greeting / first ask -->
+      <div class="msg user">
+        <div class="msg-avatar">JP</div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>You</b><span>4:32 PM</span></div>
+          <div class="msg-content annot" data-annot="Natural intent — no spot IDs, no filters, no form fields. This is the whole point.">
+            <p>Should I surf in a couple hours? Cardiff or Del Mar?</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- M2: Copilot reply with tool calls + spot cards + comparison + why -->
+      <div class="msg bot">
+        <div class="msg-avatar">
+          <svg width="20" height="20" viewBox="0 0 64 64" style="color: var(--fire); --dot: var(--aqua);"><use href="#mark-d1"/></svg>
+        </div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>Copilot</b><span>4:32 PM</span><span>·</span><span>1.4s · 3 tools</span></div>
+          <div class="msg-content">
+            <div class="tool-call done annot" data-annot="Tool calls are visible, not hidden. Builds trust — the user can audit where the answer came from.">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <span class="tname">compare_spots</span>
+              <span style="color:var(--muted);">spots=[cardiff, delmar] window=6pm</span>
+              <span class="spinner"></span>
+            </div>
+            <br>
+
+            <p class="lead">Short answer: <b style="color:var(--aqua);">Cardiff at 6pm</b> — smaller but much cleaner. Del Mar is bigger but getting chopped up by the afternoon onshore.</p>
+
+            <!-- Two spot cards -->
+            <div class="spot-card annot" data-annot="Spot Summary Card — component #1 from your spec. Score ring shows personalized score, subline gives the human read, metrics are the evidence.">
+              <div class="spot-card-head">
+                <div class="spot-score">
+                  <svg viewBox="0 0 62 62">
+                    <circle cx="31" cy="31" r="26" fill="none" stroke="oklch(1 0 0 / 0.08)" stroke-width="4"/>
+                    <circle cx="31" cy="31" r="26" fill="none" stroke="var(--aqua)" stroke-width="4" stroke-linecap="round" stroke-dasharray="163.36" stroke-dashoffset="55" transform="rotate(-90 31 31)"/>
+                  </svg>
+                  <div class="num">7.4</div>
+                </div>
+                <div class="meta">
+                  <div class="name">Cardiff Reef <span class="tag">For you</span></div>
+                  <div class="sub">Waist- to shoulder-high, <em>clean and glassy by 6pm</em></div>
+                  <div class="distance">2.3 mi · 8 min drive · paddle-friendly</div>
+                </div>
+              </div>
+              <div class="spot-metrics">
+                <div class="metric"><span class="lbl">Size</span><span class="val">3.2<span class="unit">ft</span></span><span class="trend">holding</span></div>
+                <div class="metric"><span class="lbl">Period</span><span class="val">13<span class="unit">s</span></span><span class="trend up">↑ building</span></div>
+                <div class="metric"><span class="lbl">Wind</span><span class="val">4<span class="unit">mph SW</span></span><span class="trend up">↓ dropping</span></div>
+                <div class="metric"><span class="lbl">Tide</span><span class="val">3.1<span class="unit">ft</span></span><span class="trend">↓ dropping</span></div>
+              </div>
+              <div class="spot-window">
+                <span class="label">Best window</span>
+                <span class="val">5:40 – 7:10 PM · sunset at 7:24</span>
+              </div>
+            </div>
+
+            <div class="spot-card" style="opacity: 0.85;">
+              <div class="spot-card-head">
+                <div class="spot-score">
+                  <svg viewBox="0 0 62 62">
+                    <circle cx="31" cy="31" r="26" fill="none" stroke="oklch(1 0 0 / 0.08)" stroke-width="4"/>
+                    <circle cx="31" cy="31" r="26" fill="none" stroke="var(--gold)" stroke-width="4" stroke-linecap="round" stroke-dasharray="163.36" stroke-dashoffset="105" transform="rotate(-90 31 31)"/>
+                  </svg>
+                  <div class="num" style="color: var(--gold);">5.6</div>
+                </div>
+                <div class="meta">
+                  <div class="name">Del Mar</div>
+                  <div class="sub">Shoulder- to head-high, <em>textured — onshore kicked in earlier than forecast</em></div>
+                  <div class="distance">5.1 mi · 15 min drive · bigger paddle</div>
+                </div>
+              </div>
+              <div class="spot-metrics">
+                <div class="metric"><span class="lbl">Size</span><span class="val">4.8<span class="unit">ft</span></span><span class="trend">holding</span></div>
+                <div class="metric"><span class="lbl">Period</span><span class="val">12<span class="unit">s</span></span><span class="trend">steady</span></div>
+                <div class="metric"><span class="lbl">Wind</span><span class="val">11<span class="unit">mph W</span></span><span class="trend down">↑ onshore</span></div>
+                <div class="metric"><span class="lbl">Tide</span><span class="val">3.1<span class="unit">ft</span></span><span class="trend">↓ dropping</span></div>
+              </div>
+              <div class="spot-window">
+                <span class="label">Best window</span>
+                <span class="val">Already passed · was 2:30 – 4:00 PM</span>
+              </div>
+            </div>
+
+            <!-- Why this recommendation -->
+            <div class="why annot" data-annot="Why panel — keeps the model explainable. Uses your own preference signals as evidence, not a black-box number.">
+              <h4>Why Cardiff wins for you</h4>
+              <ul>
+                <li class="plus">Wind drops to <b>4 mph SW</b> at Cardiff vs. 11 mph onshore at Del Mar — you've <b>rated onshore sessions 2.1 pts lower</b> historically.</li>
+                <li class="plus">3.2ft / 13s is squarely in your "<b>fish range</b>" — 78% of your 8+ ratings fell in this window.</li>
+                <li class="plus">Cardiff at dropping 3ft tide is a <b>+1.0 spot bonus</b> based on your 4 prior sessions there.</li>
+                <li class="minus">Del Mar is bigger, but the 11mph onshore drops the score more than the size bump adds.</li>
+              </ul>
+            </div>
+
+            <p class="muted">Heads-up: model confidence is <em>high</em> — wind readings from NDBC 46266 + Camp Pendleton cross-validate within 1mph.</p>
+
+            <div class="chips">
+              <button class="chip">What board should I bring?</button>
+              <button class="chip">Show me the wind timeline</button>
+              <button class="chip">What about Swami's instead?</button>
+              <button class="chip">Set a reminder for 5:30</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- M3: follow-up from user (clicked a chip) -->
+      <div class="msg user">
+        <div class="msg-avatar">JP</div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>You</b><span>4:34 PM</span></div>
+          <div class="msg-content">
+            <p>What board should I bring? And show me the wind timeline for Cardiff.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- M4: equipment rec + wind chart -->
+      <div class="msg bot">
+        <div class="msg-avatar">
+          <svg width="20" height="20" viewBox="0 0 64 64" style="color: var(--fire); --dot: var(--aqua);"><use href="#mark-d1"/></svg>
+        </div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>Copilot</b><span>4:34 PM</span><span>·</span><span>0.9s · 2 tools</span></div>
+          <div class="msg-content">
+            <div class="tool-call done" style="margin-right:6px;">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+              <span class="tname">recommend_equipment</span>
+              <span class="spinner"></span>
+            </div>
+            <div class="tool-call done">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/></svg>
+              <span class="tname">get_wind_timeline</span>
+              <span class="spinner"></span>
+            </div>
+
+            <p>Bring the <b>5'10" fish</b>. Keep the log in the car as a backup if it goes glassy and small past 6:45.</p>
+
+            <!-- Equipment recommendation -->
+            <div class="eq-card annot" data-annot="Equipment Recommendation component — primary + backup + why. Pulls from the user's logged board quiver, not generic suggestions.">
+              <div class="eq-row primary">
+                <svg class="ic-big" viewBox="0 0 44 32" stroke="var(--aqua)" fill="none" stroke-width="1.5" stroke-linecap="round">
+                  <path d="M4 16 Q22 4 40 16 Q22 28 4 16 Z"/>
+                  <path d="M22 28 L22 31"/>
+                </svg>
+                <div class="main">
+                  <div class="tag">PRIMARY · 92% CONFIDENCE</div>
+                  <div class="name">5'10" Album Insanity (Fish)</div>
+                  <div class="rationale">Matches 3.2ft / 13s conditions; your avg rating on this board is <b style="color:var(--lime);">7.8</b> in this window.</div>
+                </div>
+              </div>
+              <div class="eq-row">
+                <svg class="ic-big" viewBox="0 0 44 32" stroke="var(--fg-2)" fill="none" stroke-width="1.5" stroke-linecap="round">
+                  <path d="M2 16 Q22 8 42 16 Q22 24 2 16 Z"/>
+                  <path d="M22 24 L22 31"/>
+                </svg>
+                <div class="main">
+                  <div class="tag">BACKUP · IF IT GOES GLASSY</div>
+                  <div class="name">9'2" Bing Silver Spoon (Log)</div>
+                  <div class="rationale">You log-ride sub-3ft 82% of the time — worth having in the car.</div>
+                </div>
+              </div>
+              <div class="eq-row" style="padding:10px 18px; font-size:11px; color: var(--muted); font-family:'Geist Mono',monospace; letter-spacing:0.1em;">
+                <span>EXPECT</span>
+                <div class="main" style="color:var(--fg-2); font-family:'Geist', sans-serif; letter-spacing:normal; font-size:13px;">
+                  Shoulder-high sets every 4–6 waves, mellow paddle-out, crowd <b style="color:var(--fg);">moderate</b> (typical Sunday).
+                </div>
+              </div>
+            </div>
+
+            <!-- Wind timeline chart -->
+            <div class="chart-block annot" data-annot="Wind Timeline Chart component — current time cursor + direction arrows at key hours + onshore/offshore shading. One chart, not ten.">
+              <h4>Wind at Cardiff Reef · next 8 hours</h4>
+              <div class="sub">Shaded band = onshore (bad). You're here →</div>
+              <svg class="chart-svg" viewBox="0 0 700 140" preserveAspectRatio="none">
+                <!-- Onshore band (≥8mph W) shaded -->
+                <rect x="0" y="0" width="130" height="140" fill="oklch(0.72 0.16 20 / 0.1)"/>
+                <rect x="570" y="0" width="130" height="140" fill="oklch(0.72 0.16 20 / 0.1)"/>
+                <!-- Gridlines -->
+                <g stroke="oklch(1 0 0 / 0.05)" stroke-width="1">
+                  <line x1="0" y1="35" x2="700" y2="35"/>
+                  <line x1="0" y1="70" x2="700" y2="70"/>
+                  <line x1="0" y1="105" x2="700" y2="105"/>
+                </g>
+                <!-- Current time marker -->
+                <line x1="100" y1="0" x2="100" y2="140" stroke="var(--aqua)" stroke-width="1" stroke-dasharray="3 3"/>
+                <text x="105" y="12" fill="var(--aqua)" font-family="Geist Mono" font-size="10" font-weight="600">NOW 4:34</text>
+                <!-- Wind curve: hours 3pm-11pm, values in mph scaled to 120px band (0-20mph → 120-0y) -->
+                <path d="M0 55 L100 65 L200 95 L300 110 L400 115 L500 100 L600 80 L700 60" stroke="var(--fire)" stroke-width="2" fill="none"/>
+                <!-- Fill under curve -->
+                <path d="M0 55 L100 65 L200 95 L300 110 L400 115 L500 100 L600 80 L700 60 L700 140 L0 140 Z" fill="oklch(0.75 0.19 45 / 0.08)"/>
+                <!-- Data points + labels -->
+                <g fill="var(--fire)" font-family="Geist Mono" font-size="10" font-weight="600">
+                  <circle cx="0" cy="55" r="3"/>
+                  <circle cx="100" cy="65" r="3"/>
+                  <circle cx="200" cy="95" r="3.5" fill="var(--aqua)"/>
+                  <circle cx="300" cy="110" r="3.5" fill="var(--aqua)"/>
+                  <circle cx="400" cy="115" r="3.5" fill="var(--aqua)"/>
+                  <circle cx="500" cy="100" r="3"/>
+                  <circle cx="600" cy="80" r="3"/>
+                  <circle cx="700" cy="60" r="3"/>
+                </g>
+                <g fill="var(--fg-2)" font-family="Geist Mono" font-size="9" text-anchor="middle">
+                  <text x="0" y="130">3PM</text>
+                  <text x="100" y="130">4</text>
+                  <text x="200" y="130">5</text>
+                  <text x="300" y="130">6</text>
+                  <text x="400" y="130">7</text>
+                  <text x="500" y="130">8</text>
+                  <text x="600" y="130">9</text>
+                  <text x="700" y="130">10PM</text>
+                </g>
+                <!-- Direction arrows for key hours -->
+                <g fill="var(--fg-2)" stroke="var(--fg-2)" stroke-width="1.2">
+                  <g transform="translate(200 22)"><path d="M-3 -3 L0 3 L3 -3 Z" fill="var(--aqua)" stroke="none"/></g>
+                  <g transform="translate(300 22) rotate(20)"><path d="M-3 -3 L0 3 L3 -3 Z" fill="var(--aqua)" stroke="none"/></g>
+                  <g transform="translate(400 22) rotate(-15)"><path d="M-3 -3 L0 3 L3 -3 Z" fill="var(--aqua)" stroke="none"/></g>
+                </g>
+                <!-- wind value labels above points -->
+                <g fill="var(--fg)" font-family="Geist Mono" font-size="10" font-weight="600" text-anchor="middle">
+                  <text x="200" y="88">6</text>
+                  <text x="300" y="103">4</text>
+                  <text x="400" y="108">3</text>
+                </g>
+                <!-- Y axis label -->
+                <text x="10" y="25" fill="var(--muted)" font-family="Geist Mono" font-size="9" letter-spacing="1">MPH</text>
+              </svg>
+              <div style="display:flex; gap:14px; margin-top:10px; font-family:'Geist Mono', monospace; font-size:10px; color:var(--muted); letter-spacing:0.1em;">
+                <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--aqua); margin-right:6px;"></span>GLASSY</span>
+                <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--fire); margin-right:6px;"></span>WIND (MPH)</span>
+                <span><span style="display:inline-block; width:10px; height:8px; background:oklch(0.72 0.16 20 / 0.3); margin-right:6px;"></span>ONSHORE BAND</span>
+              </div>
+            </div>
+
+            <p class="muted">Best window is <em>5:40 to 7:10 PM</em> — three straight hours of sub-5mph. If you paddle out at 5:45 with the fish, you'll catch the cleanest 90 minutes of the day.</p>
+
+            <div class="chips">
+              <button class="chip">Remind me at 5:30</button>
+              <button class="chip">Tide graph too</button>
+              <button class="chip">How does this compare to last Sunday?</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- M5: (later) — user logs a session -->
+      <div class="msg user">
+        <div class="msg-avatar">JP</div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>You</b><span>7:48 PM · after session</span></div>
+          <div class="msg-content">
+            <p>Just got out. Log the session — Cardiff, about 90 minutes, really fun.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- M6: session log form + predicted vs actual compare -->
+      <div class="msg bot">
+        <div class="msg-avatar">
+          <svg width="20" height="20" viewBox="0 0 64 64" style="color: var(--fire); --dot: var(--aqua);"><use href="#mark-d1"/></svg>
+        </div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>Copilot</b><span>7:48 PM</span><span>·</span><span>1 tool</span></div>
+          <div class="msg-content">
+            <div class="tool-call done">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <span class="tname">log_session_report</span>
+              <span class="spinner"></span>
+            </div>
+
+            <p>Stoked. Here's what I've got — review and tap anything to edit.</p>
+
+            <!-- Session log structured card -->
+            <div class="sess-form annot" data-annot="Session log — conversational logging, structured output. Most fields auto-fill from context (spot, time, conditions). User only touches the 2–3 that need human input.">
+              <h4>Session · Cardiff Reef</h4>
+              <div class="sub">Sun, Apr 21 · paddled out 5:46 PM · 1h 58m · 5'10" Album Insanity</div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap: 10px;">
+                <div class="field">
+                  <label class="field-label">Overall rating</label>
+                  <div class="rating-row">
+                    <div class="rating-dot">1</div>
+                    <div class="rating-dot">2</div>
+                    <div class="rating-dot">3</div>
+                    <div class="rating-dot">4</div>
+                    <div class="rating-dot">5</div>
+                    <div class="rating-dot">6</div>
+                    <div class="rating-dot on">7</div>
+                    <div class="rating-dot sel">8</div>
+                    <div class="rating-dot">9</div>
+                    <div class="rating-dot">10</div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Wind quality</label>
+                  <div class="field-val active">Clean · better than forecast <span class="edit">edit</span></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Wave size (felt)</label>
+                  <div class="field-val">3–4ft · shoulder-high sets <span class="edit">edit</span></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Shape</label>
+                  <div class="field-val">Long-walled, mellow takeoffs <span class="edit">edit</span></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Crowd</label>
+                  <div class="field-val">Moderate (~15) <span class="edit">edit</span></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Fun factor</label>
+                  <div class="field-val active">Very fun · caught 12 waves <span class="edit">edit</span></div>
+                </div>
+              </div>
+
+              <!-- Predicted vs actual compare -->
+              <div class="compare">
+                <svg class="ic" viewBox="0 0 24 24" style="color:var(--aqua); flex-shrink:0; margin-top:1px;"><path d="M12 2v20M2 12h20"/></svg>
+                <div>
+                  <b>Prediction held up.</b> Model said 7.4, you rated 8. Wind was <b style="color:var(--lime);">2mph lighter</b> than forecast — I'll nudge Cardiff's SW-wind coefficient slightly on future predictions.
+                </div>
+              </div>
+            </div>
+
+            <div class="chips">
+              <button class="chip" style="background: var(--aqua); color: var(--ink); border-color: var(--aqua);">✓ Save session</button>
+              <button class="chip">Add photo</button>
+              <button class="chip">Add a note</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- M7: short follow-up -->
+      <div class="msg user">
+        <div class="msg-avatar">JP</div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>You</b><span>7:49 PM</span></div>
+          <div class="msg-content">
+            <p>Saved. Has your forecast been accurate for me at Cardiff this month?</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- M8: retrospective accuracy comparison -->
+      <div class="msg bot">
+        <div class="msg-avatar">
+          <svg width="20" height="20" viewBox="0 0 64 64" style="color: var(--fire); --dot: var(--aqua);"><use href="#mark-d1"/></svg>
+        </div>
+        <div class="msg-body">
+          <div class="msg-meta"><b>Copilot</b><span>7:49 PM</span></div>
+          <div class="msg-content">
+            <p class="lead">Pretty dialed — <b style="color:var(--lime);">8 of 11 sessions</b> this month landed within ±0.8 points of your rating.</p>
+
+            <div class="cmp annot" data-annot="Comparison Table component — reused across query types. Here: predicted vs actual. Winner-style row treatment flags the one that most surprised you.">
+              <div class="cmp-head">
+                <span class="title">Predicted vs actual · Cardiff · last 30 days</span>
+                <span class="eyebrow">11 SESSIONS</span>
+              </div>
+              <table class="cmp-table">
+                <thead>
+                  <tr><th>Date</th><th>Predicted</th><th>You rated</th><th>Δ</th><th>Note</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Apr 21 · today</td><td>7.4</td><td>8.0</td><td><span class="pill good">+0.6</span></td><td>Wind lighter than forecast</td></tr>
+                  <tr><td>Apr 18</td><td>6.2</td><td>6.5</td><td><span class="pill good">+0.3</span></td><td>On target</td></tr>
+                  <tr class="winner"><td>Apr 14</td><td>5.8</td><td>8.5</td><td><span class="pill good">+2.7</span></td><td>Crowd low — dawn patrol</td></tr>
+                  <tr><td>Apr 11</td><td>7.0</td><td>7.0</td><td><span class="pill ok">0.0</span></td><td>On target</td></tr>
+                  <tr><td>Apr 7</td><td>8.1</td><td>6.5</td><td><span class="pill poor">−1.6</span></td><td>Wind shift at 3pm</td></tr>
+                  <tr><td>Apr 4</td><td>5.5</td><td>5.0</td><td><span class="pill ok">−0.5</span></td><td>On target</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="why">
+              <h4>What I'm learning about you</h4>
+              <ul>
+                <li class="plus">You <b>systematically over-rate Cardiff dawn sessions</b> by ~1.5 pts — crowd avoidance is worth more to you than the raw score suggests.</li>
+                <li class="minus">Mid-afternoon predictions at Cardiff have a <b>−0.8 bias</b> on light-SW days — adjusting coefficient.</li>
+                <li class="plus">Your ratings correlate strongest with <b>period &gt; 12s</b> (r=0.71) and <b>wind &lt; 6mph</b> (r=0.68).</li>
+              </ul>
+            </div>
+
+            <div class="chips">
+              <button class="chip">Show the full session history</button>
+              <button class="chip">Adjust my scoring weights</button>
+              <button class="chip">What times of day are most accurate?</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Composer -->
+    <div class="composer-wrap">
+      <div class="composer-wrap-inner">
+        <div class="composer annot" data-annot="Composer — single input, no sidebar of filters. Suggested prompts surface what the product can actually do without requiring the user to discover it.">
+          <textarea placeholder="Ask about conditions, compare spots, log a session..."></textarea>
+          <div class="composer-actions">
+            <button class="comp-btn" title="Attach"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12l-8.5 8.5a5.5 5.5 0 1 1-7.8-7.8l8.5-8.5a4 4 0 1 1 5.6 5.6l-8.5 8.5a2.5 2.5 0 1 1-3.5-3.5l7.8-7.8"/></svg></button>
+            <button class="comp-btn" title="Voice"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v4"/></svg></button>
+            <button class="comp-btn send" title="Send"><svg class="ic" viewBox="0 0 24 24" stroke="currentColor" style="stroke-width:2;"><path d="M5 12h14M13 5l7 7-7 7"/></svg></button>
+          </div>
+        </div>
+        <div class="composer-hints">
+          <div class="suggest">
+            <button class="hint-btn">@spot</button>
+            <button class="hint-btn">/compare</button>
+            <button class="hint-btn">/log</button>
+            <button class="hint-btn">/remind</button>
+          </div>
+          <div>⌘↩ SEND · SHIFT ↩ NEW LINE · ⌘K COMMANDS</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Right context pane -->
+  <aside class="ctx-pane">
+    <div class="ctx-sec annot" data-annot="Right pane = transparency layer. Shows the user exactly what Copilot knows about them and which tools it's been calling in this session.">
+      <h5>Active session context</h5>
+      <div class="ctx-row"><span class="k">Location</span><span class="v">32.68°N, 117.28°W</span></div>
+      <div class="ctx-row"><span class="k">Home break</span><span class="v">Cardiff Reef</span></div>
+      <div class="ctx-row"><span class="k">Skill</span><span class="v">Intermediate</span></div>
+      <div class="ctx-row"><span class="k">Drive tolerance</span><span class="v">25 min</span></div>
+      <div class="ctx-row"><span class="k">Boards in quiver</span><span class="v">4</span></div>
+      <div class="ctx-row"><span class="k">Sessions logged</span><span class="v">31</span></div>
+    </div>
+
+    <div class="ctx-sec">
+      <h5>Learned preferences</h5>
+      <div class="ctx-signals">
+        <div class="signal">
+          <span class="w">0.82</span>
+          <span class="t"><b>Clean over big</b> — onshore wind weighs more than size bonus.</span>
+        </div>
+        <div class="signal">
+          <span class="w">0.71</span>
+          <span class="t"><b>Mid-to-dropping tide</b> at Cardiff specifically.</span>
+        </div>
+        <div class="signal">
+          <span class="w">0.64</span>
+          <span class="t"><b>Fish range</b> (3–5ft, 11–14s) rated 1.8 pts higher than average.</span>
+        </div>
+        <div class="signal">
+          <span class="w">0.58</span>
+          <span class="t"><b>Low crowd bonus</b> — dawn sessions rated +1.5 vs model.</span>
+        </div>
+        <div class="signal">
+          <span class="w">0.44</span>
+          <span class="t">Prefers <b>longer walls</b> over punchy takeoffs.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctx-sec">
+      <h5>Tools called this session</h5>
+      <div class="ctx-tool"><span><span class="t">compare_spots</span> · 2 spots</span><span class="ms">412ms</span></div>
+      <div class="ctx-tool"><span><span class="t">get_spot_conditions</span> · cardiff</span><span class="ms">188ms</span></div>
+      <div class="ctx-tool"><span><span class="t">get_spot_conditions</span> · delmar</span><span class="ms">194ms</span></div>
+      <div class="ctx-tool"><span><span class="t">recommend_equipment</span></span><span class="ms">301ms</span></div>
+      <div class="ctx-tool"><span><span class="t">get_wind_timeline</span> · cardiff</span><span class="ms">156ms</span></div>
+      <div class="ctx-tool"><span><span class="t">log_session_report</span></span><span class="ms">244ms</span></div>
+      <div class="ctx-tool"><span><span class="t">compare_predictions</span> · 30d</span><span class="ms">389ms</span></div>
+    </div>
+
+    <div class="ctx-sec">
+      <h5>Data sources</h5>
+      <div class="ctx-row"><span class="k">Buoy</span><span class="v">NDBC 46266</span></div>
+      <div class="ctx-row"><span class="k">Wind</span><span class="v">Camp Pendleton</span></div>
+      <div class="ctx-row"><span class="k">Tide</span><span class="v">La Jolla station</span></div>
+      <div class="ctx-row"><span class="k">Model</span><span class="v">surfnet v0.4</span></div>
+      <div class="ctx-row"><span class="k">Confidence</span><span class="v" style="color:var(--lime);">HIGH · 0.87</span></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Tweaks -->
+<button class="tweaks-toggle" id="tweaksToggle" title="Tweaks">
+  <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+</button>
+<div class="tweaks" id="tweaksPanel">
+  <h5>Tweaks <button class="close" onclick="document.getElementById('tweaksPanel').classList.remove('on')">×</button></h5>
+  <div class="tweak">
+    <span>Tool call visibility</span>
+    <div class="tweak-opts" data-tweak="tools">
+      <button class="tweak-opt on" data-val="on">Show</button>
+      <button class="tweak-opt" data-val="off">Hide</button>
+    </div>
+  </div>
+  <div class="tweak">
+    <span>Context pane</span>
+    <div class="tweak-opts" data-tweak="ctx">
+      <button class="tweak-opt on" data-val="on">Open</button>
+      <button class="tweak-opt" data-val="off">Closed</button>
+    </div>
+  </div>
+  <div class="tweak">
+    <span>Density</span>
+    <div class="tweak-opts" data-tweak="density">
+      <button class="tweak-opt" data-val="compact">Compact</button>
+      <button class="tweak-opt on" data-val="cozy">Cozy</button>
+    </div>
+  </div>
+  <div class="tweak">
+    <span>Confidence labels</span>
+    <div class="tweak-opts" data-tweak="conf">
+      <button class="tweak-opt on" data-val="on">On</button>
+      <button class="tweak-opt" data-val="off">Off</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Simple tweaks wiring (no persistence needed for this mock)
+  document.getElementById('tweaksToggle').addEventListener('click', () => {
+    document.getElementById('tweaksPanel').classList.add('on');
+  });
+  document.querySelectorAll('.tweak-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.closest('.tweak-opts');
+      group.querySelectorAll('.tweak-opt').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const tweak = group.getAttribute('data-tweak');
+      const val = btn.getAttribute('data-val');
+      applyTweak(tweak, val);
+    });
+  });
+  function applyTweak(tweak, val) {
+    if (tweak === 'tools') {
+      document.querySelectorAll('.tool-call').forEach(el => el.style.display = val === 'on' ? '' : 'none');
+    } else if (tweak === 'ctx') {
+      document.querySelector('.ctx-pane').style.display = val === 'on' ? '' : 'none';
+      document.querySelector('.app').style.gridTemplateColumns = val === 'on' ? '260px 1fr 340px' : '260px 1fr';
+    } else if (tweak === 'density') {
+      document.querySelectorAll('.msg').forEach(el => el.style.marginBottom = val === 'compact' ? '18px' : '28px');
+    } else if (tweak === 'conf') {
+      document.querySelectorAll('.ctx-row .v[style*="lime"]').forEach(el => el.style.display = val === 'on' ? '' : 'none');
+    }
+  }
+
+  // Chip → scroll composer into view and put the text in
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const ta = document.querySelector('.composer textarea');
+      ta.value = chip.textContent.trim();
+      ta.focus();
+      ta.scrollIntoView({ block: 'center' });
+    });
+  });
+</script>
+
+</body>
+</html>

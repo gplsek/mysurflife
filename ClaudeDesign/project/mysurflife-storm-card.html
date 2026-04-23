@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ocean">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Storm card · mysurflife</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.13 0.02 230);
+    --bg-2: oklch(0.17 0.02 230);
+    --bg-3: oklch(0.22 0.022 230);
+    --bg-4: oklch(0.26 0.022 230);
+    --panel: oklch(0.16 0.018 230 / 0.94);
+    --panel-strong: oklch(0.15 0.018 230 / 0.985);
+    --border: oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --border-3: oklch(1 0 0 / 0.22);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --muted-2: oklch(0.42 0.012 230);
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --gold: oklch(0.82 0.14 85);
+    --good: oklch(0.80 0.16 150);
+    --coral: oklch(0.72 0.16 20);
+    --storm: oklch(0.70 0.18 35);
+
+    /* Warning tiers */
+    --warn-gale: oklch(0.82 0.14 85);      /* gold */
+    --warn-storm: oklch(0.72 0.16 30);     /* coral */
+    --warn-hurricane: oklch(0.65 0.22 25); /* red */
+
+    /* Tier colors for size ratings */
+    --tier-firing: var(--coral);
+    --tier-solid: var(--gold);
+    --tier-good: var(--good);
+    --tier-fair: var(--aqua);
+    --tier-flat: var(--muted);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--fg); font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  button { font-family: inherit; cursor: pointer; border: none; background: transparent; color: inherit; }
+  a { color: inherit; text-decoration: none; }
+  em { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; }
+
+  /* ─── Map backdrop (ambient context) ─── */
+  #backdrop {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 60% 45% at 50% 60%, oklch(0.18 0.035 230) 0%, transparent 65%),
+      radial-gradient(circle 800px at 85% 20%, oklch(0.19 0.04 195 / 0.5), transparent 70%),
+      radial-gradient(circle 600px at 15% 80%, oklch(0.18 0.04 245 / 0.4), transparent 70%),
+      linear-gradient(180deg, oklch(0.10 0.02 235) 0%, oklch(0.14 0.022 230) 100%);
+  }
+  #backdrop .grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(oklch(1 0 0 / 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(1 0 0 / 0.018) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 55% 55% at 50% 50%, black 0%, transparent 80%);
+  }
+
+  /* ─── Stormy map art underneath ─── */
+  #stage-map { position: absolute; inset: 0; pointer-events: none; }
+  /* continent shapes — super minimal so the storm marker/arc reads clearly */
+  .land {
+    position: absolute; background: oklch(0.17 0.018 230); border-radius: 40% 45% 35% 50% / 40% 55% 40% 55%;
+    border: 1px solid oklch(1 0 0 / 0.04);
+  }
+
+  /* Active storm on map (matches map-view.js marker spec) */
+  .map-storm {
+    position: absolute; width: 120px; height: 120px;
+    transform: translate(-50%, -50%);
+    pointer-events: auto; cursor: pointer;
+    color: var(--storm);
+  }
+  .map-storm .ring {
+    position: absolute; inset: 0; border: 1.5px solid currentColor; border-radius: 50%;
+    opacity: 0; animation: stormPulse 3.2s ease-out infinite;
+  }
+  .map-storm .ring:nth-child(2) { animation-delay: 1s; }
+  .map-storm .ring:nth-child(3) { animation-delay: 2s; }
+  .map-storm .core {
+    position: absolute; inset: 45%; border-radius: 50%;
+    background: currentColor; box-shadow: 0 0 18px currentColor;
+  }
+  @keyframes stormPulse {
+    0%   { transform: scale(0.35); opacity: 0.9; }
+    70%  { opacity: 0.15; }
+    100% { transform: scale(1); opacity: 0; }
+  }
+  .map-storm.selected { color: var(--warn-storm); }
+  .map-storm.hurr { color: var(--warn-hurricane); }
+
+  /* Forecast track polyline on map */
+  .map-track { position: absolute; inset: 0; pointer-events: none; }
+  .map-track .dot {
+    position: absolute; width: 9px; height: 9px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--warn-storm); border: 1.5px solid oklch(0.13 0.02 230);
+    box-shadow: 0 0 0 3px oklch(0.72 0.16 30 / 0.18);
+  }
+  .map-track .dot.faint { background: var(--warn-gale); box-shadow: 0 0 0 3px oklch(0.82 0.14 85 / 0.18); }
+  .map-track .dot.faintest { background: var(--muted); opacity: 0.7; box-shadow: none; }
+  .map-track .label {
+    position: absolute; transform: translate(8px, -50%);
+    font-family: 'Geist Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em;
+    color: var(--fg-2); text-transform: uppercase;
+    background: oklch(0.13 0.02 230 / 0.72); padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  /* Great-circle arc when L2 row is selected */
+  .map-arc { position: absolute; inset: 0; pointer-events: none; }
+  .map-arc path { fill: none; stroke: var(--aqua); stroke-width: 1.6; stroke-dasharray: 5 5; opacity: 0.6; }
+  .map-arc .arrival-pin {
+    position: absolute; transform: translate(-50%, -50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--aqua);
+    background: oklch(0.13 0.02 230);
+    box-shadow: 0 0 0 5px oklch(0.82 0.16 195 / 0.16);
+  }
+
+  /* Map-region dim overlay (active when L2 row selected) */
+  #dim-layer {
+    position: absolute; inset: 0; pointer-events: none;
+    background: oklch(0.10 0.02 235 / 0);
+    transition: background 0.32s ease;
+  }
+  body.dimmed #dim-layer { background: oklch(0.10 0.02 235 / 0.55); }
+
+  /* ─── Top bar / brand ─── */
+  .topbar {
+    position: fixed; top: 14px; left: 14px; right: 14px; z-index: 30;
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+  .brand {
+    padding: 9px 14px; font-weight: 700; letter-spacing: -0.02em;
+    display: inline-flex; align-items: center; gap: 10px; color: var(--fg);
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px;
+  }
+  .brand svg { color: var(--fire); --mark-dot: var(--aqua); }
+
+  .crumb {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 9px 14px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: 13px; color: var(--fg-2);
+  }
+  .crumb .sep { color: var(--muted-2); }
+  .crumb b { color: var(--fg); font-weight: 600; }
+
+  .topbar-right { margin-left: auto; display: flex; gap: 10px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border);
+    display: inline-grid; place-items: center;
+    color: var(--fg-2);
+  }
+  .icon-btn:hover { border-color: var(--border-2); color: var(--fg); }
+
+  /* ─── Storm card ─── */
+  .storm-card-wrap {
+    position: fixed; z-index: 20;
+    left: 380px; top: 92px; bottom: 96px;
+    width: 420px;
+    display: flex; flex-direction: column;
+    pointer-events: none;
+  }
+  .storm-card-wrap > * { pointer-events: auto; }
+
+  .storm-card {
+    background: var(--panel-strong);
+    backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid var(--border-2);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 80px oklch(0 0 0 / 0.55), 0 2px 10px oklch(0 0 0 / 0.3);
+    flex: 1; min-height: 0;
+    opacity: 0; transform: translateY(8px);
+    animation: card-in 0.28s cubic-bezier(.2,.8,.2,1) forwards;
+  }
+  @keyframes card-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .storm-card-body {
+    overflow-y: auto;
+    flex: 1; min-height: 0;
+    scrollbar-width: thin; scrollbar-color: var(--border-2) transparent;
+  }
+  .storm-card-body::-webkit-scrollbar { width: 6px; }
+  .storm-card-body::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+
+  /* ═══ LEVEL 1 — STORM CHARACTERIZATION ═══ */
+  .l1 {
+    position: relative;
+    padding: 0;
+  }
+  .l1-warn-bar {
+    height: 3px;
+    background: var(--warn-storm);
+  }
+  .l1-warn-bar.gale { background: var(--warn-gale); }
+  .l1-warn-bar.hurricane { background: var(--warn-hurricane); }
+  .l1-warn-bar.none { display: none; }
+
+  .l1-head {
+    padding: 18px 20px 14px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .storm-type-badge {
+    flex: 0 0 auto;
+    font-family: 'Geist Mono', monospace;
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 600;
+    padding: 5px 8px;
+    border-radius: 5px;
+    background: oklch(0.72 0.16 30 / 0.16);
+    color: var(--warn-storm);
+    border: 1px solid oklch(0.72 0.16 30 / 0.3);
+    line-height: 1;
+    margin-top: 2px;
+  }
+  .storm-type-badge.low { background: oklch(0.82 0.14 85 / 0.13); color: var(--warn-gale); border-color: oklch(0.82 0.14 85 / 0.3); }
+  .storm-type-badge.ts { background: oklch(0.72 0.16 30 / 0.16); color: var(--warn-storm); border-color: oklch(0.72 0.16 30 / 0.3); }
+  .storm-type-badge.td { background: oklch(0.82 0.14 85 / 0.13); color: var(--warn-gale); border-color: oklch(0.82 0.14 85 / 0.3); }
+  .storm-type-badge.hurricane, .storm-type-badge.typhoon { background: oklch(0.65 0.22 25 / 0.18); color: var(--warn-hurricane); border-color: oklch(0.65 0.22 25 / 0.35); }
+
+  .l1-title-block { flex: 1; min-width: 0; }
+  .l1-title {
+    font-size: 19px; font-weight: 600; letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+  .l1-sub {
+    margin-top: 5px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px; color: var(--muted); letter-spacing: 0.04em;
+    display: flex; flex-wrap: wrap; gap: 4px 10px;
+  }
+  .l1-sub .dot { color: var(--muted-2); }
+  .l1-sub .fresh { color: var(--fg-2); }
+  .l1-sub .stale { color: var(--warn-storm); }
+
+  .l1-close {
+    flex: 0 0 auto;
+    width: 28px; height: 28px; border-radius: 7px;
+    display: grid; place-items: center;
+    color: var(--muted);
+    margin: -4px -4px 0 0;
+  }
+  .l1-close:hover { background: var(--bg-3); color: var(--fg); }
+
+  /* Pressure + winds primary stat row */
+  .l1-primary {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .l1-primary .cell {
+    background: oklch(0.15 0.018 230);
+    padding: 14px 16px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .l1-primary .k {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9.5px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase;
+  }
+  .l1-primary .v {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .l1-primary .v .u { font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .l1-primary .sub {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; color: var(--fg-2); letter-spacing: 0.02em;
+  }
+
+  /* Pressure gauge bar (visual showing where in 950-1020 range) */
+  .pressure-gauge {
+    margin-top: 6px;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--warn-hurricane) 0%, var(--warn-storm) 40%, var(--warn-gale) 65%, var(--muted-2) 100%);
+    position: relative;
+    overflow: visible;
+  }
+  .pressure-gauge::before,
+  .pressure-gauge::after {
+    content: ''; position: absolute; top: 100%; margin-top: 3px;
+    font-family: 'Geist Mono', monospace; font-size: 8.5px; color: var(--muted-2);
+    letter-spacing: 0.08em;
+  }
+  .pressure-gauge::before { content: '950'; left: 0; }
+  .pressure-gauge::after  { content: '1020'; right: 0; }
+  .pressure-gauge .marker {
+    position: absolute; top: -3px; width: 2px; height: 10px;
+    background: var(--fg); border-radius: 1px;
+    transform: translateX(-50%);
+    box-shadow: 0 0 0 2px oklch(0.13 0.02 230);
+  }
+
+  /* Movement + fetch wedge row */
+  .l1-meta {
+    padding: 14px 18px 16px;
+    display: grid; grid-template-columns: 1fr 96px; gap: 16px;
+    align-items: center;
+  }
+  .l1-meta .movement { display: flex; flex-direction: column; gap: 8px; }
+  .movement-line {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--fg);
+  }
+  .movement-arrow {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--bg-3); border: 1px solid var(--border-2);
+    display: grid; place-items: center;
+    color: var(--fg-2);
+  }
+  .movement-arrow svg { display: block; }
+  .movement-line b { font-weight: 600; }
+  .movement-line .mono { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+
+  .fetch-line {
+    font-size: 12.5px;
+    color: var(--fg-2);
+    line-height: 1.45;
+  }
+  .fetch-line em { color: var(--aqua); font-style: normal; font-weight: 500; font-family: inherit; }
+
+  /* Fetch wedge diagram (compass with highlighted quadrant) */
+  .fetch-wedge { width: 96px; height: 96px; }
+  .fetch-wedge svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+  /* Forecast track mini-chart */
+  .l1-track {
+    border-top: 1px solid var(--border);
+    padding: 14px 18px 18px;
+  }
+  .l1-track .title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .l1-track .title {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase;
+  }
+  .l1-track .official-badge {
+    font-family: 'Geist Mono', monospace; font-size: 9px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 3px 6px; border-radius: 4px;
+    background: oklch(0.82 0.16 195 / 0.14); color: var(--aqua);
+    border: 1px solid oklch(0.82 0.16 195 / 0.28);
+  }
+
+  .track-viz { position: relative; height: 52px; margin: 0 6px 16px; }
+  .track-viz svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .track-viz .wp {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--bg-2); border: 2px solid var(--warn-storm);
+    box-shadow: 0 0 0 2px oklch(0.13 0.02 230);
+  }
+
+  .track-rows {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  .track-row {
+    background: var(--bg-3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 11px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .track-row .when {
+    font-family: 'Geist Mono', monospace; font-size: 9.5px;
+    letter-spacing: 0.14em; color: var(--aqua); text-transform: uppercase;
+  }
+  .track-row .coord {
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    color: var(--fg); font-variant-numeric: tabular-nums;
+  }
+  .track-row .stat {
+    font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .l1-track .track-missing {
+    padding: 12px 14px;
+    border: 1px dashed var(--border-2);
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  /* Raw bulletin disclosure */
+  .l1-bulletin {
+    border-top: 1px solid var(--border);
+    padding: 10px 18px;
+  }
+  .l1-bulletin summary {
+    cursor: pointer;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; color: var(--muted);
+    text-transform: uppercase;
+    list-style: none;
+    padding: 4px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .l1-bulletin summary::-webkit-details-marker { display: none; }
+  .l1-bulletin summary::before {
+    content: '›'; font-size: 14px; color: var(--muted-2);
+    transition: transform 0.18s ease;
+  }
+  .l1-bulletin[open] summary::before { transform: rotate(90deg); }
+  .l1-bulletin .bulletin-text {
+    margin-top: 10px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10.5px;
+    color: var(--fg-2);
+    background: oklch(0.10 0.02 235);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    white-space: pre-wrap;
+    max-height: 160px; overflow-y: auto;
+  }
+
+  .l1-quick-chip {
+    margin: 12px 18px 14px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px 8px 12px;
+    border-radius: 8px;
+    background: oklch(0.82 0.16 195 / 0.08);
+    border: 1px solid oklch(0.82 0.16 195 / 0.18);
+    color: var(--aqua);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+  }
+  .l1-quick-chip:hover { background: oklch(0.82 0.16 195 / 0.12); border-color: oklch(0.82 0.16 195 / 0.32); }
+  .l1-quick-chip svg { opacity: 0.8; }
+  .l1-quick-chip .spark {
+    margin-left: auto;
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
+    color: var(--muted); text-transform: uppercase;
+  }
+
+  /* ═══ LEVEL 2 — REGIONAL SCORECARD ═══ */
+  .l2 {
+    border-top: 1px solid var(--border);
+  }
+  .l2-head {
+    padding: 14px 18px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .l2-head .title {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase;
+  }
+  .l2-head .title em { font-family: 'Instrument Serif', serif; font-style: italic; color: var(--fg); font-size: 13px; letter-spacing: 0; text-transform: none; }
+
+  .sort-toggle {
+    display: inline-flex; gap: 2px;
+    padding: 2px; border-radius: 6px;
+    background: var(--bg-3); border: 1px solid var(--border);
+  }
+  .sort-toggle button {
+    padding: 4px 8px; border-radius: 4px;
+    font-family: 'Geist Mono', monospace; font-size: 9.5px; letter-spacing: 0.12em;
+    color: var(--muted); text-transform: uppercase;
+    font-weight: 500;
+  }
+  .sort-toggle button.on { background: var(--bg-4); color: var(--fg); }
+
+  .l2-list {
+    display: flex; flex-direction: column;
+    padding: 0 10px 6px;
+  }
+  .l2-row {
+    display: grid;
+    grid-template-columns: 3px 1fr auto;
+    align-items: stretch;
+    gap: 0;
+    padding: 0; margin: 0 0 2px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    position: relative;
+  }
+  .l2-row:hover { background: oklch(1 0 0 / 0.03); }
+  .l2-row.on { background: oklch(0.82 0.16 195 / 0.08); }
+  .l2-row .tier-strip {
+    width: 3px; border-radius: 3px;
+    background: var(--tier-flat);
+    margin: 10px 0;
+  }
+  .l2-row[data-tier="firing"] .tier-strip { background: var(--tier-firing); }
+  .l2-row[data-tier="solid"]  .tier-strip { background: var(--tier-solid); }
+  .l2-row[data-tier="good"]   .tier-strip { background: var(--tier-good); }
+  .l2-row[data-tier="fair"]   .tier-strip { background: var(--tier-fair); }
+
+  .l2-row .main {
+    padding: 11px 12px 11px 11px;
+    display: flex; flex-direction: column; gap: 3px;
+    min-width: 0;
+  }
+  .l2-row .name {
+    font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 8px;
+    line-height: 1.15;
+  }
+  .l2-row .name .flag {
+    font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.12em;
+    color: var(--muted); text-transform: uppercase;
+    padding: 2px 5px; border-radius: 3px;
+    background: var(--bg-3); border: 1px solid var(--border);
+    font-weight: 500;
+  }
+  .l2-row .meta {
+    font-family: 'Geist Mono', monospace; font-size: 10.5px;
+    color: var(--muted); letter-spacing: 0.04em;
+    display: flex; gap: 8px;
+  }
+  .l2-row .meta span { display: inline-flex; gap: 4px; align-items: center; }
+  .l2-row .meta span b { color: var(--fg-2); font-weight: 500; }
+
+  .l2-row .peak {
+    padding: 10px 14px 10px 10px;
+    text-align: right;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    min-width: 78px;
+  }
+  .l2-row .peak .size {
+    font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  .l2-row .peak .size .u { font-size: 10px; color: var(--muted); font-weight: 400; margin-left: 2px; }
+  .l2-row .peak .when {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    color: var(--muted); letter-spacing: 0.06em;
+  }
+  .l2-row .peak .when .hi { color: var(--aqua); }
+  .l2-row.on .peak .when { color: var(--aqua); }
+  .l2-row[data-tier="firing"] .peak .size { color: var(--tier-firing); }
+  .l2-row[data-tier="solid"]  .peak .size { color: var(--tier-solid); }
+
+  .l2-empty {
+    padding: 20px 18px;
+    margin: 4px 14px 12px;
+    border: 1px dashed var(--border-2);
+    border-radius: 12px;
+    text-align: center;
+  }
+  .l2-empty .title {
+    font-size: 13px; font-weight: 600;
+    color: var(--fg-2);
+    margin-bottom: 4px;
+  }
+  .l2-empty .sub {
+    font-size: 11.5px; color: var(--muted);
+    line-height: 1.5;
+    max-width: 300px; margin: 0 auto;
+  }
+
+  .l2-loading {
+    padding: 28px 18px;
+    text-align: center;
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase;
+  }
+  .l2-loading .pulse {
+    display: inline-flex; gap: 4px; margin-bottom: 10px;
+  }
+  .l2-loading .pulse i {
+    display: block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted-2);
+    animation: lp 1.2s ease-in-out infinite;
+  }
+  .l2-loading .pulse i:nth-child(2) { animation-delay: 0.15s; }
+  .l2-loading .pulse i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes lp {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; background: var(--aqua); }
+  }
+
+  /* ═══ LEVEL 3 — SPOT BREAKDOWN ═══ */
+  .l3 {
+    background: oklch(0.10 0.02 235 / 0.7);
+    border-top: 1px solid var(--border);
+    padding: 14px 16px 16px;
+    animation: l3-in 0.24s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes l3-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .l3-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px;
+  }
+  .l3-head .title {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; color: var(--aqua); text-transform: uppercase;
+  }
+  .l3-head .title b { color: var(--fg); font-weight: 600; }
+  .l3-head .count {
+    margin-left: auto;
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    color: var(--muted); letter-spacing: 0.1em;
+  }
+
+  .l3-list {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .spot-row {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 10px;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .spot-row:hover { border-color: var(--border-2); }
+  .spot-row.highlight {
+    background: oklch(0.82 0.16 195 / 0.08);
+    border-color: oklch(0.82 0.16 195 / 0.3);
+  }
+
+  .spot-row .name-row {
+    display: flex; align-items: baseline; gap: 8px;
+    grid-column: 1 / -1;
+  }
+  .spot-row .name-row .name {
+    font-size: 13px; font-weight: 600; letter-spacing: -0.005em;
+  }
+  .spot-row .name-row .score {
+    margin-left: auto;
+    display: inline-flex; gap: 2px;
+  }
+  .spot-row .score i {
+    display: inline-block; width: 5px; height: 10px; border-radius: 1px;
+    background: var(--border-2);
+  }
+  .spot-row[data-score="5"] .score i:nth-child(-n+5),
+  .spot-row[data-score="4"] .score i:nth-child(-n+4),
+  .spot-row[data-score="3"] .score i:nth-child(-n+3),
+  .spot-row[data-score="2"] .score i:nth-child(-n+2),
+  .spot-row[data-score="1"] .score i:nth-child(-n+1) { background: var(--aqua); }
+  .spot-row[data-score="5"] .score i:nth-child(-n+5) { background: var(--tier-firing); }
+  .spot-row[data-score="4"] .score i:nth-child(-n+4) { background: var(--tier-solid); }
+
+  .spot-row .swell-stats {
+    font-family: 'Geist Mono', monospace; font-size: 11.5px;
+    color: var(--fg-2); letter-spacing: 0.02em;
+    grid-column: 1 / -1;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .spot-row .swell-stats .size { color: var(--fg); font-weight: 500; }
+  .spot-row .swell-stats .sep { color: var(--muted-2); }
+
+  .spot-row .when-row {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    color: var(--muted); letter-spacing: 0.06em;
+    grid-column: 1 / -1;
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin-top: 2px;
+  }
+  .spot-row .when-row .k { color: var(--muted-2); }
+  .spot-row .when-row .v { color: var(--fg-2); }
+  .spot-row .when-row .v.peak { color: var(--aqua); }
+
+  .spot-row .wind-tide {
+    font-family: 'Geist Mono', monospace; font-size: 10.5px;
+    color: var(--fg-2);
+    grid-column: 1 / -1;
+    display: flex; gap: 14px; margin-top: 4px; padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .spot-row .wind-tide .item { display: inline-flex; align-items: center; gap: 6px; }
+  .spot-row .wind-tide svg { flex: 0 0 auto; color: var(--muted); }
+  .spot-row .wind-tide .offshore { color: var(--good); }
+  .spot-row .wind-tide .onshore { color: var(--coral); }
+  .spot-row .wind-tide .rising { color: var(--aqua); }
+
+  .spot-row .ctas {
+    grid-column: 1 / -1;
+    display: flex; gap: 6px; margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .spot-cta {
+    font-size: 11.5px; font-weight: 500;
+    padding: 7px 10px;
+    border-radius: 7px;
+    background: var(--bg-4);
+    border: 1px solid var(--border-2);
+    color: var(--fg-2);
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .spot-cta:hover { background: oklch(0.30 0.022 230); color: var(--fg); border-color: var(--border-3); }
+  .spot-cta.primary {
+    background: var(--aqua); color: oklch(0.14 0.02 230); border-color: transparent;
+    font-weight: 600;
+  }
+  .spot-cta.primary:hover { background: oklch(0.88 0.16 195); }
+  .spot-cta.primary svg { opacity: 0.85; }
+  .spot-cta .lock { opacity: 0.7; }
+
+  .see-all {
+    margin-top: 8px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px dashed var(--border-2);
+    color: var(--muted);
+    font-family: 'Geist Mono', monospace; font-size: 10.5px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    text-align: center;
+    display: block; width: 100%;
+    font-weight: 500;
+  }
+  .see-all:hover { color: var(--fg); border-color: var(--border-3); background: oklch(1 0 0 / 0.02); }
+
+  /* ═══ STATE SWITCHER (demo control, bottom-center) ═══ */
+  .state-bar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 40;
+    background: var(--panel-strong);
+    backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid var(--border-2);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 2px;
+    box-shadow: 0 16px 40px oklch(0 0 0 / 0.5);
+    max-width: calc(100vw - 32px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .state-bar::-webkit-scrollbar { display: none; }
+  .state-bar .state-label {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase;
+    padding: 0 10px 0 4px; white-space: nowrap; font-weight: 500;
+  }
+  .state-chip {
+    padding: 7px 12px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fg-2);
+    font-size: 12px; font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s;
+  }
+  .state-chip:hover { background: var(--bg-3); color: var(--fg); }
+  .state-chip.on {
+    background: var(--aqua); color: oklch(0.14 0.02 230);
+    font-weight: 600;
+  }
+
+  /* ═══ Mobile variant (sheet-from-bottom) ═══ */
+  .mobile-note {
+    position: fixed; top: 70px; right: 22px; z-index: 25;
+    padding: 8px 12px;
+    background: var(--panel);
+    backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    color: var(--muted); text-transform: uppercase;
+    opacity: 0; pointer-events: none;
+  }
+  body[data-mobile] .mobile-note { opacity: 1; }
+
+  body[data-mobile] .storm-card-wrap {
+    left: 50%; transform: translateX(-50%);
+    top: auto; bottom: 90px;
+    width: min(380px, calc(100% - 24px));
+    max-height: 75vh;
+  }
+  body[data-mobile] .storm-card {
+    border-radius: 18px 18px 10px 10px;
+  }
+  body[data-mobile] .l1-primary { grid-template-columns: 1fr 1fr 1fr; }
+  body[data-mobile] .l1-primary .cell { padding: 12px; }
+  body[data-mobile] .l1-primary .v { font-size: 18px; }
+
+  /* ═══ Scroll-in helper ═══ */
+  .fade-in {
+    animation: fade-in 0.3s ease;
+  }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+</style>
+</head>
+<body>
+
+<!-- ─── Brand mark symbol (reused from map) ─── -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M -24 0 Q -16 -12 -8 0 T 8 0 T 24 0" stroke-width="3"/>
+      <path d="M -24 -8 Q -16 -20 -8 -8 T 8 -8 T 24 -8" stroke-width="2" opacity="0.5"/>
+      <circle r="2" fill="var(--mark-dot, currentColor)" stroke="none"/>
+    </g>
+  </symbol>
+</svg>
+
+<!-- ─── Map backdrop ─── -->
+<div id="backdrop">
+  <div class="grid"></div>
+  <div id="stage-map">
+    <!-- light continent silhouettes for ambient context -->
+    <div class="land" style="left:4%; top:28%; width:22%; height:42%;"></div>
+    <div class="land" style="left:30%; top:22%; width:12%; height:54%; border-radius: 30% 60% 40% 50% / 45% 40% 60% 55%;"></div>
+    <div class="land" style="left:54%; top:16%; width:28%; height:48%;"></div>
+    <div class="land" style="left:82%; top:52%; width:16%; height:30%;"></div>
+
+    <!-- Storm marker on map -->
+    <div id="storm-marker" class="map-storm" style="left:50%; top:42%;">
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="core"></div>
+    </div>
+
+    <!-- Forecast track waypoints on map -->
+    <div id="track-layer" class="map-track">
+      <div class="dot" style="left:50%; top:42%;"></div>
+      <div class="dot" style="left:54%; top:38%;"></div>
+      <div class="label" style="left:54%; top:38%;">+24h · 990mb</div>
+      <div class="dot faint" style="left:59%; top:34%;"></div>
+      <div class="label" style="left:59%; top:34%;">+48h · 995mb</div>
+      <div class="dot faintest" style="left:65%; top:31%;"></div>
+      <div class="label" style="left:65%; top:31%;">+72h · 1002mb</div>
+    </div>
+
+    <!-- Great-circle arc to Mainland Mexico (shown only when L2 selected) -->
+    <svg id="arc-layer" class="map-arc" preserveAspectRatio="none" viewBox="0 0 100 100">
+      <path d="M 50 42 Q 62 65 72 78" />
+    </svg>
+    <div id="arc-pin" class="map-arc" style="display:none;">
+      <div class="arrival-pin" style="left:72%; top:78%;"></div>
+    </div>
+  </div>
+
+  <!-- Dim overlay for map-react state -->
+  <div id="dim-layer"></div>
+</div>
+
+<!-- ─── Top bar ─── -->
+<nav class="topbar">
+  <a href="mysurflife.html" class="brand">
+    <svg width="22" height="22" viewBox="0 0 64 64"><use href="#mark"/></svg>
+    mysurflife
+  </a>
+  <div class="crumb">
+    <span>Map</span>
+    <span class="sep">›</span>
+    <b>Storm detail</b>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" title="Back to map" onclick="history.back()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+    </button>
+  </div>
+</nav>
+
+<div class="mobile-note">Mobile variant</div>
+
+<!-- ─── Storm card container — populated by state handlers ─── -->
+<div id="card-host" class="storm-card-wrap">
+  <!-- populated by renderState() -->
+</div>
+
+<!-- ─── State switcher (demo only) ─── -->
+<div class="state-bar">
+  <span class="state-label">State</span>
+  <button class="state-chip on" data-state="l1-only">L1 only</button>
+  <button class="state-chip" data-state="l1-l2">L1 + L2</button>
+  <button class="state-chip" data-state="l1-l2-l3">L1 + L2 + L3</button>
+  <button class="state-chip" data-state="hurricane">Hurricane</button>
+  <button class="state-chip" data-state="empty">Empty</button>
+  <button class="state-chip" data-state="partial">Partial data</button>
+  <button class="state-chip" data-state="stale">Stale bulletin</button>
+  <button class="state-chip" data-state="mobile">Mobile</button>
+</div>
+
+<!-- ─── State data + rendering ─── -->
+<script>
+'use strict';
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DATA — three example storms (per brief §4)
+// ═════════════════════════════════════════════════════════════════════════════
+
+const STORM_A = {
+  id: 'storm-a',
+  type: 'LOW',
+  typeLabel: 'Low Pressure',
+  name: 'Low Pressure · Gulf of Alaska',
+  lat: 42.5, lon: -155.0, posLabel: '42.5°N, 155.0°W',
+  pressure_mb: 985,
+  wind_kt: 55,
+  wind_mph: 63,
+  seas_ft: 22,
+  seas_range: '18–22',
+  movement_dir: 45, // NE
+  movement_dir_label: 'NE',
+  movement_speed_kt: 15,
+  warning_tier: 'storm',
+  fetch: { quadrant: 'W semicircle', radius_nm: 150, severity: 'hurricane-force' },
+  track: [
+    { t_plus: 24, lat: 44.0, lon: -151.0, mb: 990, kt: 50 },
+    { t_plus: 48, lat: 45.5, lon: -146.0, mb: 995, kt: 40 },
+    { t_plus: 72, lat: 46.0, lon: -140.0, mb: 1002, kt: 30 },
+  ],
+  issued_minutes_ago: 120,
+  nhc_official: false,
+  bulletin: `AREAS AFFECTED...E PAC N OF 30N AND E OF 160W
+
+.SYNOPSIS...LOW 985 MB NEAR 42.5N 155W MOVING NE 15 KT.
+WITHIN 150 NM OF CENTER IN W SEMICIRCLE WINDS 50-55 KT,
+SEAS 18 TO 22 FT. OUTSIDE WINDS 30-40 KT, SEAS 12 TO 16 FT.
+
+.FORECAST THROUGH 24H...LOW 990 MB NEAR 44N 151W BY 12Z.
+WITHIN 120 NM OF CENTER WINDS 45-50 KT, SEAS 16 TO 20 FT.
+.OUTLOOK 48-72H...LOW WEAKENING TO 995-1002 MB AS IT TRACKS NE.`,
+  arrivals: [
+    { region_id: 'mx-main', name: 'Mainland Mexico', parent: 'MX · Pacific', peak_ft: 11, peak_when: 'Fri 5a', window_h: 48, tier: 'firing',
+      spots: [
+        { id: 'pascuales', name: 'Pascuales', ft: 11, period: 17, dir: 'WNW', first: 'Fri 5:00a', peak: 'Sat 9:00a', wind: '4 mph SE', wind_class: 'offshore', tide: '0.8 ft rising', tide_class: 'rising', score: 5 },
+        { id: 'puerto',    name: 'Puerto Escondido', ft: 10, period: 17, dir: 'WNW', first: 'Fri 7:00a', peak: 'Sat 12:00p', wind: '6 mph S', wind_class: 'offshore', tide: '1.2 ft falling', tide_class: '', score: 5 },
+        { id: 'la-ticla',  name: 'La Ticla', ft: 9, period: 17, dir: 'WNW', first: 'Fri 6:00a', peak: 'Sat 10:00a', wind: '3 mph E', wind_class: 'offshore', tide: '0.4 ft rising', tide_class: 'rising', score: 4 },
+        { id: 'salina',    name: 'Salina Cruz', ft: 7, period: 17, dir: 'WNW', first: 'Fri 11:00a', peak: 'Sat 4:00p', wind: '15 mph N', wind_class: 'onshore', tide: '1.6 ft rising', tide_class: 'rising', score: 3 },
+        { id: 'barra',     name: 'Barra de la Cruz', ft: 7, period: 17, dir: 'WNW', first: 'Fri 11:00a', peak: 'Sat 4:00p', wind: '12 mph N', wind_class: 'onshore', tide: '1.4 ft rising', tide_class: 'rising', score: 3 },
+      ],
+      total_spots: 12,
+    },
+    { region_id: 'baja-n', name: 'Baja Norte', parent: 'MX · Pacific', peak_ft: 9, peak_when: 'Thu 2p', window_h: 40, tier: 'solid',
+      spots: [
+        { id: 'todos-santos', name: 'Todos Santos', ft: 9, period: 16, dir: 'WNW', first: 'Thu 2:00p', peak: 'Fri 8:00a', wind: '5 mph NE', wind_class: 'offshore', tide: '1.1 ft rising', tide_class: 'rising', score: 5 },
+        { id: 'k38', name: 'K38', ft: 6, period: 16, dir: 'WNW', first: 'Thu 4:00p', peak: 'Fri 9:00a', wind: '7 mph E', wind_class: 'offshore', tide: '0.9 ft rising', tide_class: 'rising', score: 4 },
+        { id: 'salsipuedes', name: 'Salsipuedes', ft: 8, period: 16, dir: 'WNW', first: 'Thu 3:00p', peak: 'Fri 10:00a', wind: '4 mph E', wind_class: 'offshore', tide: '1.3 ft rising', tide_class: 'rising', score: 4 },
+      ],
+      total_spots: 7,
+    },
+    { region_id: 'socal-s', name: 'So Cal South', parent: 'US · CA', peak_ft: 8, peak_when: 'Thu 6a', window_h: 36, tier: 'solid' },
+    { region_id: 'ccal',   name: 'Central Coast CA', parent: 'US · CA', peak_ft: 7, peak_when: 'Wed 10p', window_h: 30, tier: 'good' },
+    { region_id: 'hi-nor', name: 'Hawaii North Shore', parent: 'US · HI', peak_ft: 5, peak_when: 'Fri 8p', window_h: 42, tier: 'good' },
+    { region_id: 'or',     name: 'Oregon Coast', parent: 'US · OR', peak_ft: 4, peak_when: 'Wed 8p', window_h: 24, tier: 'fair' },
+  ],
+};
+
+const STORM_HURR = {
+  id: 'storm-b',
+  type: 'HURRICANE',
+  typeLabel: 'Hurricane Delta',
+  name: 'Hurricane Delta · Central Atlantic',
+  lat: 22.0, lon: -45.0, posLabel: '22.0°N, 45.0°W',
+  pressure_mb: 945,
+  wind_kt: 115, wind_mph: 132,
+  seas_ft: 35, seas_range: '28–35',
+  movement_dir: 292, movement_dir_label: 'WNW', movement_speed_kt: 12,
+  warning_tier: 'hurricane',
+  fetch: { quadrant: 'NE quadrant', radius_nm: 220, severity: 'hurricane-force' },
+  track: [
+    { t_plus: 24, lat: 23.5, lon: -48.0, mb: 950, kt: 105 },
+    { t_plus: 48, lat: 25.0, lon: -52.0, mb: 960, kt: 90 },
+    { t_plus: 72, lat: 26.5, lon: -57.0, mb: 965, kt: 75 },
+  ],
+  issued_minutes_ago: 45,
+  nhc_official: true,
+  bulletin: `HURRICANE DELTA ADVISORY NUMBER 14
+NWS NATIONAL HURRICANE CENTER MIAMI FL   AL062026
+1100 AM AST THU APR 23 2026
+
+...DELTA REMAINS A CATEGORY 3 HURRICANE...
+...FURTHER STRENGTHENING POSSIBLE BEFORE ENCOUNTERING COOLER WATERS...
+
+SUMMARY OF 1100 AM AST...1500 UTC...INFORMATION
+LOCATION...22.0N 45.0W
+ABOUT 1150 MI...1850 KM E OF THE LEEWARD ISLANDS
+MAXIMUM SUSTAINED WINDS...130 MPH...215 KM/H
+PRESENT MOVEMENT...WNW OR 290 DEGREES AT 14 MPH...22 KM/H
+MINIMUM CENTRAL PRESSURE...945 MB...27.91 INCHES`,
+  arrivals: [
+    { region_id: 'ec-mid', name: 'US East Coast (Mid-Atlantic)', parent: 'US · Atlantic', peak_ft: 10, peak_when: 'Tue 4a', window_h: 36, tier: 'firing' },
+    { region_id: 'ec-ne',  name: 'US East Coast (Northeast)', parent: 'US · Atlantic', peak_ft: 9, peak_when: 'Tue 10a', window_h: 40, tier: 'solid' },
+    { region_id: 'carib',  name: 'Caribbean (windward)', parent: 'ATL · Tropical', peak_ft: 7, peak_when: 'Sun 2p', window_h: 28, tier: 'solid' },
+    { region_id: 'bahama', name: 'Bahamas', parent: 'ATL · Tropical', peak_ft: 6, peak_when: 'Mon 6a', window_h: 24, tier: 'good' },
+    { region_id: 'eu-atl', name: 'Europe Atlantic', parent: 'EU · Atlantic', peak_ft: 3, peak_when: 'Fri 9p', window_h: 18, tier: 'fair' },
+  ],
+};
+
+const STORM_WEAK = {
+  id: 'storm-c',
+  type: 'LOW',
+  typeLabel: 'Low Pressure',
+  name: 'Weak Low · Eastern Pacific',
+  posLabel: '30.0°N, 135.0°W',
+  pressure_mb: 1005,
+  wind_kt: 30, wind_mph: 35,
+  seas_ft: 10, seas_range: '8–10',
+  movement_dir: 90, movement_dir_label: 'E', movement_speed_kt: 8,
+  warning_tier: 'none',
+  fetch: null,
+  track: null,
+  issued_minutes_ago: 180,
+  nhc_official: false,
+  bulletin: `AREAS AFFECTED...E PAC BETWEEN 25-35N
+.SYNOPSIS...WEAK LOW 1005 MB MOVING E AT 8 KT.
+SEAS 8-10 FT. NO WARNINGS IN EFFECT.`,
+  arrivals: [],
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+function freshnessText(mins) {
+  if (mins < 60) return `issued ${mins}m ago`;
+  const h = Math.round(mins / 60);
+  return `issued ${h}h ago`;
+}
+
+function isStale(mins) { return mins > 12 * 60; }
+
+function pressurePct(mb) {
+  const min = 950, max = 1020;
+  return Math.max(0, Math.min(100, ((mb - min) / (max - min)) * 100));
+}
+
+function tierFromPeak(ft) {
+  if (ft >= 10) return 'firing';
+  if (ft >= 8)  return 'solid';
+  if (ft >= 6)  return 'good';
+  if (ft >= 4)  return 'fair';
+  return 'flat';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RENDER — L1
+// ═════════════════════════════════════════════════════════════════════════════
+
+function renderTrackViz(track) {
+  if (!track || !track.length) {
+    return `<div class="track-missing">Forecast track unavailable</div>`;
+  }
+  // normalize to 0-1 box; use lat = up, lon = right; simple linear map
+  const lats = track.map(t => t.lat);
+  const lons = track.map(t => t.lon);
+  const latMin = Math.min(...lats) - 1, latMax = Math.max(...lats) + 1;
+  const lonMin = Math.min(...lons) - 1, lonMax = Math.max(...lons) + 1;
+  const toX = l => ((l - lonMin) / (lonMax - lonMin)) * 100;
+  const toY = l => 100 - ((l - latMin) / (latMax - latMin)) * 100;
+
+  const points = track.map(t => `${toX(t.lon)},${toY(t.lat)}`).join(' ');
+  const dots = track.map((t, i) =>
+    `<div class="wp" style="position:absolute;left:${toX(t.lon)}%;top:${toY(t.lat)}%;transform:translate(-50%,-50%);opacity:${1 - i*0.25};"></div>`
+  ).join('');
+  return `
+    <div class="track-viz">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline points="${points}" fill="none" stroke="var(--warn-storm)" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.65" vector-effect="non-scaling-stroke"/>
+      </svg>
+      ${dots}
+    </div>
+  `;
+}
+
+function renderFetchWedge(fetch) {
+  if (!fetch) return '';
+  // Pick wedge arc based on quadrant string
+  const QUADS = {
+    'N quadrant':       { from: -45,  to: 45 },
+    'E quadrant':       { from: 45,   to: 135 },
+    'S quadrant':       { from: 135,  to: 225 },
+    'W quadrant':       { from: 225,  to: 315 },
+    'NE quadrant':      { from: 0,    to: 90 },
+    'SE quadrant':      { from: 90,   to: 180 },
+    'SW quadrant':      { from: 180,  to: 270 },
+    'NW quadrant':      { from: 270,  to: 360 },
+    'N semicircle':     { from: -90,  to: 90 },
+    'E semicircle':     { from: 0,    to: 180 },
+    'S semicircle':     { from: 90,   to: 270 },
+    'W semicircle':     { from: 180,  to: 360 },
+  };
+  const arc = QUADS[fetch.quadrant] || { from: 180, to: 360 };
+  const R = 38, CX = 48, CY = 48;
+
+  function polar(angleDeg, r) {
+    // 0° = North (up), clockwise
+    const a = (angleDeg - 90) * Math.PI / 180;
+    return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
+  }
+  const [x1, y1] = polar(arc.from, R);
+  const [x2, y2] = polar(arc.to, R);
+  const largeArc = Math.abs(arc.to - arc.from) > 180 ? 1 : 0;
+  const wedge = `M ${CX} ${CY} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+  return `
+    <div class="fetch-wedge" title="${fetch.quadrant} · ${fetch.radius_nm} nm · ${fetch.severity} winds">
+      <svg viewBox="0 0 96 96">
+        <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--border-2)" stroke-width="1"/>
+        <path d="${wedge}" fill="var(--warn-storm)" fill-opacity="0.22" stroke="var(--warn-storm)" stroke-width="1.2" stroke-linejoin="round"/>
+        <!-- tick marks at N/E/S/W -->
+        <line x1="${CX}" y1="${CY-R}" x2="${CX}" y2="${CY-R-3}" stroke="var(--muted)" stroke-width="1"/>
+        <line x1="${CX}" y1="${CY+R}" x2="${CX}" y2="${CY+R+3}" stroke="var(--muted)" stroke-width="1"/>
+        <line x1="${CX-R}" y1="${CY}" x2="${CX-R-3}" y2="${CY}" stroke="var(--muted)" stroke-width="1"/>
+        <line x1="${CX+R}" y1="${CY}" x2="${CX+R+3}" y2="${CY}" stroke="var(--muted)" stroke-width="1"/>
+        <!-- labels -->
+        <text x="${CX}" y="10" text-anchor="middle" font-size="8" font-family="Geist Mono, monospace" fill="var(--muted)" letter-spacing="1">N</text>
+        <!-- core dot -->
+        <circle cx="${CX}" cy="${CY}" r="2" fill="var(--fg)"/>
+        <!-- radius label -->
+        <text x="${CX}" y="${CY+R+12}" text-anchor="middle" font-size="8" font-family="Geist Mono, monospace" fill="var(--muted)" letter-spacing="1">${fetch.radius_nm} NM</text>
+      </svg>
+    </div>
+  `;
+}
+
+function renderL1(storm, opts = {}) {
+  const typeClass = storm.type.toLowerCase().replace(/ /g, '-').replace('tropical-storm', 'ts').replace('tropical-depression', 'td');
+  const warn = storm.warning_tier; // 'none' | 'gale' | 'storm' | 'hurricane'
+  const stale = isStale(storm.issued_minutes_ago);
+  const fresh = freshnessText(storm.issued_minutes_ago);
+
+  return `
+    <section class="l1">
+      <div class="l1-warn-bar ${warn}"></div>
+      <header class="l1-head">
+        <span class="storm-type-badge ${typeClass}">${storm.type}</span>
+        <div class="l1-title-block">
+          <h2 class="l1-title">${storm.name}</h2>
+          <div class="l1-sub">
+            <span>${storm.posLabel}</span>
+            <span class="dot">·</span>
+            <span class="${stale ? 'stale' : 'fresh'}">${fresh}${stale ? ' — may be stale' : ''}</span>
+          </div>
+        </div>
+        <button class="l1-close" aria-label="Close storm card">
+          <svg width="12" height="12" viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+
+      <div class="l1-primary">
+        <div class="cell">
+          <span class="k">Pressure</span>
+          <span class="v">${storm.pressure_mb}<span class="u">mb</span></span>
+          <div class="pressure-gauge">
+            <span class="marker" style="left:${pressurePct(storm.pressure_mb)}%;"></span>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="k">Max winds</span>
+          <span class="v">${storm.wind_kt}<span class="u">kt</span></span>
+          <span class="sub">${storm.wind_mph} mph</span>
+        </div>
+        <div class="cell">
+          <span class="k">Max seas</span>
+          <span class="v">${storm.seas_ft}<span class="u">ft</span></span>
+          <span class="sub">${storm.seas_range} ft range</span>
+        </div>
+      </div>
+
+      <div class="l1-meta">
+        <div class="movement">
+          <div class="movement-line">
+            <div class="movement-arrow" style="transform: rotate(${storm.movement_dir}deg);">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 10l6-6 6 6"/></svg>
+            </div>
+            <span>Moving <b>${storm.movement_dir_label}</b> at <span class="mono">${storm.movement_speed_kt} kt</span></span>
+          </div>
+          <div class="fetch-line">
+            ${storm.fetch
+              ? `<em>${storm.fetch.severity}</em> winds in <em>${storm.fetch.quadrant}</em>, ~${storm.fetch.radius_nm} nm radius`
+              : `Fetch geometry unavailable`
+            }
+          </div>
+        </div>
+        ${renderFetchWedge(storm.fetch)}
+      </div>
+
+      <div class="l1-track">
+        <div class="title-row">
+          <span class="title">Forecast track · 72h</span>
+          ${storm.nhc_official ? `<span class="official-badge">NHC Official</span>` : ''}
+        </div>
+        ${renderTrackViz(storm.track)}
+        ${storm.track ? `
+          <div class="track-rows">
+            ${storm.track.map(t => `
+              <div class="track-row">
+                <div class="when">+${t.t_plus}h</div>
+                <div class="coord">${t.lat.toFixed(1)}°N ${Math.abs(t.lon).toFixed(1)}°W</div>
+                <div class="stat">${t.mb} mb · ${t.kt} kt</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+
+      <button class="l1-quick-chip">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+        Ask Scout about this storm
+        <span class="spark">Chat ↗</span>
+      </button>
+
+      <details class="l1-bulletin">
+        <summary>View full bulletin</summary>
+        <pre class="bulletin-text">${storm.bulletin}</pre>
+      </details>
+    </section>
+  `;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RENDER — L2
+// ═════════════════════════════════════════════════════════════════════════════
+
+function renderL2(storm, opts = {}) {
+  if (opts.loading) {
+    return `
+      <section class="l2">
+        <div class="l2-head">
+          <span class="title">Reachable surf <em>— where it lands</em></span>
+        </div>
+        <div class="l2-loading">
+          <div class="pulse"><i></i><i></i><i></i></div>
+          Computing arrivals…
+        </div>
+      </section>
+    `;
+  }
+
+  if (!storm.arrivals || storm.arrivals.length === 0) {
+    return `
+      <section class="l2">
+        <div class="l2-head">
+          <span class="title">Reachable surf</span>
+        </div>
+        <div class="l2-empty">
+          <div class="title">This storm isn't projected to deliver significant surf</div>
+          <div class="sub">Below our 3 ft threshold across every sub-region. Either the fetch is too narrow, the storm is too weak, or the geometry points away from any coast.</div>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="l2">
+      <div class="l2-head">
+        <span class="title">Reachable surf <em>— where it lands</em></span>
+        <div class="sort-toggle">
+          <button class="on" data-sort="size">Size</button>
+          <button data-sort="arrival">Arrival</button>
+        </div>
+      </div>
+      <div class="l2-list">
+        ${storm.arrivals.map((a, i) => {
+          const tier = a.tier || tierFromPeak(a.peak_ft);
+          const isSel = opts.selectedRegion === a.region_id;
+          return `
+            <div class="l2-row ${isSel ? 'on' : ''}" data-tier="${tier}" data-region="${a.region_id}">
+              <div class="tier-strip"></div>
+              <div class="main">
+                <div class="name">
+                  ${a.name}
+                  <span class="flag">${a.parent}</span>
+                </div>
+                <div class="meta">
+                  <span>first <b>${a.peak_when.replace(/^[A-Z][a-z]+ /, '')}</b></span>
+                  <span class="dot">·</span>
+                  <span><b>${a.window_h}h</b> window</span>
+                </div>
+              </div>
+              <div class="peak">
+                <div class="size">${a.peak_ft}<span class="u">ft</span></div>
+                <div class="when">peak <span class="hi">${a.peak_when}</span></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RENDER — L3
+// ═════════════════════════════════════════════════════════════════════════════
+
+const DIR_ARROW = { 'N': 0, 'NE': 45, 'E': 90, 'SE': 135, 'S': 180, 'SW': 225, 'W': 270, 'NW': 315, 'WNW': 293, 'WSW': 247, 'NNW': 337, 'NNE': 22, 'ENE': 67, 'ESE': 112, 'SSE': 157, 'SSW': 202 };
+
+function renderL3(region, opts = {}) {
+  const highlightId = opts.highlightId || null;
+  const spots = region.spots || [];
+  const hasMore = region.total_spots && region.total_spots > spots.length;
+
+  return `
+    <section class="l3">
+      <div class="l3-head">
+        <span class="title"><b>${region.name}</b> · ${spots.length} spots in range</span>
+        <span class="count">sorted by score</span>
+      </div>
+      <div class="l3-list">
+        ${spots.map(s => `
+          <article class="spot-row ${s.id === highlightId ? 'highlight' : ''}" data-score="${s.score}" data-spot="${s.id}">
+            <div class="name-row">
+              <span class="name">${s.name}</span>
+              <span class="score" title="Score ${s.score}/5"><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
+            <div class="swell-stats">
+              <span class="size">${s.ft} ft</span>
+              <span class="sep">·</span>
+              <span>${s.period}s period</span>
+              <span class="sep">·</span>
+              <span>from ${s.dir}</span>
+            </div>
+            <div class="when-row">
+              <span><span class="k">first</span> <span class="v">${s.first}</span></span>
+              <span><span class="k">peak</span> <span class="v peak">${s.peak}</span></span>
+            </div>
+            <div class="wind-tide">
+              <span class="item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h14m-3-3l3 3-3 3"/></svg>
+                <span>wind</span>
+                <span class="${s.wind_class}">${s.wind}${s.wind_class === 'offshore' ? ' off' : s.wind_class === 'onshore' ? ' on' : ''}</span>
+              </span>
+              <span class="item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12c3-3 6-3 9 0s6 3 9 0"/></svg>
+                <span>tide</span>
+                <span class="${s.tide_class}">${s.tide}</span>
+              </span>
+            </div>
+            <div class="ctas">
+              <a class="spot-cta primary" href="#">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                Plan trip with Scout
+              </a>
+              <a class="spot-cta" href="mysurflife-spot-detail.html">
+                Open spot
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+              </a>
+              <a class="spot-cta" href="#">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9z"/><path d="M10 21a2 2 0 004 0"/></svg>
+                Set alert
+              </a>
+            </div>
+          </article>
+        `).join('')}
+        ${hasMore ? `<button class="see-all">See all ${region.total_spots} spots</button>` : ''}
+      </div>
+    </section>
+  `;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STATE ORCHESTRATION
+// ═════════════════════════════════════════════════════════════════════════════
+
+const STATES = {
+  'l1-only': {
+    storm: STORM_A,
+    l2: 'loading',
+    selected: null,
+  },
+  'l1-l2': {
+    storm: STORM_A,
+    l2: 'ready',
+    selected: null,
+  },
+  'l1-l2-l3': {
+    storm: STORM_A,
+    l2: 'ready',
+    selected: 'mx-main',
+    highlight: 'pascuales',
+  },
+  'hurricane': {
+    storm: STORM_HURR,
+    l2: 'ready',
+    selected: null,
+  },
+  'empty': {
+    storm: STORM_WEAK,
+    l2: 'ready',
+    selected: null,
+  },
+  'partial': {
+    storm: (() => {
+      // Storm A minus forecast track and fetch
+      return { ...STORM_A, track: null, fetch: null };
+    })(),
+    l2: 'ready',
+    selected: null,
+  },
+  'stale': {
+    storm: (() => ({ ...STORM_A, issued_minutes_ago: 14 * 60 }))(),
+    l2: 'ready',
+    selected: null,
+  },
+  'mobile': {
+    storm: STORM_A,
+    l2: 'ready',
+    selected: 'mx-main',
+    highlight: 'pascuales',
+    mobile: true,
+  },
+};
+
+let currentState = 'l1-only';
+
+function renderState(key) {
+  const st = STATES[key];
+  if (!st) return;
+  currentState = key;
+
+  // mobile flag
+  document.body.toggleAttribute('data-mobile', !!st.mobile);
+
+  // dim map when a region is selected
+  document.body.classList.toggle('dimmed', !!st.selected);
+
+  // toggle arc visibility
+  document.getElementById('arc-layer').style.opacity = st.selected === 'mx-main' ? '1' : '0';
+  document.getElementById('arc-layer').style.transition = 'opacity 0.3s';
+  document.getElementById('arc-pin').style.display = st.selected === 'mx-main' ? 'block' : 'none';
+
+  // storm marker class
+  const mk = document.getElementById('storm-marker');
+  mk.classList.toggle('hurr', st.storm.type === 'HURRICANE');
+  mk.classList.add('selected');
+
+  // hide track layer when partial data
+  document.getElementById('track-layer').style.display = st.storm.track ? 'block' : 'none';
+
+  // build card HTML
+  const host = document.getElementById('card-host');
+  const l2Html = renderL2(st.storm, {
+    loading: st.l2 === 'loading',
+    selectedRegion: st.selected,
+  });
+  let l3Html = '';
+  if (st.selected) {
+    const region = st.storm.arrivals.find(a => a.region_id === st.selected);
+    if (region && region.spots) {
+      l3Html = renderL3(region, { highlightId: st.highlight });
+    }
+  }
+
+  host.innerHTML = `
+    <div class="storm-card">
+      <div class="storm-card-body">
+        ${renderL1(st.storm)}
+        ${l2Html}
+        ${l3Html}
+      </div>
+    </div>
+  `;
+
+  // Wire L2 row clicks
+  host.querySelectorAll('.l2-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const rid = row.dataset.region;
+      if (st.selected === rid) {
+        st.selected = null;
+        st.highlight = null;
+      } else {
+        st.selected = rid;
+        st.highlight = null;
+      }
+      renderState(currentState);
+    });
+  });
+
+  // Wire spot row clicks — toggles highlight
+  host.querySelectorAll('.spot-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.spot-cta')) return;
+      st.highlight = row.dataset.spot;
+      renderState(currentState);
+    });
+  });
+
+  // Close button
+  host.querySelector('.l1-close')?.addEventListener('click', () => {
+    host.innerHTML = '';
+    setTimeout(() => renderState(currentState), 400);
+  });
+}
+
+// Wire state chips
+document.querySelectorAll('.state-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.state-chip').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    renderState(btn.dataset.state);
+  });
+});
+
+// Wire storm marker click (cycle between some states for fun)
+document.getElementById('storm-marker').addEventListener('click', () => {
+  const chip = document.querySelector('.state-chip.on');
+  if (chip && chip.dataset.state === 'l1-only') {
+    document.querySelector('.state-chip[data-state="l1-l2"]').click();
+  }
+});
+
+// Initial render
+renderState('l1-only');
+
+// Keyboard: Esc closes card (demo only — rerenders)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const host = document.getElementById('card-host');
+    host.innerHTML = '';
+    setTimeout(() => renderState(currentState), 500);
+  }
+  // 1-8 to jump between states
+  const keys = ['l1-only', 'l1-l2', 'l1-l2-l3', 'hurricane', 'empty', 'partial', 'stale', 'mobile'];
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= 8) {
+    document.querySelectorAll('.state-chip')[n-1].click();
+  }
+});
+</script>
+
+</body>
+</html>
