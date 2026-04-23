@@ -84,15 +84,11 @@
 html {
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  height: 100%;
 }
 
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  height: 100%;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-ui);
