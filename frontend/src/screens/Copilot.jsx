@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../AuthContext';
+import { getAuthHeaders } from '../supabaseClient';
 import LogoPulse from '../design/LogoPulse';
 
 const SUGGESTED_PROMPTS = [
@@ -562,11 +563,22 @@ export default function Copilot({ context }) {
   const [input, setInput]                 = useState('');
   const [loading, setLoading]             = useState(false);
   const [allToolsCalled, setAllToolsCalled] = useState([]);
+  const [profile, setProfile]             = useState({});
   const threadRef = useRef(null);
   const inputRef  = useRef(null);
 
   const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   const initials = user?.email ? user.email.slice(0, 2).toUpperCase() : 'JP';
+
+  useEffect(() => {
+    if (!user) return;
+    getAuthHeaders().then(headers =>
+      fetch('/api/user/profile', { headers })
+        .then(r => r.ok ? r.json() : { profile: {} })
+        .then(data => setProfile(data.profile || {}))
+        .catch(() => {})
+    );
+  }, [user]);
 
   const scrollToBottom = useCallback(() => {
     if (threadRef.current) {
@@ -690,11 +702,15 @@ export default function Copilot({ context }) {
               <circle cx="12" cy="10" r="3"/>
               <path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8z"/>
             </svg>
-            <b>{user.email?.split('@')[0] || initials}</b>
-            <span className="cop-banner-sep">·</span>
-            <span>Intermediate · longboard + fish</span>
-            <span className="cop-banner-sep">·</span>
-            <span>San Diego, CA</span>
+            <b>{profile.display_name || user.email?.split('@')[0] || initials}</b>
+            {(profile.skill_level || profile.home_spot_name) && (
+              <>
+                <span className="cop-banner-sep">·</span>
+                <span>
+                  {[profile.skill_level, profile.home_spot_name].filter(Boolean).join(' · ')}
+                </span>
+              </>
+            )}
             <span className="cop-banner-time">
               {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toUpperCase()}
             </span>
@@ -788,10 +804,9 @@ export default function Copilot({ context }) {
           <h5 className="cop-ctx-head">Active context</h5>
           {user ? (
             <>
-              <div className="cop-ctx-row"><span className="cop-ctx-k">Account</span><span className="cop-ctx-v">{user.email?.split('@')[0]}</span></div>
-              <div className="cop-ctx-row"><span className="cop-ctx-k">Skill</span><span className="cop-ctx-v">Intermediate</span></div>
-              <div className="cop-ctx-row"><span className="cop-ctx-k">Home break</span><span className="cop-ctx-v">Cardiff Reef</span></div>
-              <div className="cop-ctx-row"><span className="cop-ctx-k">Drive range</span><span className="cop-ctx-v">25 min</span></div>
+              <div className="cop-ctx-row"><span className="cop-ctx-k">Account</span><span className="cop-ctx-v">{profile.display_name || user.email?.split('@')[0]}</span></div>
+              <div className="cop-ctx-row"><span className="cop-ctx-k">Skill</span><span className="cop-ctx-v">{profile.skill_level || '—'}</span></div>
+              <div className="cop-ctx-row"><span className="cop-ctx-k">Home break</span><span className="cop-ctx-v">{profile.home_spot_name || '—'}</span></div>
             </>
           ) : (
             <div className="cop-ctx-row"><span className="cop-ctx-k">Status</span><span className="cop-ctx-v">Guest</span></div>

@@ -3,6 +3,7 @@
 .manage-users-container {
   min-height: 100vh;
   background-color: #f8fafc;
+  font-family: 'Geist', system-ui, sans-serif;
 }
 
 .users-header {
@@ -20,7 +21,7 @@
 
 .users-header h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: #1e293b;
   flex: 1;
@@ -369,3 +370,158 @@
     font-size: 14px;
   }
 }
+
+/* ─── User email cell ─────────────────────────────────────────── */
+.user-display-name {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+  margin-bottom: 1px;
+}
+.user-email-addr {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ─── Skill badge ─────────────────────────────────────────────── */
+.badge-skill {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Row highlight when editing ─────────────────────────────── */
+.row-editing td {
+  background-color: #eff6ff;
+}
+
+.action-button.active {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+}
+
+/* ─── Profile edit panel ──────────────────────────────────────── */
+.profile-edit-row td {
+  padding: 0;
+  background: #f0f7ff;
+  border-left: 3px solid #3b82f6;
+}
+
+.profile-edit-panel {
+  padding: 18px 20px 16px;
+}
+
+.pep-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 14px;
+}
+
+.pep-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 900px) {
+  .pep-fields { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .pep-fields { grid-template-columns: 1fr; }
+}
+
+.pep-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pep-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pep-field input,
+.pep-field select {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: #1e293b;
+  background: white;
+  transition: border-color 0.15s;
+}
+.pep-field input:focus,
+.pep-field select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.pep-field input:disabled,
+.pep-field select:disabled {
+  opacity: 0.55;
+}
+
+.pep-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.pep-error {
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #dc2626;
+  margin-bottom: 10px;
+}
+
+.pep-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pep-btn-cancel {
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pep-btn-cancel:hover:not(:disabled) { background: #f8fafc; }
+.pep-btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pep-btn-save {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pep-btn-save:hover:not(:disabled) { background: #2563eb; }
+.pep-btn-save:disabled { opacity: 0.5; cursor: not-allowed; }

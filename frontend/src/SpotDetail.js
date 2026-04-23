@@ -1,1437 +1,774 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from './AuthContext';
-import AISpotAnalysis from './AISpotAnalysis';
 import LogoPulse from './design/LogoPulse';
+import Logo from './design/Logo';
+import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
 import './SpotDetail.css';
 
-// Skeleton loader component
-const SkeletonLoader = ({ height = '100px', className = '' }) => (
-  <div className={`skeleton-loader ${className}`} style={{ height }}>
-    <div className="skeleton-shimmer"></div>
-  </div>
-);
-
-// Map interaction controller component
+// ─── Map controller ───────────────────────────────────────────────
 const MapInteractionController = ({ isEditMode }) => {
   const map = useMap();
-
   useEffect(() => {
     if (isEditMode) {
-      // Enable all interactions
-      map.dragging.enable();
-      map.touchZoom.enable();
-      map.doubleClickZoom.enable();
-      map.scrollWheelZoom.enable();
-      map.boxZoom.enable();
-      map.keyboard.enable();
-
-      // Add zoom control in bottom right if not already present
-      if (!map.zoomControl) {
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-      }
+      map.dragging.enable(); map.touchZoom.enable(); map.doubleClickZoom.enable();
+      map.scrollWheelZoom.enable(); map.boxZoom.enable(); map.keyboard.enable();
     } else {
-      // Disable all interactions
-      map.dragging.disable();
-      map.touchZoom.disable();
-      map.doubleClickZoom.disable();
-      map.scrollWheelZoom.disable();
-      map.boxZoom.disable();
-      map.keyboard.disable();
-
-      // Remove zoom control
-      if (map.zoomControl) {
-        map.removeControl(map.zoomControl);
-      }
+      map.dragging.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable();
+      map.scrollWheelZoom.disable(); map.boxZoom.disable(); map.keyboard.disable();
     }
   }, [isEditMode, map]);
-
   return null;
 };
 
+// ─── Degree helpers ───────────────────────────────────────────────
+function degreesToCardinal(deg) {
+  if (deg == null) return '';
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16] || '';
+}
+
+function getPeriodLabel(s) {
+  if (!s) return '';
+  if (s >= 14) return 'Groundswell';
+  if (s >= 8)  return 'Swell';
+  return 'Wind swell';
+}
+
+function getWetsuitRec(tempF) {
+  if (!tempF) return '';
+  if (tempF >= 72) return 'Boardshorts';
+  if (tempF >= 65) return 'Spring suit';
+  if (tempF >= 60) return '2/2 or 3/2';
+  if (tempF >= 55) return '3/2';
+  if (tempF >= 50) return '4/3';
+  return '5/4 + hood';
+}
+
+function getWaveSizeLabel(ft) {
+  if (!ft || ft < 0.5) return '';
+  if (ft < 1.5) return 'Ankle–knee';
+  if (ft < 2.5) return 'Waist high';
+  if (ft < 3.5) return 'Chest high';
+  if (ft < 5) return 'Head high';
+  if (ft < 7) return 'Overhead';
+  if (ft < 10) return 'Double overhead';
+  return 'Triple overhead';
+}
+
+function getWaveCategory(ft) {
+  if (!ft) return null;
+  if (ft < 1) return 1;
+  if (ft < 2) return 2;
+  if (ft < 3) return 3;
+  if (ft < 5) return 4;
+  if (ft < 8) return 5;
+  return 5;
+}
+
+// ─── SpotDetail ───────────────────────────────────────────────────
 const SpotDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user, isAdmin, signOut } = useAuth();
 
-  // Core data (loads first - blocks render)
   const [spot, setSpot] = useState(null);
   const [conditions, setConditions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Secondary data (loads async - doesn't block render)
   const [buoyData, setBuoyData] = useState({});
-  const [buoyLoading, setBuoyLoading] = useState(true);
-
   const [modelForecast, setModelForecast] = useState(null);
   const [modelLoading, setModelLoading] = useState(true);
 
   const [forecastTimeline, setForecastTimeline] = useState(null);
   const [timelineLoading, setTimelineLoading] = useState(true);
+  const timelineFetchedForRef = useRef(null);
 
   const [selectedHour, setSelectedHour] = useState(0);
 
-  // Edit mode state (admin only)
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedSpot, setEditedSpot] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
-
-  // Admin menu state
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
-  // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuOpen && !e.target.closest('.admin-menu-container')) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    const h = (e) => { if (menuOpen && !e.target.closest('.sd-menu-container')) setMenuOpen(false); };
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
   }, [menuOpen]);
 
-  // Sign out handler
-  const handleSignOut = async () => {
-    setMenuOpen(false);
-    await signOut();
-    navigate('/');
-  };
+  const handleSignOut = async () => { setMenuOpen(false); await signOut(); navigate('/'); };
 
-  // Phase 1: Load critical data (spot + conditions) - blocks render
+  // Phase 1: critical data
   useEffect(() => {
-    const fetchCriticalData = async () => {
+    const fetch_ = async () => {
       try {
         setLoading(true);
-
-        // Fetch spot details and conditions in parallel
-        const [spotRes, conditionsRes] = await Promise.all([
+        const [spotRes, condRes] = await Promise.all([
           fetch(`/api/surf-spots/${slug}`),
-          fetch(`/api/surf-spots/${slug}/conditions`)
+          fetch(`/api/surf-spots/${slug}/conditions`),
         ]);
-
         if (!spotRes.ok) throw new Error(`Failed to fetch spot: ${spotRes.status}`);
-        if (!conditionsRes.ok) throw new Error(`Failed to fetch conditions: ${conditionsRes.status}`);
-
-        const spotData = await spotRes.json();
-        const conditionsData = await conditionsRes.json();
-
-        setSpot(spotData);
-        setConditions(conditionsData);
+        if (!condRes.ok) throw new Error(`Failed to fetch conditions: ${condRes.status}`);
+        setSpot(await spotRes.json());
+        setConditions(await condRes.json());
         setError(null);
       } catch (err) {
-        console.error('Error fetching spot data:', err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchCriticalData();
+    fetch_();
   }, [slug]);
 
-  // Phase 2: Load buoy data (async, non-blocking)
+  // Phase 2: buoys
   useEffect(() => {
-    const fetchBuoyData = async () => {
-      try {
-        setBuoyLoading(true);
-        const buoyRes = await fetch('/api/buoy-status/all');
-        if (buoyRes.ok) {
-          const buoyDataArray = await buoyRes.json();
-          const buoyMap = {};
-          buoyDataArray.forEach(buoy => {
-            if (buoy.station) {
-              buoyMap[buoy.station] = buoy;
-            }
-          });
-          setBuoyData(buoyMap);
-        }
-      } catch (err) {
-        console.warn('Buoy data fetch failed:', err);
-      } finally {
-        setBuoyLoading(false);
-      }
-    };
-
-    if (spot) fetchBuoyData();
+    if (!spot) return;
+    fetch('/api/buoy-status/all').then(r => r.ok ? r.json() : []).then(arr => {
+      const m = {};
+      arr.forEach(b => { if (b.station) m[b.station] = b; });
+      setBuoyData(m);
+    }).catch(() => {});
   }, [spot]);
 
-  // Phase 3: Load model forecast (async, non-blocking)
+  // Phase 3: model forecast
   useEffect(() => {
-    const fetchModelForecast = async () => {
-      try {
-        setModelLoading(true);
-        const modelRes = await fetch(`/api/surf-spots/${slug}/model-forecast`);
-        if (modelRes.ok) {
-          const modelData = await modelRes.json();
-          setModelForecast(modelData);
-        }
-      } catch (err) {
-        console.warn('Model forecast fetch failed:', err);
-      } finally {
-        setModelLoading(false);
-      }
-    };
-
-    if (spot) fetchModelForecast();
+    if (!spot) return;
+    setModelLoading(true);
+    fetch(`/api/surf-spots/${slug}/model-forecast`)
+      .then(r => r.ok ? r.json() : null).then(d => setModelForecast(d)).catch(() => {})
+      .finally(() => setModelLoading(false));
   }, [slug, spot]);
 
-  // Phase 4: Load timeline (async, non-blocking, with timeout)
+  // Phase 4: timeline (168h)
   useEffect(() => {
-    const fetchTimeline = async () => {
-      try {
-        setTimelineLoading(true);
-        const timelineController = new AbortController();
-        const timelineTimeout = setTimeout(() => timelineController.abort(), 10000);
-
-        const timelineRes = await fetch(`/api/surf-spots/${slug}/forecast-timeline?hours=48`, {
-          signal: timelineController.signal
-        });
-        clearTimeout(timelineTimeout);
-
-        if (timelineRes.ok) {
-          const timelineData = await timelineRes.json();
-          setForecastTimeline(timelineData);
+    if (!spot) return;
+    // Guard: skip if already successfully fetched for this slug (prevents StrictMode double-fire
+    // and any re-renders that change `spot` reference without actually changing the spot).
+    if (timelineFetchedForRef.current === slug) return;
+    setTimelineLoading(true);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 25000);
+    fetch(`/api/surf-spots/${slug}/forecast-timeline?hours=168`, { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.timeline) {
+          setForecastTimeline(d);
+          timelineFetchedForRef.current = slug;
         }
-      } catch (err) {
-        console.warn('Timeline fetch failed (non-critical):', err.message);
-      } finally {
-        setTimelineLoading(false);
-      }
-    };
-
-    if (spot) fetchTimeline();
+      })
+      .catch(() => {})
+      .finally(() => { clearTimeout(t); setTimelineLoading(false); });
+    return () => ctrl.abort();
   }, [slug, spot]);
 
-  if (loading) {
-    return (
-      <div className="spot-detail-loading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
-        <LogoPulse size={64} />
-      </div>
-    );
-  }
-
-  if (error || !spot) {
-    return (
-      <div className="spot-detail-error">
-        <h2>❌ Error</h2>
-        <p>{error || 'Spot not found'}</p>
-        <button onClick={() => navigate('/')}>← Back to Map</button>
-      </div>
-    );
-  }
-
-  // Get wind speed color based on mph (matches homepage wind overlay colors)
-  const getWindSpeedColor = (speedMph) => {
-    const KTS_TO_MPH = 1.15078;
-    const speedKts = speedMph / KTS_TO_MPH;
-
-    // Color stops from WindSpeedLegend.js
-    const stops = [
-      { kts: 0,  color: 'rgb(173,216,230)' },
-      { kts: 5,  color: 'rgb(135,206,250)' },
-      { kts: 10, color: 'rgb(100,200,200)' },
-      { kts: 15, color: 'rgb(144,238,144)' },
-      { kts: 20, color: 'rgb(255,255,100)' },
-      { kts: 25, color: 'rgb(255,200,50)' },
-      { kts: 30, color: 'rgb(255,140,30)' },
-      { kts: 35, color: 'rgb(255,80,30)' },
-      { kts: 40, color: 'rgb(220,40,60)' },
-      { kts: 50, color: 'rgb(180,20,80)' },
-    ];
-
-    // Find the appropriate color stop
-    for (let i = 0; i < stops.length - 1; i++) {
-      if (speedKts >= stops[i].kts && speedKts < stops[i + 1].kts) {
-        // Interpolate between stops
-        const t = (speedKts - stops[i].kts) / (stops[i + 1].kts - stops[i].kts);
-        return i === 0 ? stops[i].color : stops[i + 1].color;
-      }
-    }
-
-    // If speed exceeds max, return max color
-    return stops[stops.length - 1].color;
-  };
-
-  // Custom marker icon for the spot location
-  const spotIcon = new L.DivIcon({
-    className: 'spot-detail-marker',
-    html: `
-      <div style="
-        background-color: #3b82f6;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        border: 3px solid white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-      ">
-        🏄
-      </div>
-    `,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
-  });
-
-  const characteristics = spot.spot_characteristics || {};
-  const score = conditions?.overall_score || 0;
-  const scoreColor = score >= 7 ? '#22c55e' : score >= 5 ? '#f59e0b' : '#ef4444';
-
-  // Get forecast data for selected hour
+  // ─── Data helpers ───
   const getForecastAtHour = (hour) => {
-    if (!forecastTimeline || !forecastTimeline.timeline) return null;
+    if (!forecastTimeline?.timeline) return null;
+    const exact = forecastTimeline.timeline.find(p => p.hour === hour);
+    if (exact) return exact;
+    return forecastTimeline.timeline.reduce((best, p) =>
+      Math.abs(p.hour - hour) < Math.abs(best.hour - hour) ? p : best
+    );
+  };
 
-    // Find the exact hour or closest available hour
-    const point = forecastTimeline.timeline.find(p => p.hour === hour);
-    if (point) return point;
+  const getSwellsForHour = () => {
+    const swell_colors = ['var(--s1)', 'var(--s2)', 'var(--s3)'];
+    const swell_rings = ['mid', 'mid', 'inner'];
 
-    // Find closest hour if exact not available
-    let closest = forecastTimeline.timeline[0];
-    let minDiff = Math.abs(closest.hour - hour);
-
-    for (const p of forecastTimeline.timeline) {
-      const diff = Math.abs(p.hour - hour);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = p;
+    if (selectedHour === 0 || !forecastTimeline?.timeline) {
+      const swells = [];
+      for (let k = 1; k <= 3; k++) {
+        const s = conditions?.[`swell_${k}`];
+        if (s?.height_ft >= 0.3) {
+          swells.push({ height_ft: s.height_ft, period_s: s.period, direction_deg: s.direction, color: swell_colors[k-1], ring: swell_rings[k-1] });
+        }
+      }
+      if (!swells.length && conditions?.adjusted_height_ft) {
+        swells.push({ height_ft: conditions.adjusted_height_ft, period_s: conditions.period_sec, direction_deg: conditions.swell_direction, color: 'var(--s1)', ring: 'mid' });
+      }
+      return swells;
+    }
+    const pt = getForecastAtHour(selectedHour);
+    if (!pt) return [];
+    const swells = [];
+    for (let k = 1; k <= 3; k++) {
+      const s = pt.wave?.[`swell_${k}`];
+      if (s?.height_ft) {
+        swells.push({ height_ft: s.height_ft, period_s: s.period, direction_deg: s.direction, color: swell_colors[k-1], ring: swell_rings[k-1] });
       }
     }
-
-    return closest;
+    if (!swells.length && pt.wave?.height_ft) {
+      swells.push({ height_ft: pt.wave.height_ft, period_s: pt.wave.period, direction_deg: pt.wave.direction, color: 'var(--s1)', ring: 'mid' });
+    }
+    return swells;
   };
 
-  // Get current or forecast wave/wind data based on selected hour
-  const getCurrentWaveWind = () => {
+  const getWindForHour = () => {
     if (selectedHour === 0) {
-      // Use current conditions from buoys
-      return {
-        wave_height_ft: conditions?.adjusted_height_ft,
-        wave_direction: conditions?.swell_direction,
-        wave_period: conditions?.period_sec,
-        surf_height_ft: conditions?.surf_height_ft,
-        wind_speed_mph: conditions?.wind_speed_mph || modelForecast?.models?.hrrr?.wind_speed_mph,
-        wind_direction: conditions?.wind_direction || modelForecast?.models?.hrrr?.wind_direction,
-        isForecast: false
-      };
-    } else {
-      // Use forecast data
-      const forecast = getForecastAtHour(selectedHour);
-      if (!forecast) return null;
+      const spd = conditions?.wind_speed_mph ?? modelForecast?.models?.hrrr?.wind_speed_mph;
+      const dir = conditions?.wind_direction ?? modelForecast?.models?.hrrr?.wind_direction;
+      if (spd && dir) return { speed_mph: spd, direction_deg: dir, color: 'var(--wind)' };
+      return null;
+    }
+    const pt = getForecastAtHour(selectedHour);
+    if (!pt?.wind?.speed_mph || !pt?.wind?.direction) return null;
+    return { speed_mph: pt.wind.speed_mph, direction_deg: pt.wind.direction, color: 'var(--wind)' };
+  };
+
+  const getConditionsForGrid = () => {
+    if (selectedHour === 0) {
+      const windSpd = conditions?.wind_speed_mph ?? modelForecast?.models?.hrrr?.wind_speed_mph;
+      const windDir = conditions?.wind_direction ?? modelForecast?.models?.hrrr?.wind_direction;
+      const waveFt = conditions?.surf_height_ft ?? conditions?.adjusted_height_ft;
+      const waterTempF = conditions?.water_temp_c ? conditions.water_temp_c * 9 / 5 + 32 : null;
+
+      // Tide from timeline h=0 (tide data lives in timeline, not /conditions)
+      const tidePt0 = getForecastAtHour(0);
+      const tidePt1 = getForecastAtHour(6);
+      const tide0 = tidePt0?.tide_ft ?? null;
+      const tide0Trend = tide0 != null && tidePt1?.tide_ft != null
+        ? tide0 < tidePt1.tide_ft ? 'rising' : 'falling'
+        : null;
+      const allTides0 = (forecastTimeline?.timeline ?? []).map(p => p.tide_ft).filter(v => v != null);
+      const minT0 = allTides0.length ? Math.min(...allTides0) : 0;
+      const maxT0 = allTides0.length ? Math.max(...allTides0) : 10;
+      const tideRange0 = maxT0 - minT0;
+      const tidePos0 = tide0 != null && tideRange0 > 0
+        ? tide0 < minT0 + tideRange0 / 3 ? 'Low'
+        : tide0 < minT0 + tideRange0 * 2 / 3 ? 'Mid'
+        : 'High'
+        : null;
 
       return {
-        wave_height_ft: forecast.wave?.height_ft,
-        wave_direction: forecast.wave?.direction,
-        wave_period: forecast.wave?.period,
-        surf_height_ft: forecast.wave?.surf_height_ft,
-        wind_speed_mph: forecast.wind?.speed_mph,
-        wind_direction: forecast.wind?.direction,
-        isForecast: true,
-        forecastHour: forecast.hour
+        wave_face_ft: waveFt,
+        category_label: waveFt
+          ? `Cat ${getWaveCategory(waveFt)} · ${getWaveSizeLabel(waveFt)}`
+          : conditions?.rating || null,
+        period_s: conditions?.period_sec,
+        period_label: getPeriodLabel(conditions?.period_sec),
+        primary_dir_deg: conditions?.swell_direction,
+        primary_dir_label: degreesToCardinal(conditions?.swell_direction),
+        wind_mph: windSpd,
+        wind_label: windDir ? `${degreesToCardinal(windDir)} · ${Math.round(windDir)}°` : null,
+        tide_ft: tide0,
+        tide_trend: tide0Trend,
+        tide_position: tidePos0,
+        water_temp_f: waterTempF,
+        wetsuit: waterTempF ? getWetsuitRec(waterTempF) : null,
       };
     }
-  };
+    const pt = getForecastAtHour(selectedHour);
+    if (!pt) return null;
 
-  const currentData = getCurrentWaveWind();
+    const waveFt = pt.wave?.surf_height_ft ?? pt.wave?.wave_face_ft ?? pt.wave?.height_ft;
+    const period = pt.wave?.period_s ?? pt.wave?.period;
+    const dirDeg = pt.wave?.direction_deg ?? pt.wave?.direction;
+    const windDirDeg = pt.wind?.direction_deg ?? pt.wind?.direction;
 
-  // Calculate swell arrow position and rotation with concentric circles
-  // Arrow pivots around center of spot icon, tip touches inner circle
-  // Arrow length is proportional to swell size relative to max in forecast
-  const getSwellArrowData = (swellDirection, waveHeight, maxSwellHeight = 8) => {
-    if (!swellDirection || !waveHeight) return null;
+    // Tide trend: compare to previous hour
+    const ptPrev = getForecastAtHour(Math.max(0, selectedHour - 1));
+    const tideTrend = pt.tide_ft != null && ptPrev?.tide_ft != null
+      ? pt.tide_ft > ptPrev.tide_ft ? 'rising' : 'falling'
+      : null;
 
-    // Ensure values are numbers
-    const direction = parseFloat(swellDirection);
-    const height = parseFloat(waveHeight);
-    if (isNaN(direction) || isNaN(height)) return null;
+    // Tide position: low/mid/high relative to full-forecast range
+    const allTides = (forecastTimeline?.timeline ?? []).map(p => p.tide_ft).filter(v => v != null);
+    const minT = allTides.length ? Math.min(...allTides) : 0;
+    const maxT = allTides.length ? Math.max(...allTides) : 10;
+    const tideRange = maxT - minT;
+    const tidePos = pt.tide_ft != null && tideRange > 0
+      ? pt.tide_ft < minT + tideRange / 3 ? 'Low'
+      : pt.tide_ft < minT + tideRange * 2 / 3 ? 'Mid'
+      : 'High'
+      : null;
 
-    // Circle radii in pixels
-    // Inner circle: 39px center + 5px (half of 10px border) = 44px outer edge
-    const innerRadius = 44; // Arrow tips touch outer edge of white circle border
-    const outerRadius = 180; // Outer boundary (larger for more scale)
-    const arrowHeadWidth = 25; // Width of arrow head triangle
-
-    // Arrow length proportional to wave height relative to max
-    const lengthRatio = Math.min(height / maxSwellHeight, 1.0);
-
-    // Total distance from inner to outer circle
-    const maxArrowLength = outerRadius - innerRadius;
-
-    // Actual arrow length based on swell size
-    const arrowLength = lengthRatio * maxArrowLength;
-
-    // Arrow rotation: swell coming FROM this direction, arrow points toward center
-    // Subtract 90° because CSS 0° is right, we want 0° to be up
-    const arrowRotation = direction - 90;
+    // Water temp: doesn't change hour-to-hour — use spot data
+    const waterTempF = spot?.water_temp_c ? spot.water_temp_c * 9 / 5 + 32 : null;
 
     return {
-      rotation: arrowRotation,
-      length: arrowLength,
-      innerRadius: innerRadius,
-      arrowHeadWidth: arrowHeadWidth,
-      bodyStart: innerRadius + arrowHeadWidth, // Body starts at back of arrow head
-      percentage: (lengthRatio * 100).toFixed(0),
+      wave_face_ft: waveFt,
+      category_label: waveFt ? `Cat ${getWaveCategory(waveFt)} · ${getWaveSizeLabel(waveFt)}` : null,
+      period_s: period,
+      period_label: getPeriodLabel(period),
+      primary_dir_deg: dirDeg,
+      primary_dir_label: degreesToCardinal(dirDeg),
+      wind_mph: pt.wind?.speed_mph,
+      wind_label: windDirDeg ? `${degreesToCardinal(windDirDeg)} · ${Math.round(windDirDeg)}°` : null,
+      tide_ft: pt.tide_ft ?? null,
+      tide_trend: tideTrend,
+      tide_position: tidePos,
+      water_temp_f: waterTempF,
+      wetsuit: waterTempF ? getWetsuitRec(waterTempF) : null,
     };
   };
 
-  // Calculate wind arrow position and rotation with concentric circles
-  // Uses EXACT SAME LOGIC as swell arrow for consistency
-  const getWindArrowData = (windDirection, windSpeed, maxWindSpeed = 40) => {
-    if (!windDirection || !windSpeed) return null;
-
-    // Ensure values are numbers
-    const direction = parseFloat(windDirection);
-    const speed = parseFloat(windSpeed);
-    if (isNaN(direction) || isNaN(speed)) return null;
-
-    // Circle radii in pixels (SAME AS SWELL)
-    const innerRadius = 44;
-    const outerRadius = 180;
-    const arrowHeadWidth = 25; // Width of arrow head triangle
-
-    // Arrow length proportional to wind speed relative to max (SAME LOGIC AS SWELL)
-    const lengthRatio = Math.min(speed / maxWindSpeed, 1.0);
-    const maxArrowLength = outerRadius - innerRadius;
-    const arrowLength = lengthRatio * maxArrowLength;
-
-    // Arrow rotation (SAME AS SWELL)
-    const arrowRotation = direction - 90;
-
-    return {
-      rotation: arrowRotation,
-      length: arrowLength,
-      innerRadius: innerRadius,
-      arrowHeadWidth: arrowHeadWidth,
-      bodyStart: innerRadius + arrowHeadWidth, // Body starts at back of arrow head
-      percentage: (lengthRatio * 100).toFixed(0),
-    };
+  const getDailyRatings = () => {
+    if (!forecastTimeline?.timeline?.length) return [3,3,3,3,3,3,3];
+    return Array.from({ length: 7 }, (_, day) => {
+      const pts = forecastTimeline.timeline.filter(p => p.hour >= day*24 && p.hour < (day+1)*24);
+      if (!pts.length) return 2;
+      const avg = pts.reduce((s, p) => s + (p.wave?.height_ft || 0), 0) / pts.length;
+      return Math.min(5, Math.max(1, Math.round(avg * 0.9 + 0.5)));
+    });
   };
 
-  // Edit mode handlers
+  const getMiniChartData = () => {
+    if (!forecastTimeline?.timeline?.length) return [];
+    return forecastTimeline.timeline.map(p => ({ t: p.hour, value: p.wave?.height_ft || 0 }));
+  };
+
+  const getSwellsEnriched = () => getSwellsForHour().map((s, i) => ({
+    ...s,
+    direction_label: degreesToCardinal(s.direction_deg),
+    type_label: getPeriodLabel(s.period_s),
+    category: s.period_s ? Math.min(10, Math.round(s.period_s / 2)) : 0,
+  }));
+
+  const getWindEnriched = () => {
+    const w = getWindForHour();
+    if (!w) return null;
+    return { ...w, direction_label: degreesToCardinal(w.direction_deg) };
+  };
+
+  // ─── Edit mode handlers ─────────────────────────────────────────
   const enterEditMode = () => {
-    console.log('🟢 enterEditMode called');
-    console.log('📊 spot data:', spot);
-    console.log('📋 spot.spot_characteristics:', spot.spot_characteristics);
-
-    const characteristics = spot.spot_characteristics || {};
-    console.log('📝 characteristics:', characteristics);
-
-    const editData = {
-      // Flatten spot and characteristics into single object
-      name: spot.name,
-      region: spot.region,
-      subregion: spot.subregion || '',
-      latitude: spot.latitude,
-      longitude: spot.longitude,
+    const ch = spot.spot_characteristics || {};
+    setEditedSpot({
+      name: spot.name, region: spot.region, subregion: spot.subregion || '',
+      latitude: spot.latitude, longitude: spot.longitude,
       location_description: spot.location_description || '',
       access_description: spot.access_description || '',
       parking_info: spot.parking_info || '',
-      break_type: characteristics.break_type || '',
-      bottom_type: characteristics.bottom_type || '',
-      wave_quality: characteristics.wave_quality || '',
-      skill_level: characteristics.skill_level || '',
-      best_swell_direction: characteristics.best_swell_direction || '',
-      best_wind_direction: characteristics.best_wind_direction || '',
-      tide_position: characteristics.tide_position || '',
-      works_from_swell_ft: characteristics.works_from_swell_ft || '',
-      works_to_swell_ft: characteristics.works_to_swell_ft || '',
-    };
-
-    console.log('✏️ editData populated:', editData);
-    setEditedSpot(editData);
+      break_type: ch.break_type || '', bottom_type: ch.bottom_type || '',
+      wave_quality: ch.wave_quality || '', skill_level: ch.skill_level || '',
+      best_swell_direction: ch.best_swell_direction || '',
+      best_wind_direction: ch.best_wind_direction || '',
+      tide_position: ch.tide_position || '',
+      works_from_swell_ft: ch.works_from_swell_ft || '',
+      works_to_swell_ft: ch.works_to_swell_ft || '',
+    });
     setIsEditMode(true);
   };
 
-  const exitEditMode = () => {
-    setIsEditMode(false);
-    setEditedSpot(null);
-    setSaveError(null);
-  };
+  const exitEditMode = () => { setIsEditMode(false); setEditedSpot(null); setSaveError(null); };
 
   const handleSave = async () => {
-    console.log('🔵 handleSave called');
-    console.log('📝 editedSpot:', editedSpot);
-
-    // Validation
-    if (!editedSpot.name || !editedSpot.region || !editedSpot.skill_level) {
-      console.log('❌ Validation failed: missing required fields');
-      setSaveError('Please fill in all required fields (Name, Region, Skill Level)');
-      return;
-    }
-
-    if (editedSpot.latitude < -90 || editedSpot.latitude > 90) {
-      console.log('❌ Validation failed: invalid latitude');
-      setSaveError('Latitude must be between -90 and 90');
-      return;
-    }
-
-    if (editedSpot.longitude < -180 || editedSpot.longitude > 180) {
-      console.log('❌ Validation failed: invalid longitude');
-      setSaveError('Longitude must be between -180 and 180');
-      return;
-    }
-
+    if (!editedSpot.name || !editedSpot.region || !editedSpot.skill_level) { setSaveError('Name, Region, Skill Level are required'); return; }
+    if (editedSpot.latitude < -90 || editedSpot.latitude > 90) { setSaveError('Invalid latitude'); return; }
+    if (editedSpot.longitude < -180 || editedSpot.longitude > 180) { setSaveError('Invalid longitude'); return; }
     try {
-      setIsSaving(true);
-      setSaveError(null);
-      console.log('🔐 Getting auth token...');
-
-      // Get auth token from localStorage
+      setIsSaving(true); setSaveError(null);
       const token = localStorage.getItem('sb-duebzukxycgfkfjezwjq-auth-token');
-      if (!token) {
-        console.log('❌ No auth token found');
-        throw new Error('Not authenticated');
-      }
-
-      const sessionData = JSON.parse(token);
-      const accessToken = sessionData.access_token;
-      console.log('✅ Token retrieved');
-
-      // Call API
-      console.log(`📡 Calling PUT /api/admin/surf-spots/${slug}`);
-      const response = await fetch(`/api/admin/surf-spots/${slug}`, {
+      if (!token) throw new Error('Not authenticated');
+      const { access_token } = JSON.parse(token);
+      const res = await fetch(`/api/admin/surf-spots/${slug}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(editedSpot)
+        headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(editedSpot),
       });
-
-      console.log('📥 Response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.log('❌ Error response:', errorData);
-        throw new Error(errorData.detail || 'Failed to save changes');
-      }
-
-      const result = await response.json();
-      console.log('✅ Spot updated successfully:', result);
-
-      // Exit edit mode and reload
-      exitEditMode();
-      window.location.reload();
-
-    } catch (err) {
-      console.error('❌ Error saving spot:', err);
-      setSaveError(err.message);
-    } finally {
-      setIsSaving(false);
-    }
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Save failed'); }
+      exitEditMode(); window.location.reload();
+    } catch (err) { setSaveError(err.message); }
+    finally { setIsSaving(false); }
   };
 
+  // ─── Render guards ──────────────────────────────────────────────
+  if (loading) return (
+    <div className="sd-loading"><LogoPulse size={96} /></div>
+  );
+  if (error || !spot) return (
+    <div className="sd-error">
+      <h2>Could not load spot</h2>
+      <p>{error || 'Spot not found'}</p>
+      <button onClick={() => navigate('/')}>← Back to map</button>
+    </div>
+  );
+
+  const ch = spot.spot_characteristics || {};
+  const lat = isEditMode && editedSpot ? editedSpot.latitude : spot.latitude;
+  const lng = isEditMode && editedSpot ? editedSpot.longitude : spot.longitude;
+  const swells = getSwellsForHour();
+  const wind = getWindForHour();
+  const condGrid = getConditionsForGrid();
+  const enrichedSwells = getSwellsEnriched();
+  const enrichedWind = getWindEnriched();
+  const startDate = new Date();
+
+  const fmtTime = (h) => {
+    const d = new Date(startDate);
+    d.setHours(d.getHours() + h);
+    const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const h12 = d.getHours() % 12 || 12;
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    const ap = d.getHours() >= 12 ? 'PM' : 'AM';
+    return `${M[d.getMonth()]} ${d.getDate()}, ${h12}:${mm} ${ap}`;
+  };
+
+  const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dayLegend = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    return DOW_SHORT[d.getDay()];
+  });
+
+  const spotIcon = new L.DivIcon({
+    className: '',
+    html: `<div style="width:22px;height:22px;border-radius:50%;background:var(--accent,#3EC9D4);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4)"></div>`,
+    iconSize: [22, 22], iconAnchor: [11, 11],
+  });
+
+  const eyebrow = [ch.break_type, spot.subregion || spot.region].filter(Boolean).map(s => s.toUpperCase()).join(' · ');
+
   return (
-    <div className="spot-detail-container">
-      {saveError && <div className="save-error">⚠️ {saveError}</div>}
+    <div className="sd">
 
-      {/* Hero Image - Static Satellite View (Interactive in Edit Mode) */}
-      <div className="hero-section">
-        {/* Header Overlay */}
-        <div className="spot-detail-header">
-          <button
-            className="back-button"
-            onClick={() => navigate('/')}
-          >
-            ← Back to Map
-          </button>
-          <h1>{isEditMode && editedSpot ? editedSpot.name : spot.name}</h1>
-          <div className="header-actions">
-            {/* Edit Mode Buttons */}
-            {isAdmin && !isEditMode && (
-              <button className="edit-button" onClick={enterEditMode}>
-                ✏️ Edit
-              </button>
-            )}
-            {isAdmin && isEditMode && (
-              <>
-                <button className="save-button" onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? '💾 Saving...' : '💾 Save'}
-                </button>
-                <button className="cancel-button" onClick={exitEditMode} disabled={isSaving}>
-                  ✖️ Cancel
-                </button>
-              </>
-            )}
-
-            {/* Admin Menu or Login Button */}
-            {user ? (
-              <div className="admin-menu-container" style={{ position: 'relative', marginLeft: '8px' }}>
-                <button
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  className="menu-button"
-                >
-                  {isAdmin && <span>👑</span>}
-                  <span>☰</span>
-                </button>
-
-                {menuOpen && (
-                  <div className="admin-dropdown-menu">
-                    {/* User Info */}
-                    <div className="menu-user-info">
-                      <div className="menu-user-role">
-                        {isAdmin ? 'Admin User' : 'Signed in as'}
-                      </div>
-                      <div className="menu-user-email">
-                        {user.email}
-                      </div>
-                    </div>
-
-                    {/* Menu Items */}
-                    <div className="menu-items">
-                      {isAdmin && (
-                        <>
-                          <Link
-                            to="/admin/users"
-                            onClick={() => setMenuOpen(false)}
-                            className="menu-link"
-                          >
-                            👥 Manage Users
-                          </Link>
-                          <Link
-                            to="/admin/personas"
-                            onClick={() => setMenuOpen(false)}
-                            className="menu-link"
-                          >
-                            🤖 Manage AI Personas
-                          </Link>
-                          <Link
-                            to="/"
-                            onClick={() => setMenuOpen(false)}
-                            className="menu-link"
-                          >
-                            🗺️ View All Spots
-                          </Link>
-                          <div className="menu-divider" />
-                        </>
-                      )}
-
-                      <button
-                        onClick={handleSignOut}
-                        className="menu-button-signout"
-                      >
-                        🚪 Sign Out
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Link to="/login" className="login-button">
-                Login
-              </Link>
-            )}
-          </div>
-        </div>
-        <div className="map-container">
+      {/* ── Map hero ── */}
+      <section className="sd-hero">
+        <div className="sd-map-bg">
           <MapContainer
-            center={[
-              isEditMode && editedSpot ? editedSpot.latitude : spot.latitude,
-              isEditMode && editedSpot ? editedSpot.longitude : spot.longitude
-            ]}
-            zoom={15}
-            dragging={false}
-            touchZoom={false}
-            doubleClickZoom={false}
-            scrollWheelZoom={false}
-            boxZoom={false}
-            keyboard={false}
-            zoomControl={false}
-            attributionControl={false}
-            className={`hero-map ${isEditMode ? 'edit-mode' : ''}`}
+            center={[lat, lng]} zoom={15}
+            dragging={false} touchZoom={false} doubleClickZoom={false}
+            scrollWheelZoom={false} boxZoom={false} keyboard={false}
+            zoomControl={false} attributionControl={true}
+            className="hero-map"
           >
             <MapInteractionController isEditMode={isEditMode} />
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution='&copy; Esri'
+              attribution="&copy; Esri"
             />
             <Marker
-              position={[
-                isEditMode && editedSpot ? editedSpot.latitude : spot.latitude,
-                isEditMode && editedSpot ? editedSpot.longitude : spot.longitude
-              ]}
+              position={[lat, lng]}
               icon={spotIcon}
               draggable={isEditMode}
               eventHandlers={isEditMode ? {
                 dragend: (e) => {
-                  const { lat, lng } = e.target.getLatLng();
-                  setEditedSpot({
-                    ...editedSpot,
-                    latitude: parseFloat(lat.toFixed(6)),
-                    longitude: parseFloat(lng.toFixed(6))
-                  });
+                  const { lat: la, lng: lo } = e.target.getLatLng();
+                  setEditedSpot({ ...editedSpot, latitude: parseFloat(la.toFixed(6)), longitude: parseFloat(lo.toFixed(6)) });
                 }
               } : {}}
             />
           </MapContainer>
-
           {isEditMode && editedSpot && (
-            <div className="coordinate-display">
-              📍 {editedSpot.latitude.toFixed(6)}, {editedSpot.longitude.toFixed(6)}
-            </div>
+            <div className="sd-coord-display">{editedSpot.latitude.toFixed(6)}, {editedSpot.longitude.toFixed(6)}</div>
           )}
         </div>
 
-        {/* Wave Quality Badge */}
-        {characteristics.wave_quality && (
-          <div className="hero-badge">
-            🏄 {characteristics.wave_quality.replace('_', ' ')}
-          </div>
-        )}
+        {/* Overlays */}
+        <div className="sd-grid" aria-hidden="true" />
+        <div className="sd-vignette" aria-hidden="true" />
+        <div className="sd-dim" aria-hidden="true" />
 
-        {/* Swell Visualization - Circles and Arrows */}
-        {conditions && (
-          <div className="swell-circles-container">
-            {/* Inner Circle - 20px from spot marker edge */}
-            <div className="swell-circle swell-circle-inner" />
-
-            {/* Outer Circle */}
-            <div className="swell-circle swell-circle-outer" />
-
-            {/* Swell Arrow */}
-            {(() => {
-              if (!currentData) return null;
-
-              // TODO: Calculate actual max from 180hr forecast data
-              const arrowData = getSwellArrowData(
-                currentData.wave_direction,
-                currentData.wave_height_ft,
-                8 // maxSwellHeight - will be dynamic with timeline
-              );
-              if (!arrowData) return null;
-
-              return (
-                <div
-                  className="swell-arrow-container"
-                  style={{
-                    left: '50%',
-                    top: '50%',
-                    transform: `translate(-50%, -50%) rotate(${arrowData.rotation}deg)`,
-                  }}
-                >
-                  {/* Arrow head at innerRadius */}
-                  <div
-                    className="swell-arrow-head"
-                    style={{
-                      position: 'absolute',
-                      left: `${arrowData.innerRadius}px`,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                    }}
-                  />
-                  {/* Arrow body starts at back of arrow head */}
-                  <div
-                    className="swell-arrow-line"
-                    style={{
-                      width: `${arrowData.length}px`,
-                      left: `${arrowData.bodyStart}px`,
-                    }}
-                  />
-                  <div
-                    className="swell-arrow-label"
-                    style={{
-                      left: `${arrowData.bodyStart + arrowData.length + 10}px`,
-                      transform: `translate(0, -50%) rotate(${-arrowData.rotation}deg)`
-                    }}
-                  >
-                    {currentData.wave_height_ft?.toFixed(1)}ft
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Wind Arrow */}
-            {(() => {
-              if (!currentData) return null;
-
-              const windDirection = currentData.wind_direction;
-              const windSpeed = currentData.wind_speed_mph;
-
-              // Don't show wind arrow if no data available or wind < 1mph
-              if (!windDirection || !windSpeed || windSpeed < 1) return null;
-
-              // TODO: Calculate actual max from 180hr forecast data
-              const windData = getWindArrowData(
-                windDirection,
-                windSpeed,
-                40 // maxWindSpeed - will be dynamic with timeline
-              );
-
-              if (!windData) return null;
-
-              // Get color based on wind speed (matches homepage wind overlay)
-              const windColor = getWindSpeedColor(windSpeed);
-
-              return (
-                <div
-                  className="wind-arrow-container"
-                  style={{
-                    left: '50%',
-                    top: '50%',
-                    transform: `translate(-50%, -50%) rotate(${windData.rotation}deg)`,
-                    '--wind-color': windColor,
-                  }}
-                >
-                  {/* Arrow head at innerRadius */}
-                  <div
-                    className="wind-arrow-head"
-                    style={{
-                      position: 'absolute',
-                      left: `${windData.innerRadius}px`,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                    }}
-                  />
-                  {/* Arrow body starts at back of arrow head */}
-                  <div
-                    className="wind-arrow-line"
-                    style={{
-                      width: `${windData.length}px`,
-                      left: `${windData.bodyStart}px`,
-                    }}
-                  />
-                  <div
-                    className="wind-arrow-label"
-                    style={{
-                      left: `${windData.bodyStart + windData.length + 10}px`,
-                      transform: `translate(0, -50%) rotate(${-windData.rotation}deg)`
-                    }}
-                  >
-                    {currentData.wind_speed_mph?.toFixed(0)}mph
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-      </div>
-
-      {/* Forecast Timeline Slider */}
-      {timelineLoading ? (
-        <div className="timeline-section">
-          <div className="timeline-header">
-            <h3>Forecast Timeline</h3>
-          </div>
-          <SkeletonLoader height="120px" className="timeline-skeleton" />
-        </div>
-      ) : forecastTimeline && forecastTimeline.timeline && forecastTimeline.timeline.length > 0 ? (
-        <div className="timeline-section">
-          <div className="timeline-header">
-            <h3>Forecast Timeline</h3>
-            <div className="timeline-time">
-              {selectedHour === 0 ? (
-                <span className="current-badge">Current Conditions</span>
-              ) : (
-                <>
-                  <span className="forecast-badge">
-                    +{selectedHour}hrs ({new Date(Date.now() + selectedHour * 3600000).toLocaleString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })})
-                  </span>
-                  {currentData && !currentData.wind_direction && (
-                    <span style={{marginLeft: '8px', fontSize: '12px', color: '#64748b'}}>
-                      (Wind forecast unavailable)
-                    </span>
+        {/* Topbar */}
+        <nav className="sd-topbar">
+          <button className="sd-chip sd-chip--ghost" onClick={() => navigate('/')}>
+            <span style={{ display: 'inline-block', transition: 'transform 0.15s' }}>←</span> Back
+          </button>
+          <span className="sd-brand">
+            <Logo variant="mark" size={22} />
+            <span style={{ fontFamily: 'var(--font-ui)', fontWeight: 800, letterSpacing: '-0.04em' }}>mysurf<span style={{ opacity: 0.6 }}>life</span></span>
+          </span>
+          {isAdmin && !isEditMode && (
+            <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+              Edit
+            </button>
+          )}
+          {isAdmin && isEditMode && (
+            <>
+              <button className="sd-chip sd-chip--accent" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button className="sd-chip" onClick={exitEditMode} disabled={isSaving}>Cancel</button>
+            </>
+          )}
+          {user && (
+            <div className="sd-menu-container sd-chip--ml" style={{ position: 'relative', marginLeft: 'auto' }}>
+              <button className="sd-chip" onClick={() => setMenuOpen(m => !m)}>
+                {user.email.slice(0, 2).toUpperCase()}
+              </button>
+              {menuOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 180, background: 'var(--bg-2)', border: '1px solid var(--border-strong)', borderRadius: 12, padding: 6, boxShadow: '0 18px 50px rgba(0,0,0,0.55)', zIndex: 50 }}>
+                  <div style={{ padding: '10px 12px', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.1em', borderBottom: '1px solid var(--border)', marginBottom: 6 }}>{user.email}</div>
+                  {isAdmin && (
+                    <>
+                      <Link to="/admin/users" onClick={() => setMenuOpen(false)} style={{ display: 'block', padding: '9px 12px', fontSize: 13, color: 'var(--fg)', borderRadius: 8, textDecoration: 'none' }}>Manage Users</Link>
+                      <Link to="/admin/personas" onClick={() => setMenuOpen(false)} style={{ display: 'block', padding: '9px 12px', fontSize: 13, color: 'var(--fg)', borderRadius: 8, textDecoration: 'none' }}>Manage Personas</Link>
+                    </>
                   )}
-                </>
+                  <button onClick={handleSignOut} style={{ display: 'block', width: '100%', padding: '9px 12px', fontSize: 13, color: 'var(--fire)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderRadius: 8 }}>Sign Out</button>
+                </div>
               )}
             </div>
-          </div>
-          <div className="timeline-slider-container">
-            <input
-              type="range"
-              min="0"
-              max="48"
-              step="6"
-              value={selectedHour}
-              onChange={(e) => setSelectedHour(parseInt(e.target.value))}
-              className="timeline-slider"
+          )}
+        </nav>
+
+        {/* Spot title */}
+        <div className="sd-title-wrap">
+          <SpotTitle name={spot.name} eyebrow={eyebrow} />
+        </div>
+
+        {/* Compass */}
+        <div className="sd-compass-wrap">
+          <Compass swells={swells} wind={wind} size={520} />
+        </div>
+      </section>
+
+      {/* ── Content ── */}
+      <main className="sd-content">
+
+        {saveError && <div className="sd-save-error" style={{ marginBottom: 16 }}>{saveError}</div>}
+
+        {/* Forecast Timeline card */}
+        <div className="sd-card">
+          <div className="sd-card-head">
+            <div>
+              <div className="sd-card-title">Forecast Timeline</div>
+              <div className="sd-card-sub">Scrub through the next 7 days · <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>168h</span> · <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: '0.85em' }}>Open-Meteo</a></div>
+            </div>
+            <DayPicker
+              startDate={startDate}
+              selectedHour={selectedHour}
+              dailyRatings={getDailyRatings()}
+              onSelectDay={(dayIdx) => {
+                const hourInDay = selectedHour % 24;
+                setSelectedHour(Math.min(168, dayIdx * 24 + hourInDay));
+              }}
             />
-            <div className="timeline-labels">
-              <span>Now</span>
-              <span>12h</span>
-              <span>24h</span>
-              <span>36h</span>
-              <span>48h</span>
-            </div>
           </div>
-        </div>
-      ) : null}
 
-      {/* Current Conditions Card */}
-      <div className="conditions-section">
-        <div className="section-header">
-          <h2>
-            {selectedHour === 0 ? 'Current Conditions' : `Forecast Conditions (+${selectedHour}hrs)`}
-          </h2>
-          {selectedHour === 0 && conditions?.timestamp && (
-            <span className="timestamp">
-              Last Updated: {new Date(conditions.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+          {timelineLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+              <LogoPulse size={24} compact />
+            </div>
+          ) : (
+            <ForecastScrubber
+              totalHours={168}
+              selectedHour={selectedHour}
+              onChange={setSelectedHour}
+              miniChartData={getMiniChartData()}
+              startDate={startDate}
+            />
           )}
-          {selectedHour > 0 && (
-            <span className="timestamp">
-              {new Date(Date.now() + selectedHour * 3600000).toLocaleString([], {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </span>
-          )}
-        </div>
 
-        {(conditions || currentData) && (
-          <div className="score-card">
-            {selectedHour === 0 && (
-              <div className="score-main" style={{ color: scoreColor }}>
-                <div className="score-value">{conditions.emoji} {score}/10</div>
-                <div className="score-rating">{conditions.rating}</div>
-              </div>
-            )}
-            {selectedHour > 0 && (
-              <div className="score-main" style={{ color: '#64748b' }}>
-                <div className="score-value">📊 Forecast</div>
-                <div className="score-rating">Model Data</div>
-              </div>
-            )}
-
-            <div className="conditions-summary">
-              <div className="condition-item">
-                <span className="icon">📏</span>
-                <span className="label">Height:</span>
-                <span className="value">
-                  {(() => {
-                    const height = currentData?.wave_height_ft || conditions?.adjusted_height_ft;
-                    if (height !== null && height !== undefined) {
-                      return typeof height === 'number' ? height.toFixed(1) : height;
-                    }
-                    return '--';
-                  })()} ft
-                </span>
-              </div>
-              <div className="condition-item">
-                <span className="icon">🏄</span>
-                <span className="label">Surf Height:</span>
-                <span className="value">
-                  {(() => {
-                    const surfHeight = currentData?.surf_height_ft;
-                    if (surfHeight !== null && surfHeight !== undefined) {
-                      return typeof surfHeight === 'number' ? surfHeight.toFixed(1) : surfHeight;
-                    }
-                    return '--';
-                  })()} ft
-                </span>
-              </div>
-              <div className="condition-item">
-                <span className="icon">⏱️</span>
-                <span className="label">Period:</span>
-                <span className="value">
-                  {(() => {
-                    const period = currentData?.wave_period;
-                    if (period !== null && period !== undefined) {
-                      return typeof period === 'number' ? period.toFixed(1) : period;
-                    }
-                    return '--';
-                  })()} s
-                </span>
-              </div>
-              <div className="condition-item">
-                <span className="icon">🧭</span>
-                <span className="label">Swell:</span>
-                <span className="value">
-                  {(() => {
-                    const dir = currentData?.wave_direction || conditions?.swell_direction;
-                    if (dir !== null && dir !== undefined) {
-                      return typeof dir === 'number' ? Math.round(dir) : dir;
-                    }
-                    return '--';
-                  })()}°
-                </span>
-              </div>
-
-              <div className="condition-item">
-                <span className="icon">💨</span>
-                <span className="label">Wind:</span>
-                <span className="value">
-                  {(() => {
-                    const windSpeed = currentData?.wind_speed_mph;
-                    const windDir = currentData?.wind_direction;
-
-                    if (windSpeed !== null && windSpeed !== undefined) {
-                      const speedStr = typeof windSpeed === 'number' ? Math.round(windSpeed) : windSpeed;
-                      const dirStr = windDir !== null && windDir !== undefined
-                        ? (typeof windDir === 'number' ? Math.round(windDir) : windDir)
-                        : '--';
-                      return `${speedStr} mph @ ${dirStr}°`;
-                    }
-                    return '--';
-                  })()}
-                </span>
-              </div>
-            </div>
-
-            {/* Score Breakdown - only show for current conditions */}
-            {selectedHour === 0 && (
-              <div className="score-breakdown">
-                <h3>Score Breakdown:</h3>
-                <ScoreBar
-                  label="Swell Direction"
-                  score={conditions.swell_direction_score}
-                  max={3}
-                />
-                <ScoreBar
-                  label="Swell Size"
-                  score={conditions.swell_size_score}
-                  max={3}
-                />
-                <ScoreBar
-                  label="Wind Direction"
-                  score={conditions.wind_direction_score}
-                  max={2}
-                />
-                <ScoreBar
-                  label="Wind Speed"
-                  score={conditions.wind_speed_score}
-                  max={2}
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Spot Information */}
-      <div className="info-section">
-        <h2>Spot Information</h2>
-
-        {!isEditMode ? (
-          <>
-            <div className="info-grid">
-              {characteristics.break_type && (
-                <InfoRow icon="🌊" label="Break Type" value={characteristics.break_type} />
-              )}
-              {characteristics.bottom_type && (
-                <InfoRow icon="🪨" label="Bottom" value={characteristics.bottom_type} />
-              )}
-              {characteristics.wave_quality && (
-                <InfoRow icon="⭐" label="Wave Quality" value={characteristics.wave_quality.replace(/_/g, ' ')} />
-              )}
-              {characteristics.skill_level && (
-                <InfoRow icon="🎯" label="Skill Level" value={characteristics.skill_level} />
-              )}
-              {characteristics.best_swell_direction && (
-                <InfoRow icon="📐" label="Best Swell" value={characteristics.best_swell_direction} />
-              )}
-              {characteristics.best_wind_direction && (
-                <InfoRow icon="💨" label="Best Wind" value={characteristics.best_wind_direction} />
-              )}
-              {characteristics.tide_position && (
-                <InfoRow icon="🌊" label="Best Tide" value={characteristics.tide_position} />
-              )}
-              {characteristics.works_from_swell_ft && characteristics.works_to_swell_ft && (
-                <InfoRow
-                  icon="📏"
-                  label="Works"
-                  value={`${characteristics.works_from_swell_ft}-${characteristics.works_to_swell_ft} ft`}
-                />
-              )}
-              {characteristics.hazards && characteristics.hazards.length > 0 && (
-                <InfoRow
-                  icon="⚠️"
-                  label="Hazards"
-                  value={characteristics.hazards.join(', ')}
-                />
-              )}
-            </div>
-
-            {/* Location Info */}
-            {(spot.location_description || spot.access_description || spot.parking_info) && (
-              <div className="location-info">
-                {spot.location_description && (
-                  <div className="location-item">
-                    <strong>📍 Location:</strong> {spot.location_description}
-                  </div>
-                )}
-                {spot.access_description && (
-                  <div className="location-item">
-                    <strong>🚶 Access:</strong> {spot.access_description}
-                  </div>
-                )}
-                {spot.parking_info && (
-                  <div className="location-item">
-                    <strong>🅿️ Parking:</strong> {spot.parking_info}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="edit-form">
-            <div className="form-section">
-              <h3>Basic Info</h3>
-              <FormField
-                label="Spot Name"
-                value={editedSpot.name}
-                onChange={(value) => setEditedSpot({...editedSpot, name: value})}
-                required
-              />
-              <FormField
-                label="Region"
-                value={editedSpot.region}
-                onChange={(value) => setEditedSpot({...editedSpot, region: value})}
-                required
-              />
-              <FormField
-                label="Subregion"
-                value={editedSpot.subregion}
-                onChange={(value) => setEditedSpot({...editedSpot, subregion: value})}
-              />
-            </div>
-
-            <div className="form-section">
-              <h3>Characteristics</h3>
-              <FormSelect
-                label="Break Type"
-                value={editedSpot.break_type}
-                onChange={(value) => setEditedSpot({...editedSpot, break_type: value})}
-                options={['beach', 'reef', 'point', 'river_mouth', 'jetty', 'mixed']}
-              />
-              <FormSelect
-                label="Bottom Type"
-                value={editedSpot.bottom_type}
-                onChange={(value) => setEditedSpot({...editedSpot, bottom_type: value})}
-                options={['sand', 'rock', 'reef', 'cobblestone', 'mixed']}
-              />
-              <FormSelect
-                label="Wave Quality"
-                value={editedSpot.wave_quality}
-                onChange={(value) => setEditedSpot({...editedSpot, wave_quality: value})}
-                options={['world_class', 'regional_classic', 'good', 'fun']}
-              />
-              <FormSelect
-                label="Skill Level"
-                value={editedSpot.skill_level}
-                onChange={(value) => setEditedSpot({...editedSpot, skill_level: value})}
-                options={['beginner', 'intermediate', 'experienced', 'expert', 'pros_only']}
-                required
-              />
-            </div>
-
-            <div className="form-section">
-              <h3>Conditions</h3>
-              <FormField
-                label="Best Swell Direction"
-                value={editedSpot.best_swell_direction}
-                onChange={(value) => setEditedSpot({...editedSpot, best_swell_direction: value})}
-                placeholder="e.g., NW, W, SW"
-              />
-              <FormField
-                label="Best Wind Direction"
-                value={editedSpot.best_wind_direction}
-                onChange={(value) => setEditedSpot({...editedSpot, best_wind_direction: value})}
-                placeholder="e.g., E, NE"
-              />
-              <FormField
-                label="Tide Position"
-                value={editedSpot.tide_position}
-                onChange={(value) => setEditedSpot({...editedSpot, tide_position: value})}
-                placeholder="e.g., low, mid, high, all"
-              />
-              <div className="form-row">
-                <FormField
-                  label="Works From (ft)"
-                  type="number"
-                  value={editedSpot.works_from_swell_ft}
-                  onChange={(value) => setEditedSpot({...editedSpot, works_from_swell_ft: parseFloat(value) || ''})}
-                />
-                <FormField
-                  label="Works To (ft)"
-                  type="number"
-                  value={editedSpot.works_to_swell_ft}
-                  onChange={(value) => setEditedSpot({...editedSpot, works_to_swell_ft: parseFloat(value) || ''})}
-                />
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h3>Location & Access</h3>
-              <FormTextarea
-                label="Location Description"
-                value={editedSpot.location_description}
-                onChange={(value) => setEditedSpot({...editedSpot, location_description: value})}
-                rows={3}
-              />
-              <FormTextarea
-                label="Access Description"
-                value={editedSpot.access_description}
-                onChange={(value) => setEditedSpot({...editedSpot, access_description: value})}
-                rows={3}
-              />
-              <FormTextarea
-                label="Parking Info"
-                value={editedSpot.parking_info}
-                onChange={(value) => setEditedSpot({...editedSpot, parking_info: value})}
-                rows={2}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* AI Spot Analysis */}
-      <div className="ai-analysis-section">
-        <AISpotAnalysis
-          spotSlug={slug}
-          spotName={spot.name}
-        />
-      </div>
-
-      {/* Model Forecast Data */}
-      {modelLoading ? (
-        <div className="buoy-sources-section">
-          <h2>Model Forecast Data</h2>
-          <SkeletonLoader height="150px" />
-        </div>
-      ) : modelForecast?.models ? (
-        <div className="buoy-sources-section">
-          <h2>Model Forecast Data</h2>
-          <div className="buoy-list">
-            {/* WaveWatch III (WW3) */}
-            {modelForecast.models.ww3 && !modelForecast.models.ww3.error && (
-              <div className="buoy-item-row">
-                <div className="buoy-header">
-                  <span className="buoy-id">WW3</span>
-                  <span className="buoy-name">{modelForecast.models.ww3.model}</span>
-                  <span className="buoy-role">({modelForecast.models.ww3.resolution})</span>
-                </div>
-                <div className="buoy-data">
-                  {modelForecast.models.ww3.wave_height_ft !== null && (
-                    <span className="buoy-data-item">
-                      📏 {modelForecast.models.ww3.wave_height_ft.toFixed(1)}ft
-                    </span>
-                  )}
-                  {modelForecast.models.ww3.period_sec !== null && (
-                    <span className="buoy-data-item">
-                      ⏱️ {modelForecast.models.ww3.period_sec.toFixed(1)}s
-                    </span>
-                  )}
-                  {modelForecast.models.ww3.direction !== null && (
-                    <span className="buoy-data-item">
-                      🧭 {modelForecast.models.ww3.direction}°
-                    </span>
-                  )}
-                  <span className="buoy-data-item" style={{color: '#94a3b8'}}>
-                    ~{modelForecast.models.ww3.grid_distance_km.toFixed(0)}km from spot
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* HRRR Wind */}
-            {modelForecast.models.hrrr && !modelForecast.models.hrrr.error && (
-              <div className="buoy-item-row">
-                <div className="buoy-header">
-                  <span className="buoy-id">HRRR</span>
-                  <span className="buoy-name">{modelForecast.models.hrrr.model}</span>
-                  <span className="buoy-role">({modelForecast.models.hrrr.resolution})</span>
-                </div>
-                <div className="buoy-data">
-                  {modelForecast.models.hrrr.wind_speed_mph !== null && (
-                    <span className="buoy-data-item">
-                      💨 {modelForecast.models.hrrr.wind_speed_mph.toFixed(0)}mph
-                    </span>
-                  )}
-                  {modelForecast.models.hrrr.wind_direction !== null && (
-                    <span className="buoy-data-item">
-                      @ {modelForecast.models.hrrr.wind_direction}°
-                    </span>
-                  )}
-                  <span className="buoy-data-item" style={{color: '#94a3b8'}}>
-                    ~{modelForecast.models.hrrr.grid_distance_km.toFixed(0)}km from spot
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="buoy-note">
-            Model data represents forecasted conditions from NOAA models (nowcast). Buoy data below shows actual observations.
-          </div>
-        </div>
-      ) : null}
-
-      {/* Buoy Data Sources */}
-      {buoyLoading ? (
-        <div className="buoy-sources-section">
-          <h2>Buoy Observations</h2>
-          <SkeletonLoader height="200px" />
-        </div>
-      ) : conditions?.buoys_used && conditions.buoys_used.length > 0 ? (
-        <div className="buoy-sources-section">
-          <h2>Buoy Observations</h2>
-          <div className="buoy-list">
-            {conditions.buoys_used.map((buoy, idx) => {
-              const buoyId = buoy.id || buoy;
-              const buoyInfo = buoyData[buoyId];
-
+          {/* Legend */}
+          <div className="sd-legend">
+            {swells.map((s, i) => {
+              const types = ['primary', 'secondary', 'wind swell'];
               return (
-                <div key={buoyId || idx} className="buoy-item-row">
-                  <div className="buoy-header">
-                    <span className="buoy-id">{buoyId}</span>
-                    {buoyInfo?.name && (
-                      <span className="buoy-name">{buoyInfo.name}</span>
-                    )}
-                    {buoy.weight && (
-                      <span className="buoy-weight">{(buoy.weight * 100).toFixed(0)}%</span>
-                    )}
-                    {buoy.role && (
-                      <span className="buoy-role">({buoy.role})</span>
-                    )}
-                  </div>
-
-                  {buoyInfo && (
-                    <div className="buoy-data">
-                      {buoyInfo.wave_height_m !== null && (
-                        <span className="buoy-data-item">
-                          📏 {(buoyInfo.wave_height_m * 3.28084).toFixed(1)}ft
-                        </span>
-                      )}
-                      {buoyInfo.dominant_period_sec !== null && (
-                        <span className="buoy-data-item">
-                          ⏱️ {buoyInfo.dominant_period_sec?.toFixed(1)}s
-                        </span>
-                      )}
-                      {buoyInfo.mean_wave_dir !== null && (
-                        <span className="buoy-data-item">
-                          🧭 {buoyInfo.mean_wave_dir}°
-                        </span>
-                      )}
-                      {buoyInfo.wind_speed_ms !== null && (
-                        <span className="buoy-data-item">
-                          💨 {(buoyInfo.wind_speed_ms * 2.23694).toFixed(0)}mph
-                        </span>
-                      )}
-                      {buoyInfo.wind_direction !== null && buoyInfo.wind_speed_ms !== null && (
-                        <span className="buoy-data-item">
-                          @ {buoyInfo.wind_direction}°
-                        </span>
-                      )}
-                      {buoyInfo.water_temp_c !== null && (
-                        <span className="buoy-data-item">
-                          🌡️ {((buoyInfo.water_temp_c * 9/5) + 32).toFixed(1)}°F
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {!buoyInfo && (
-                    <div className="buoy-data">
-                      <span className="buoy-data-item" style={{color: '#94a3b8'}}>
-                        No data available
-                      </span>
-                    </div>
-                  )}
-                </div>
+                <span key={i}>
+                  <span className="sd-legend-dot" style={{ background: s.color }} />
+                  {degreesToCardinal(s.direction_deg)} {Math.round(s.direction_deg || 0)}° {types[i] || `swell ${i + 1}`}
+                </span>
               );
             })}
+            {wind && (
+              <span>
+                <span className="sd-legend-dot" style={{ background: 'var(--wind)' }} />
+                Wind {degreesToCardinal(wind.direction_deg)} {Math.round(wind.direction_deg || 0)}°
+              </span>
+            )}
           </div>
         </div>
-      ) : null}
+
+        {/* Conditions card */}
+        <div className="sd-card">
+          <ConditionsGrid
+            conditions={condGrid}
+            showTabs
+            title={selectedHour === 0 ? 'Current Conditions' : `Forecast Conditions (+${selectedHour}hrs)`}
+            subtitle={selectedHour === 0 ? 'Live + model data' : fmtTime(selectedHour)}
+          />
+          <BreakFacts
+            breakType={ch.break_type ? `${ch.break_type.charAt(0).toUpperCase() + ch.break_type.slice(1)} break` : '—'}
+            bestDirection={ch.best_swell_direction || '—'}
+            bestTide={ch.tide_position || '—'}
+            hazards={Array.isArray(ch.hazards) ? ch.hazards.join(', ') : ch.hazards || '—'}
+          />
+        </div>
+
+        {/* Two-column: Swells + Strip charts */}
+        <div className="sd-cols-2">
+
+          {/* Left: Swells in the water + AI note */}
+          <div className="sd-card">
+            <SwellBreakdown
+              swells={enrichedSwells}
+              wind={enrichedWind}
+              detectedCount={enrichedSwells.length}
+            />
+            <div className="sd-ai-note">
+              <div className="sd-ai-dot" />
+              <div className="sd-ai-content">
+                <div className="sd-ai-eyebrow">AI Insight</div>
+                <h3 className="sd-ai-h3">Log sessions to unlock personalized insights</h3>
+                <p className="sd-ai-p">Track your surf sessions at this spot to see preferred conditions, best time windows, and performance patterns over time.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: 7-day strip charts */}
+          <div className="sd-card">
+            <div className="sd-card-head" style={{ marginBottom: 14 }}>
+              <div>
+                <div className="sd-card-title">Wave · Wind · Tide</div>
+                <div className="sd-card-sub">7-day strip · yellow line = selected time</div>
+              </div>
+            </div>
+            {timelineLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+                <LogoPulse size={24} compact />
+              </div>
+            ) : (
+              <StripChartStack
+                data={forecastTimeline?.timeline || []}
+                cursorHour={selectedHour}
+              />
+            )}
+            <div className="sd-day-legend">
+              {dayLegend.map((day, i) => <span key={i}>{day}</span>)}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Edit form */}
+        {isEditMode && editedSpot && (
+          <div className="sd-card" style={{ marginTop: 18 }}>
+            <div className="sd-card-title" style={{ marginBottom: 20 }}>Edit Spot</div>
+            <div className="sd-edit-form">
+              <div className="sd-form-section">
+                <h3>Basic Info</h3>
+                <SdField label="Name *" value={editedSpot.name} onChange={v => setEditedSpot({...editedSpot, name: v})} />
+                <SdField label="Region *" value={editedSpot.region} onChange={v => setEditedSpot({...editedSpot, region: v})} />
+                <SdField label="Subregion" value={editedSpot.subregion} onChange={v => setEditedSpot({...editedSpot, subregion: v})} />
+              </div>
+              <div className="sd-form-section">
+                <h3>Characteristics</h3>
+                <SdSelect label="Break Type" value={editedSpot.break_type} onChange={v => setEditedSpot({...editedSpot, break_type: v})} options={['beach','reef','point','river_mouth','jetty','mixed']} />
+                <SdSelect label="Bottom Type" value={editedSpot.bottom_type} onChange={v => setEditedSpot({...editedSpot, bottom_type: v})} options={['sand','rock','reef','cobblestone','mixed']} />
+                <SdSelect label="Wave Quality" value={editedSpot.wave_quality} onChange={v => setEditedSpot({...editedSpot, wave_quality: v})} options={['world_class','regional_classic','good','fun']} />
+                <SdSelect label="Skill Level *" value={editedSpot.skill_level} onChange={v => setEditedSpot({...editedSpot, skill_level: v})} options={['beginner','intermediate','experienced','expert','pros_only']} />
+              </div>
+              <div className="sd-form-section">
+                <h3>Conditions</h3>
+                <SdField label="Best Swell Direction" value={editedSpot.best_swell_direction} onChange={v => setEditedSpot({...editedSpot, best_swell_direction: v})} placeholder="e.g. NW, W, SW" />
+                <SdField label="Best Wind Direction" value={editedSpot.best_wind_direction} onChange={v => setEditedSpot({...editedSpot, best_wind_direction: v})} placeholder="e.g. E, NE" />
+                <SdField label="Tide Position" value={editedSpot.tide_position} onChange={v => setEditedSpot({...editedSpot, tide_position: v})} placeholder="low, mid, high, all" />
+                <div className="sd-form-row">
+                  <SdField label="Works From (ft)" type="number" value={editedSpot.works_from_swell_ft} onChange={v => setEditedSpot({...editedSpot, works_from_swell_ft: parseFloat(v)||''})} />
+                  <SdField label="Works To (ft)" type="number" value={editedSpot.works_to_swell_ft} onChange={v => setEditedSpot({...editedSpot, works_to_swell_ft: parseFloat(v)||''})} />
+                </div>
+              </div>
+              <div className="sd-form-section">
+                <h3>Location &amp; Access</h3>
+                <SdTextarea label="Location Description" value={editedSpot.location_description} onChange={v => setEditedSpot({...editedSpot, location_description: v})} />
+                <SdTextarea label="Access Description" value={editedSpot.access_description} onChange={v => setEditedSpot({...editedSpot, access_description: v})} />
+                <SdTextarea label="Parking Info" rows={2} value={editedSpot.parking_info} onChange={v => setEditedSpot({...editedSpot, parking_info: v})} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Sources (collapsed) */}
+        <div className="sd-sources">
+          <button className="sd-sources-toggle" onClick={() => setShowSources(s => !s)}>
+            <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: showSources ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+              <path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
+            Data Sources
+          </button>
+          {showSources && (
+            <>
+              {!modelLoading && modelForecast?.models?.ww3 && !modelForecast.models.ww3.error && (
+                <div className="sd-source-row">
+                  <div className="sd-source-head">
+                    <span className="sd-source-id">WW3</span>
+                    <span className="sd-source-name">{modelForecast.models.ww3.model}</span>
+                    <span className="sd-source-role">({modelForecast.models.ww3.resolution})</span>
+                  </div>
+                  <div className="sd-source-data">
+                    {modelForecast.models.ww3.wave_height_ft != null && <span className="sd-source-item">{modelForecast.models.ww3.wave_height_ft.toFixed(1)}ft</span>}
+                    {modelForecast.models.ww3.period_sec != null && <span className="sd-source-item">{modelForecast.models.ww3.period_sec.toFixed(1)}s</span>}
+                    {modelForecast.models.ww3.direction != null && <span className="sd-source-item">{modelForecast.models.ww3.direction}°</span>}
+                    <span className="sd-source-item" style={{ color: 'var(--muted)' }}>~{modelForecast.models.ww3.grid_distance_km?.toFixed(0)}km</span>
+                  </div>
+                </div>
+              )}
+              {!modelLoading && modelForecast?.models?.hrrr && !modelForecast.models.hrrr.error && (
+                <div className="sd-source-row">
+                  <div className="sd-source-head">
+                    <span className="sd-source-id">HRRR</span>
+                    <span className="sd-source-name">Wind model</span>
+                    <span className="sd-source-role">({modelForecast.models.hrrr.resolution})</span>
+                  </div>
+                  <div className="sd-source-data">
+                    {modelForecast.models.hrrr.wind_speed_mph != null && <span className="sd-source-item">{modelForecast.models.hrrr.wind_speed_mph.toFixed(0)}mph</span>}
+                    {modelForecast.models.hrrr.wind_direction != null && <span className="sd-source-item">{modelForecast.models.hrrr.wind_direction}°</span>}
+                    <span className="sd-source-item" style={{ color: 'var(--muted)' }}>~{modelForecast.models.hrrr.grid_distance_km?.toFixed(0)}km</span>
+                  </div>
+                </div>
+              )}
+              {conditions?.buoys_used?.map((buoy, i) => {
+                const id = buoy.id || buoy;
+                const info = buoyData[id];
+                return (
+                  <div key={id || i} className="sd-source-row">
+                    <div className="sd-source-head">
+                      <span className="sd-source-id">{id}</span>
+                      {info?.name && <span className="sd-source-name">{info.name}</span>}
+                      {buoy.weight && <span className="sd-source-role">{(buoy.weight*100).toFixed(0)}%</span>}
+                      {buoy.role && <span className="sd-source-role">({buoy.role})</span>}
+                    </div>
+                    {info && (
+                      <div className="sd-source-data">
+                        {info.wave_height_m != null && <span className="sd-source-item">{(info.wave_height_m*3.28084).toFixed(1)}ft</span>}
+                        {info.dominant_period_sec != null && <span className="sd-source-item">{info.dominant_period_sec.toFixed(1)}s</span>}
+                        {info.mean_wave_dir != null && <span className="sd-source-item">{info.mean_wave_dir}°</span>}
+                        {info.wind_speed_ms != null && <span className="sd-source-item">{(info.wind_speed_ms*2.23694).toFixed(0)}mph wind</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+      </main>
     </div>
   );
 };
 
-// Helper component for score bars
-const ScoreBar = ({ label, score, max }) => {
-  const percentage = (score / max) * 100;
-  const color = percentage >= 70 ? '#22c55e' : percentage >= 50 ? '#f59e0b' : '#ef4444';
-
-  return (
-    <div className="score-bar-container">
-      <div className="score-bar-header">
-        <span className="score-bar-label">{label}</span>
-        <span className="score-bar-value">{score?.toFixed(1) || '0.0'}/{max}</span>
-      </div>
-      <div className="score-bar-track">
-        <div
-          className="score-bar-fill"
-          style={{
-            width: `${percentage}%`,
-            backgroundColor: color
-          }}
-        />
-      </div>
-    </div>
-  );
-};
-
-// Helper component for info rows
-const InfoRow = ({ icon, label, value }) => (
-  <div className="info-row">
-    <span className="info-icon">{icon}</span>
-    <span className="info-label">{label}:</span>
-    <span className="info-value">{value}</span>
+// ─── Form helpers ─────────────────────────────────────────────────
+const SdField = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
+  <div className="sd-field">
+    <label>{label}</label>
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
   </div>
 );
 
-// Form helper components
-const FormField = ({ label, value, onChange, type = 'text', placeholder = '', required = false }) => (
-  <div className="form-field">
-    <label className="form-label">
-      {label}
-      {required && <span className="required">*</span>}
-    </label>
-    <input
-      type={type}
-      className="form-input"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      required={required}
-    />
-  </div>
-);
-
-const FormSelect = ({ label, value, onChange, options, required = false }) => (
-  <div className="form-field">
-    <label className="form-label">
-      {label}
-      {required && <span className="required">*</span>}
-    </label>
-    <select
-      className="form-select"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      required={required}
-    >
+const SdSelect = ({ label, value, onChange, options }) => (
+  <div className="sd-field">
+    <label>{label}</label>
+    <select value={value} onChange={e => onChange(e.target.value)}>
       <option value="">-- Select --</option>
-      {options.map(opt => (
-        <option key={opt} value={opt}>
-          {opt.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-        </option>
-      ))}
+      {options.map(o => <option key={o} value={o}>{o.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
     </select>
   </div>
 );
 
-const FormTextarea = ({ label, value, onChange, rows = 3, placeholder = '' }) => (
-  <div className="form-field">
-    <label className="form-label">{label}</label>
-    <textarea
-      className="form-textarea"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      rows={rows}
-      placeholder={placeholder}
-    />
+const SdTextarea = ({ label, value, onChange, rows = 3, placeholder = '' }) => (
+  <div className="sd-field">
+    <label>{label}</label>
+    <textarea value={value} onChange={e => onChange(e.target.value)} rows={rows} placeholder={placeholder} />
   </div>
 );
 
