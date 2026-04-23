@@ -6,7 +6,7 @@ Based on buoy data, swell/wind windows, and spot-specific tuning.
 import math
 from typing import Dict, List, Optional, Tuple
 from database import supabase
-from main import calculate_surf_height
+from utils import calculate_surf_height
 
 
 def normalize_direction(degrees: float) -> float:
@@ -314,6 +314,7 @@ async def blend_buoy_data(buoy_blend: Dict, buoy_data_cache: Dict) -> Optional[D
         'mean_wave_dir': None,
         'wind_speed_ms': 0.0,
         'wind_dir': None,
+        'water_temp_c': None,
         'buoys_used': [],
         'primary_buoy': None
     }
@@ -324,9 +325,17 @@ async def blend_buoy_data(buoy_blend: Dict, buoy_data_cache: Dict) -> Optional[D
         weight = reading['weight']
 
         blended['buoys_used'].append({
-            'id': data['station'],
-            'weight': round(weight, 2),
-            'wave_height_m': data.get('wave_height_m')
+            'id':              data['station'],
+            'name':            data.get('name', data['station']),
+            'weight':          round(weight, 2),
+            'wave_height_m':   data.get('wave_height_m'),
+            'wave_height_ft':  round(data['wave_height_m'] * 3.28084, 1) if data.get('wave_height_m') else None,
+            'period_sec':      data.get('dominant_period_sec'),
+            'swell_dir':       data.get('mean_wave_dir'),
+            'wind_speed_mph':  round(data['wind_speed_ms'] * 2.23694, 1) if data.get('wind_speed_ms') else None,
+            'wind_dir':        data.get('wind_dir'),
+            'timestamp_utc':   data.get('timestamp_utc'),
+            'is_model':        data.get('station') == 'WW3',
         })
 
         if data.get('wave_height_m') is not None:
@@ -338,16 +347,25 @@ async def blend_buoy_data(buoy_blend: Dict, buoy_data_cache: Dict) -> Optional[D
         if data.get('wind_speed_ms') is not None:
             blended['wind_speed_ms'] += data['wind_speed_ms'] * weight
 
-    # Use direction from highest-weighted buoy (hard to average angles)
+    # Use direction from highest-weighted buoy (can't average angles meaningfully)
     highest_weight_reading = max(valid_readings, key=lambda x: x['weight'])
     blended['mean_wave_dir'] = highest_weight_reading['data'].get('mean_wave_dir')
     blended['wind_dir'] = highest_weight_reading['data'].get('wind_dir')
     blended['primary_buoy'] = highest_weight_reading['data']['station']
 
+    # Water temp: use the highest-weighted buoy that actually reports it.
+    # Blend weights reflect the buoy's configured relevance to this spot — not proximity.
+    # WTMP is a live observation; if the buoy is offline or doesn't report it, skip it.
+    for reading in sorted(valid_readings, key=lambda x: x['weight'], reverse=True):
+        wt = reading['data'].get('water_temp_c')
+        if wt is not None and wt != 0.0:
+            blended['water_temp_c'] = round(wt, 1)
+            break
+
     return blended
 
 
-async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend_override: Optional[Dict] = None) -> Optional[Dict]:
+async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend_override: Optional[Dict] = None, size_bias: float = 1.0) -> Optional[Dict]:
     """
     Calculate real-time surf score for a spot.
 
@@ -452,10 +470,14 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
         'wave_height_ft': round(blended_buoy['wave_height_m'] * 3.28084, 1),
         'adjusted_height_ft': round(blended_buoy['wave_height_m'] * hs_multiplier * 3.28084, 1),
         'period_sec': round(blended_buoy['dominant_period_sec'], 1) if blended_buoy['dominant_period_sec'] else None,
-        'surf_height_ft': round(calculate_surf_height(blended_buoy['wave_height_m'], blended_buoy['dominant_period_sec']) * 3.28084, 1) if blended_buoy['dominant_period_sec'] else None,
+        'surf_height_ft': round(calculate_surf_height(blended_buoy['wave_height_m'], blended_buoy['dominant_period_sec'], size_bias) * 3.28084, 1) if blended_buoy['dominant_period_sec'] else None,
         'swell_direction': blended_buoy['mean_wave_dir'],
         'wind_speed_mph': round(blended_buoy['wind_speed_ms'] * 2.23694, 1) if blended_buoy['wind_speed_ms'] else None,
         'wind_direction': blended_buoy['wind_dir'],
+
+        # Water temp: live NDBC WTMP reading from the highest-weighted buoy that reports it.
+        # This is always the current observation — water temp doesn't vary in the forecast timeline.
+        'water_temp_c': blended_buoy.get('water_temp_c'),
 
         # Metadata
         'buoys_used': blended_buoy['buoys_used'],

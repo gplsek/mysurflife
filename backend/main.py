@@ -30,9 +30,15 @@ register_swell_table_routes(app)
 from routes.auth import router as auth_router
 from routes.admin import router as admin_router
 from routes.sessions import router as sessions_router
+from routes.storms import router as storms_router
+from routes.map       import router as map_router
+from routes.favorites import router as favorites_router
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(sessions_router)
+app.include_router(storms_router)
+app.include_router(map_router)
+app.include_router(favorites_router)
 
 from high_seas import register_routes as register_high_seas_routes
 register_high_seas_routes(app)
@@ -126,7 +132,12 @@ _http_client: Optional[httpx.AsyncClient] = None
 
 # Semaphores for concurrency control
 NDBC_SEM = asyncio.Semaphore(12)  # Limit concurrent NDBC requests (increased for 35 buoys)
-WIND_SEM = asyncio.Semaphore(2)  # Limit concurrent wind overlay processing
+WIND_SEM = asyncio.Semaphore(2)   # Limit concurrent wind overlay processing
+TIMELINE_SEM = asyncio.Semaphore(5)  # Limit concurrent OPeNDAP fetches for timeline build
+
+# L1 cache for assembled forecast timelines (avoids repeat OPeNDAP storms per page load)
+_timeline_cache: Dict[str, Dict] = {}
+_TIMELINE_CACHE_TTL = timedelta(minutes=30)
 
 # Dataset cache for xarray (Task C)
 _dataset_cache: Dict[str, Dict] = {}
@@ -1267,8 +1278,8 @@ async def fetch_real_noaa_wind(
             # Vectorized calculations
             speed_ms = np.sqrt(u_values ** 2 + v_values ** 2)
             speed_kts = speed_ms * 1.94384
-            direction_rad = np.arctan2(v_values, u_values)
-            direction_deg = (270 - np.degrees(direction_rad)) % 360
+            # Meteorological convention: direction wind is blowing FROM
+            direction_deg = (np.degrees(np.arctan2(u_values, v_values)) + 180) % 360
 
             # Create meshgrid for lat/lon
             lon_grid, lat_grid = np.meshgrid(lons, lats)
@@ -1937,9 +1948,9 @@ async def fetch_real_noaa_ww3_grib(
                 domain_config = d
                 break
 
-    filter_script = domain_config.get("grib_filter_script", "filter_gfswave_0p16.pl")
-    file_prefix   = domain_config.get("grib_file_prefix",   "gfswave.global.0p16")
-    dir_pattern   = domain_config.get("grib_dir_pattern",   "%2Fgfswave.{DATE}%2F{HH}")
+    filter_script = domain_config.get("grib_filter_script", "filter_gfswave.pl")
+    file_pattern  = domain_config.get("grib_file_pattern",  "gfswave.t{HH}z.global.0p16.f{FFF}.grib2")
+    dir_pattern   = domain_config.get("grib_dir_pattern",   "%2Fgfs.{DATE}%2F{HH}%2Fwave%2Fgridded")
 
     # Resolve model run
     def _parse_run_str(s: str):
@@ -1962,7 +1973,7 @@ async def fetch_real_noaa_ww3_grib(
     run_cycle = run_dt.strftime("%H")
     fh = max(0, int(forecast_hour))
 
-    file_name = f"{file_prefix}.t{run_cycle}z.f{fh:03d}.grib2"
+    file_name = file_pattern.format(HH=run_cycle, FFF=f"{fh:03d}")
     grib_dir  = dir_pattern.format(DATE=run_date, HH=run_cycle)
 
     # NOMADS expects longitude in [0, 360]
@@ -1979,7 +1990,9 @@ async def fetch_real_noaa_ww3_grib(
     grib_url = (
         f"https://nomads.ncep.noaa.gov/cgi-bin/{filter_script}"
         f"?file={file_name}"
-        "&var_HTSGW=on&var_PERPW=on&var_WVDIR=on"
+        "&var_HTSGW=on&var_PERPW=on&var_DIRPW=on"
+        "&var_SWELL=on&var_SWPER=on&var_SWDIR=on"
+        "&var_WVHGT=on&var_WVPER=on&var_WVDIR=on"
         f"&leftlon={leftlon:.2f}&rightlon={rightlon:.2f}"
         f"&toplat={toplat:.2f}&bottomlat={bottomlat:.2f}"
         f"&dir={grib_dir}"
@@ -2002,48 +2015,167 @@ async def fetch_real_noaa_ww3_grib(
         try:
             print(f"📥 WW3 GRIB downloaded {len(content)} bytes, parsing…")
             import xarray as xr
+            import cfgrib as _cfgrib
 
-            # cfgrib may split the file into multiple datasets (one per typeOfLevel)
-            datasets = xr.open_dataset(
-                tmp_path,
-                engine="cfgrib",
-                backend_kwargs={"indexpath": ""},
-            )
-            # If open_dataset returns a single dataset, wrap it
+            # cfgrib.open_datasets splits the file by typeOfLevel so all wave
+            # component messages (combined, swell, wind-sea) come back as separate
+            # datasets rather than conflicting on a single open_dataset call.
+            try:
+                datasets = _cfgrib.open_datasets(tmp_path)
+            except Exception as _e:
+                print(f"⚠️  cfgrib.open_datasets failed ({_e}), trying single-dataset fallback")
+                try:
+                    datasets = [xr.open_dataset(
+                        tmp_path, engine="cfgrib", backend_kwargs={"indexpath": ""},
+                    )]
+                except Exception:
+                    # Last resort: try opening each wave type separately
+                    datasets = []
+                    for fby in [{"typeOfLevel": "meanSea"}, {}, None]:
+                        try:
+                            kw = {"filter_by_keys": fby} if fby is not None else {}
+                            datasets.append(xr.open_dataset(
+                                tmp_path, engine="cfgrib",
+                                backend_kwargs={"indexpath": "", **kw},
+                            ))
+                        except Exception:
+                            pass
+                    if not datasets:
+                        print("❌ WW3 GRIB: all cfgrib open attempts failed")
+                        return None
             if not isinstance(datasets, list):
                 datasets = [datasets]
 
+            # Identify data arrays by GRIB shortName or variable name.
+            # Combined wave:   swh (htsgw), pp1d/perpw, mwd/wvdir
+            # Swell component: shts/swell, mps/swper, mds/swdir
+            # Wind-sea:        shww,        mpww,      mdww
             hs_da = per_da = dir_da = None
+            swell_hs_da = swell_per_da = swell_dir_da = None
+            wind_sea_hs_da = wind_sea_per_da = wind_sea_dir_da = None
+
+            # Short-name sets for each role (validated against live GFS-Wave GRIB2 output)
+            # Combined primary wave direction is "dirpw"; "wvdir" is wind-sea direction.
+            _SWH       = {"swh", "htsgw"}
+            _PERPW     = {"perpw", "pp1d"}
+            _MWD       = {"mwd", "dirpw"}                 # combined primary direction (NOT wvdir)
+            _SWELL_HS  = {"shts", "swell", "swh1"}        # swell height (may be 3D: partitions×H×W)
+            _SWELL_PER = {"mpts", "mps", "swper", "swp"}  # swell period (mpts = GFS-Wave shortName)
+            _SWELL_DIR = {"swdir", "mds", "swd"}          # swell direction
+            _WS_HS     = {"shww"}                         # wind-sea height
+            _WS_PER    = {"mpww", "wvper"}                # wind-sea period
+            _WS_DIR    = {"wvdir", "mdww", "wvdir2"}      # wind-sea direction (wvdir = GFS-Wave)
+
             for ds in datasets:
-                for name, da in ds.data_vars.items():
-                    sn = (da.attrs.get("GRIB_shortName") or "").lower()
-                    ln = name.lower()
-                    if hs_da  is None and (sn in ("swh", "htsgw") or "swh" in ln or "htsgw" in ln):
+                for vname, da in ds.data_vars.items():
+                    sn  = (da.attrs.get("GRIB_shortName") or "").lower()
+                    ln  = vname.lower()
+                    # Combined wave
+                    if hs_da  is None and (sn in _SWH  or any(k in ln for k in _SWH)):
                         hs_da  = da
-                    if per_da is None and (sn in ("perpw", "pp1d") or "perpw" in ln or "pp1d" in ln):
+                    if per_da is None and (sn in _PERPW or any(k in ln for k in _PERPW)):
                         per_da = da
-                    if dir_da is None and (sn in ("mwd", "wvdir") or "mwd" in ln or "wvdir" in ln):
+                    if dir_da is None and (sn in _MWD   or any(k in ln for k in _MWD)):
                         dir_da = da
+                    # Swell component
+                    if swell_hs_da  is None and sn in _SWELL_HS:
+                        swell_hs_da  = da
+                    if swell_per_da is None and sn in _SWELL_PER:
+                        swell_per_da = da
+                    if swell_dir_da is None and sn in _SWELL_DIR:
+                        swell_dir_da = da
+                    # Wind-sea component
+                    if wind_sea_hs_da  is None and sn in _WS_HS:
+                        wind_sea_hs_da  = da
+                    if wind_sea_per_da is None and sn in _WS_PER:
+                        wind_sea_per_da = da
+                    if wind_sea_dir_da is None and sn in _WS_DIR:
+                        wind_sea_dir_da = da
 
             if hs_da is None:
                 print(f"❌ WW3 GRIB: could not find wave height variable")
                 return None
 
+            has_swell   = swell_hs_da   is not None
+            has_wind_sea = wind_sea_hs_da is not None
+            if has_swell or has_wind_sea:
+                print(f"🌊 WW3 GRIB: swell={'yes' if has_swell else 'no'}, wind-sea={'yes' if has_wind_sea else 'no'}")
+
             lat_name = "latitude" if "latitude" in hs_da.coords else "lat"
             lon_name = "longitude" if "longitude" in hs_da.coords else "lon"
 
-            hs_values  = np.array(hs_da.values,  dtype=np.float64)
-            per_values = np.array(per_da.values, dtype=np.float64) if per_da is not None else np.zeros_like(hs_values)
-            dir_values = np.array(dir_da.values, dtype=np.float64) if dir_da is not None else np.full_like(hs_values, 270.0)
+            def _da_to_2d(da):
+                """Convert DataArray to 2D float64, squeezing partition dim if present.
+
+                GFS-Wave GRIB2 stores multi-partition swell variables (shts, swdir, mpts)
+                as (n_partitions, H, W).  We take partition 0 (dominant swell) for the
+                scalar field that goes into each vector.  Individual partitions are
+                exposed separately below (swell_partitions list).
+                """
+                if da is None:
+                    return None
+                a = np.array(da.values, dtype=np.float64)
+                if a.ndim == 3:
+                    a = a[0]      # dominant / first partition
+                elif a.ndim != 2:
+                    return None
+                return a
+
+            def _da_partitions(da):
+                """Return list of 2D arrays, one per swell partition (or [single] if 2D)."""
+                if da is None:
+                    return []
+                a = np.array(da.values, dtype=np.float64)
+                if a.ndim == 3:
+                    return [a[k] for k in range(a.shape[0])]
+                if a.ndim == 2:
+                    return [a]
+                return []
+
+            hs_values  = _da_to_2d(hs_da)
+            if hs_values is None:
+                print("❌ WW3 GRIB: could not extract 2D wave height")
+                return None
+            per_values = _da_to_2d(per_da) if per_da is not None else np.zeros_like(hs_values)
+            dir_values = _da_to_2d(dir_da) if dir_da is not None else np.full_like(hs_values, 270.0)
+
+            # Per-partition swell arrays: list of (H, W) arrays
+            swell_hs_parts  = _da_partitions(swell_hs_da)
+            swell_per_parts = _da_partitions(swell_per_da)
+            swell_dir_parts = _da_partitions(swell_dir_da)
+            n_swell = min(len(swell_hs_parts), 3)   # up to 3 partitions
+
+            # Dominant swell (partition 0) for backward-compat scalar fields
+            swell_hs_values  = swell_hs_parts[0]  if swell_hs_parts  else None
+            swell_per_values = swell_per_parts[0] if swell_per_parts else None
+            swell_dir_values = swell_dir_parts[0] if swell_dir_parts else None
+
+            ws_hs_values  = _da_to_2d(wind_sea_hs_da)
+            ws_per_values = _da_to_2d(wind_sea_per_da)
+            ws_dir_values = _da_to_2d(wind_sea_dir_da)
 
             lats = hs_da[lat_name].values
             lons = hs_da[lon_name].values
 
-            # Ensure south→north latitude order
-            if len(lats) >= 2 and lats[0] > lats[-1]:
-                hs_values  = np.flipud(hs_values)
-                per_values = np.flipud(per_values)
-                dir_values = np.flipud(dir_values)
+            # Ensure south→north latitude order for all 2D arrays
+            needs_flip = len(lats) >= 2 and lats[0] > lats[-1]
+
+            def _maybe_flip(a):
+                return np.flipud(a) if (a is not None and needs_flip) else a
+
+            hs_values        = _maybe_flip(hs_values)
+            per_values       = _maybe_flip(per_values)
+            dir_values       = _maybe_flip(dir_values)
+            ws_hs_values     = _maybe_flip(ws_hs_values)
+            ws_per_values    = _maybe_flip(ws_per_values)
+            ws_dir_values    = _maybe_flip(ws_dir_values)
+            swell_hs_parts   = [_maybe_flip(a) for a in swell_hs_parts]
+            swell_per_parts  = [_maybe_flip(a) for a in swell_per_parts]
+            swell_dir_parts  = [_maybe_flip(a) for a in swell_dir_parts]
+            swell_hs_values  = swell_hs_parts[0]  if swell_hs_parts  else None
+            swell_per_values = swell_per_parts[0] if swell_per_parts else None
+            swell_dir_values = swell_dir_parts[0] if swell_dir_parts else None
+            if needs_flip:
                 lats = np.flip(lats)
 
             lon_grid, lat_grid = np.meshgrid(lons, lats)
@@ -2056,13 +2188,36 @@ async def fetch_real_noaa_ww3_grib(
 
             valid_mask = np.isfinite(hs_values) & (hs_values >= 0)
             step = max(1, int(np.sqrt(np.sum(valid_mask) / 3000))) if np.sum(valid_mask) > 3000 else 1
+
+            def _sub2d(a):
+                return a[::step, ::step] if (a is not None and step > 1) else a
+
             if step > 1:
-                hs_values  = hs_values[::step, ::step]
-                per_values = per_values[::step, ::step]
-                dir_values = dir_values[::step, ::step]
-                lat_grid   = lat_grid[::step, ::step]
-                lon_grid   = lon_grid[::step, ::step]
-                valid_mask = valid_mask[::step, ::step]
+                hs_values        = _sub2d(hs_values)
+                per_values       = _sub2d(per_values)
+                dir_values       = _sub2d(dir_values)
+                ws_hs_values     = _sub2d(ws_hs_values)
+                ws_per_values    = _sub2d(ws_per_values)
+                ws_dir_values    = _sub2d(ws_dir_values)
+                swell_hs_parts   = [_sub2d(a) for a in swell_hs_parts]
+                swell_per_parts  = [_sub2d(a) for a in swell_per_parts]
+                swell_dir_parts  = [_sub2d(a) for a in swell_dir_parts]
+                swell_hs_values  = swell_hs_parts[0]  if swell_hs_parts  else None
+                swell_per_values = swell_per_parts[0] if swell_per_parts else None
+                swell_dir_values = swell_dir_parts[0] if swell_dir_parts else None
+                lat_grid         = _sub2d(lat_grid)
+                lon_grid         = _sub2d(lon_grid)
+                valid_mask       = _sub2d(valid_mask)
+
+            def _scalar(arr, i, j, ndigits=2, positive_only=False):
+                if arr is None:
+                    return None
+                v = arr[i, j]
+                if not np.isfinite(float(v)):
+                    return None
+                if positive_only and float(v) <= 0:
+                    return None
+                return round(float(v), ndigits)
 
             vectors: List[Dict] = []
             for i in range(lat_grid.shape[0]):
@@ -2071,15 +2226,37 @@ async def fetch_real_noaa_ww3_grib(
                     per_raw = per_values[i, j]
                     per_val = round(float(per_raw), 1) if np.isfinite(per_raw) and per_raw > 0 else None
                     dir_val = round(float(dir_values[i, j]), 0)
-                    vectors.append({
+
+                    vec: Dict = {
                         "lat":     round(float(lat_grid[i, j]), 2),
                         "lon":     round(float(lon_grid[i, j]), 2),
                         "hs":      hs_val,
                         "dir_deg": dir_val,
                         "period":  per_val,
-                    })
+                    }
 
-            print(f"✅ WW3 GRIB: {len(vectors)} vectors ({run_date} {run_cycle}z f{fh:03d})")
+                    # Individual swell partitions (up to 3): swell_1, swell_2, swell_3
+                    for k in range(n_swell):
+                        hs_k  = _scalar(swell_hs_parts[k],  i, j, 2, positive_only=True)
+                        if hs_k is None:
+                            continue
+                        per_k = _scalar(swell_per_parts[k] if k < len(swell_per_parts) else None, i, j, 1, positive_only=True)
+                        dir_k = _scalar(swell_dir_parts[k] if k < len(swell_dir_parts) else None, i, j, 0)
+                        vec[f"swell_{k+1}"] = {"hs": hs_k, "per": per_k, "dir": dir_k}
+
+                    # Wind-sea component (locally generated wind chop)
+                    w_hs = _scalar(ws_hs_values, i, j, positive_only=True)
+                    if w_hs is not None:
+                        vec["wind_sea"] = {
+                            "hs":  w_hs,
+                            "per": _scalar(ws_per_values, i, j, 1, positive_only=True),
+                            "dir": _scalar(ws_dir_values, i, j, 0),
+                        }
+
+                    vectors.append(vec)
+
+            swell_note = f"{n_swell} swell partitions" if n_swell else "no swell data"
+            print(f"✅ WW3 GRIB: {len(vectors)} vectors ({run_date} {run_cycle}z f{fh:03d}, {swell_note})")
             return vectors if vectors else None
 
         finally:
@@ -2675,16 +2852,7 @@ async def _get_wave_overlay_impl(
             forecast_hour=forecast_hour,
             source=source,
         )
-        # Fallback: OPeNDAP (slower but broader compatibility)
-        if not vectors:
-            print("⚠️  GRIB path returned nothing, falling back to OPeNDAP")
-            vectors = await fetch_real_noaa_ww3_opendap(
-                model,
-                (min_lat, min_lon, max_lat, max_lon),
-                run=None,
-                forecast_hour=forecast_hour,
-                source=source,
-            )
+        # OPeNDAP retired by NOMADS (SCN25-81) — GRIB filter is the only path
     
     # Fallback to synthetic data if real data fetch fails or real_data=False
     if not vectors or len(vectors) == 0:
@@ -2756,7 +2924,7 @@ async def _get_wave_overlay_impl(
         }
     
     # Normalized result format (matching wind overlay structure)
-    is_real = real_data and vectors and len(vectors) > 0 and any(v.get("hs", 0) > 0 for v in vectors[:10])
+    is_real = real_data and vectors and len(vectors) > 0 and any((v.get("hs") or 0) > 0 for v in vectors[:10])
     
     # Sanitize vectors to remove any NaN values
     def sanitize_value(v):
@@ -3299,7 +3467,10 @@ async def update_surf_spot(
 
 
 @app.get("/api/surf-spots/{slug}/conditions")
-async def get_surf_spot_conditions(slug: str):
+async def get_surf_spot_conditions(
+    slug: str,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
     """
     Get real-time surf conditions and score for a spot.
     Returns current wave/wind data from blended buoys with 0-10 quality score.
@@ -3375,12 +3546,28 @@ async def get_surf_spot_conditions(slug: str):
         except Exception as e:
             print(f"⚠️  Failed to fetch WW3 for {slug}: {e}")
 
+        # Look up per-user size perception bias for this spot
+        # Guard: when called internally (not via HTTP), user may be a Depends object, not a dict
+        size_bias = 1.0
+        if user and isinstance(user, dict) and user.get('user_id'):
+            try:
+                profile_result = supabase.table('user_spot_profiles') \
+                    .select('size_perception_bias') \
+                    .eq('user_id', user['user_id']) \
+                    .eq('spot_id', slug) \
+                    .single().execute()
+                if profile_result.data and profile_result.data.get('size_perception_bias'):
+                    size_bias = float(profile_result.data['size_perception_bias'])
+            except Exception:
+                pass
+
         # Calculate score with modified blend (includes WW3 if available)
-        score_result = await calculate_spot_score(slug, buoy_cache, buoy_blend_override=buoy_blend_with_model)
+        score_result = await calculate_spot_score(slug, buoy_cache, buoy_blend_override=buoy_blend_with_model, size_bias=size_bias)
 
         if not score_result:
             return {"error": "Unable to calculate conditions"}
 
+        score_result['size_bias'] = size_bias
         return score_result
 
     except Exception as e:
@@ -3507,68 +3694,106 @@ def _closest_vector(vectors: list, lat: float, lon: float):
     return best
 
 
+async def _fetch_point_timeline_openmeteo(
+    lat: float,
+    lon: float,
+    hours: int = 168,
+) -> list:
+    """Thin wrapper — delegates to openmeteo.fetch_spot_forecast with Redis caching."""
+    from openmeteo import fetch_spot_forecast
+    return await fetch_spot_forecast(lat, lon, hours, redis_client=_redis_client)
+
+
 async def _fetch_timeline_hour(
     forecast_hour: int,
     bounds: str,
     lat: float,
     lon: float,
 ) -> dict:
-    """Fetch wave + wind for one forecast hour and return a timeline point."""
-    wave_data = None
-    wind_data = None
+    """Fetch wave + wind for one forecast hour; semaphore-guarded to cap OPeNDAP concurrency."""
+    async with TIMELINE_SEM:
+        wave_data = None
+        wind_data = None
 
-    try:
-        wave_response = await get_waves_overlay(
-            model="ww3", bounds=bounds, forecast_hour=forecast_hour, source="global"
-        )
-        vectors = (wave_response or {}).get('vectors') or []
-        closest = _closest_vector(vectors, lat, lon) if vectors else None
-        if closest:
-            height_m = closest.get('hs')
-            period_sec = closest.get('period')
-            surf_height_m = calculate_surf_height(height_m, period_sec) if height_m and period_sec else None
-            wave_data = {
-                'height_m': height_m,
-                'height_ft': round(height_m * 3.28084, 2) if height_m else None,
-                'direction': closest.get('dir_deg'),
-                'period': period_sec,
-                'surf_height_m': surf_height_m,
-                'surf_height_ft': round(surf_height_m * 3.28084, 1) if surf_height_m else None,
-            }
-    except Exception as e:
-        print(f"⚠️  Wave fetch failed for hour {forecast_hour}: {e}")
+        try:
+            wave_response = await get_waves_overlay(
+                model="ww3", bounds=bounds, forecast_hour=forecast_hour, source="global"
+            )
+            vectors = (wave_response or {}).get('vectors') or []
+            closest = _closest_vector(vectors, lat, lon) if vectors else None
+            if closest:
+                height_m = closest.get('hs')
+                period_sec = closest.get('period')
+                surf_height_m = calculate_surf_height(height_m, period_sec) if height_m and period_sec else None
+                wave_data = {
+                    'height_m': height_m,
+                    'height_ft': round(height_m * 3.28084, 2) if height_m else None,
+                    'direction': closest.get('dir_deg'),
+                    'period': period_sec,
+                    'surf_height_m': surf_height_m,
+                    'surf_height_ft': round(surf_height_m * 3.28084, 1) if surf_height_m else None,
+                }
+                for k in range(1, 4):
+                    part = closest.get(f'swell_{k}')
+                    if part and part.get('hs'):
+                        hs_m = part['hs']
+                        wave_data[f'swell_{k}'] = {
+                            'height_m':  hs_m,
+                            'height_ft': round(hs_m * 3.28084, 1),
+                            'period':    part.get('per'),
+                            'direction': part.get('dir'),
+                        }
+                wind_sea = closest.get('wind_sea')
+                if wind_sea and wind_sea.get('hs'):
+                    ws_m = wind_sea['hs']
+                    wave_data['wind_sea'] = {
+                        'height_m':  ws_m,
+                        'height_ft': round(ws_m * 3.28084, 1),
+                        'period':    wind_sea.get('per'),
+                        'direction': wind_sea.get('dir'),
+                    }
+        except Exception as e:
+            print(f"⚠️  Wave fetch failed for hour {forecast_hour}: {e}")
 
-    try:
-        wind_response = await get_wind_overlay(
-            model="gfs", bounds=bounds, forecast_hour=forecast_hour, real_data=True
-        )
-        vectors = (wind_response or {}).get('vectors') or []
-        closest = _closest_vector(vectors, lat, lon) if vectors else None
-        if closest:
-            u = closest.get('u_component', 0)
-            v = closest.get('v_component', 0)
-            speed_ms = (u ** 2 + v ** 2) ** 0.5
-            wind_data = {
-                'speed_ms': round(speed_ms, 1),
-                'speed_mph': round(speed_ms * 2.23694, 1),
-                'direction': closest.get('direction_deg'),
-            }
-    except Exception as e:
-        print(f"⚠️  Wind fetch failed for hour {forecast_hour}: {e}")
+        try:
+            wind_response = await get_wind_overlay(
+                model="gfs", bounds=bounds, forecast_hour=forecast_hour, real_data=True
+            )
+            vectors = (wind_response or {}).get('vectors') or []
+            closest = _closest_vector(vectors, lat, lon) if vectors else None
+            if closest:
+                u = closest.get('u_component', 0)
+                v = closest.get('v_component', 0)
+                speed_ms = (u ** 2 + v ** 2) ** 0.5
+                wind_data = {
+                    'speed_ms': round(speed_ms, 1),
+                    'speed_mph': round(speed_ms * 2.23694, 1),
+                    'direction': closest.get('direction_deg'),
+                }
+        except Exception as e:
+            print(f"⚠️  Wind fetch failed for hour {forecast_hour}: {e}")
 
-    return {'hour': forecast_hour, 'wave': wave_data, 'wind': wind_data}
+        return {'hour': forecast_hour, 'wave': wave_data, 'wind': wind_data}
 
 
 @app.get("/api/surf-spots/{slug}/forecast-timeline")
 async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
     """
-    Get forecast timeline for a spot showing wave and wind conditions over time.
+    Get forecast timeline for a spot showing wave, wind, and tide conditions over time.
     Reads from pre-baked Redis cache when available; falls back to live fetch.
+    Tide data is merged from NOAA CO-OPS via tides.py (best-effort, non-blocking).
     """
     if not supabase:
         return {"error": "Database not configured"}
 
     try:
+        # ── L1 assembled-timeline cache (30 min TTL) ───────────────────────
+        tl_key = f"timeline:{slug}:{hours}"
+        cached_tl = _timeline_cache.get(tl_key)
+        if cached_tl and datetime.now() - cached_tl["cached_at"] < _TIMELINE_CACHE_TTL:
+            print(f"📦 Timeline L1 hit: {tl_key}")
+            return cached_tl["data"]
+
         spot_result = supabase.table("spots") \
             .select("latitude, longitude, name") \
             .eq("slug", slug).single().execute()
@@ -3579,6 +3804,9 @@ async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
         spot = spot_result.data
         lat, lon = spot['latitude'], spot['longitude']
 
+        timeline = None
+        source = "live"
+
         # ── Check pre-baked Redis cache ────────────────────────────────────
         if _redis_client:
             try:
@@ -3588,44 +3816,83 @@ async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
                 cached = _redis_client.get(redis_key)
                 if cached:
                     timeline = pickle.loads(cached)
-                    # Trim to requested hours
                     timeline = [pt for pt in timeline if pt.get("hour", 0) <= hours]
+                    source = "prebaked"
                     print(f"📦 Pre-baked cache hit: {slug} ({run_date} {run_cycle}z, {len(timeline)} pts)")
-                    return json_sanitize({
-                        "spot_name":      spot["name"],
-                        "spot_slug":      slug,
-                        "latitude":       lat,
-                        "longitude":      lon,
-                        "forecast_hours": [pt["hour"] for pt in timeline],
-                        "timeline":       timeline,
-                        "total_points":   len(timeline),
-                        "source":         "prebaked",
-                    })
             except Exception as e:
                 print(f"⚠️  Pre-baked cache read failed for {slug}: {e}")
 
-        # ── Live fetch fallback ────────────────────────────────────────────
-        bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
-        forecast_hours = list(range(0, min(hours + 1, 181), 6))
-        print(f"🔮 Live fetch forecast timeline for {slug}: {len(forecast_hours)} points (parallel)")
+        # ── Live fetch — Open-Meteo point API (2 calls, ~1-2s) ───────────
+        async def _fetch_tide_for_merge(now_utc):
+            try:
+                from tides import _resolve_station, fetch_tide_timeline
+                station_id, _ = await _resolve_station(slug)
+                tide_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                tide_end = tide_start + timedelta(days=9)
+                return await fetch_tide_timeline(station_id, tide_start, tide_end)
+            except Exception as tide_err:
+                print(f"⚠️  Tide prefetch failed for {slug}: {tide_err}")
+                return []
 
-        raw = await asyncio.gather(
-            *[_fetch_timeline_hour(h, bounds, lat, lon) for h in forecast_hours],
-            return_exceptions=True,
-        )
+        if timeline is None:
+            now_utc = datetime.now(timezone.utc)
+            try:
+                print(f"🌊 Open-Meteo point fetch: {slug} ({lat},{lon}), {hours}h")
+                timeline, tide_points = await asyncio.gather(
+                    _fetch_point_timeline_openmeteo(lat, lon, hours),
+                    _fetch_tide_for_merge(now_utc),
+                )
+                source = "openmeteo"
+                print(f"✅ Open-Meteo timeline: {slug} ({len(timeline)} pts)")
+            except Exception as om_err:
+                print(f"⚠️  Open-Meteo failed ({slug}): {om_err} — falling back to GRIB")
+                bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
+                forecast_hours = list(range(0, min(hours + 1, 181), 6))
+                raw, tide_points = await asyncio.gather(
+                    asyncio.gather(
+                        *[_fetch_timeline_hour(h, bounds, lat, lon) for h in forecast_hours],
+                        return_exceptions=True,
+                    ),
+                    _fetch_tide_for_merge(now_utc),
+                )
+                timeline = [r for r in raw if isinstance(r, dict)]
+        else:
+            now_utc = datetime.now(timezone.utc)
+            # Pre-baked path: still fetch tides (fast, cached by tides.py)
+            tide_points = []
+            try:
+                from tides import _resolve_station, fetch_tide_timeline
+                station_id, _ = await _resolve_station(slug)
+                tide_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                tide_end = tide_start + timedelta(days=9)
+                tide_points = await fetch_tide_timeline(station_id, tide_start, tide_end)
+            except Exception as tide_err:
+                print(f"⚠️  Tide merge skipped for {slug}: {tide_err}")
 
-        timeline = [r for r in raw if isinstance(r, dict)]
+        # ── Merge tide data ────────────────────────────────────────────────
+        if tide_points:
+            PACIFIC_OFFSET_H = -7
+            now_pacific = now_utc + timedelta(hours=PACIFIC_OFFSET_H)
+            tide_by_hour = {tp["t"]: tp for tp in tide_points}
+            for pt in timeline:
+                target = now_pacific + timedelta(hours=pt.get("hour", 0))
+                tide = tide_by_hour.get(target.strftime("%Y-%m-%d %H:00"))
+                if tide:
+                    pt["tide_ft"] = round(tide["v"], 1) if tide.get("v") is not None else None
+                    pt["tide_state"] = tide.get("state")
 
-        return json_sanitize({
+        result = json_sanitize({
             "spot_name":      spot["name"],
             "spot_slug":      slug,
             "latitude":       lat,
             "longitude":      lon,
-            "forecast_hours": forecast_hours,
+            "forecast_hours": [pt["hour"] for pt in timeline],
             "timeline":       timeline,
             "total_points":   len(timeline),
-            "source":         "live",
+            "source":         source,
         })
+        _timeline_cache[tl_key] = {"cached_at": datetime.now(), "data": result}
+        return result
 
     except Exception as e:
         print(f"❌ Error fetching forecast timeline for {slug}: {e}")
@@ -4038,18 +4305,36 @@ async def _copilot_get_spot_conditions(spot_id: str) -> Dict:
         result = await get_surf_spot_conditions(spot_id)
         if "error" in result:
             return result
+
+        # Separate live buoy readings from model data so the Copilot
+        # can lead with observed data and flag model-only conditions.
+        buoys_used = result.get("buoys_used", [])
+        live_buoys  = [b for b in buoys_used if not b.get("is_model")]
+        model_buoys = [b for b in buoys_used if b.get("is_model")]
+
         return {
-            "spot_id": spot_id,
-            "spot_name": result.get("spot_name"),
-            "score": result.get("overall_score"),
-            "rating": result.get("rating"),
-            "wave_height_ft": result.get("wave_height_ft"),
-            "surf_height_ft": result.get("surf_height_ft"),
-            "period_sec": result.get("period_sec"),
-            "swell_direction": result.get("swell_direction"),
-            "wind_speed_mph": result.get("wind_speed_mph"),
-            "wind_direction": result.get("wind_direction"),
-            "confidence": result.get("confidence"),
+            "spot_id":          spot_id,
+            "spot_name":        result.get("spot_name"),
+            "score":            result.get("overall_score"),
+            "rating":           result.get("rating"),
+
+            # Blended summary
+            "wave_height_ft":   result.get("wave_height_ft"),
+            "surf_height_ft":   result.get("surf_height_ft"),
+            "period_sec":       result.get("period_sec"),
+            "swell_direction":  result.get("swell_direction"),
+            "wind_speed_mph":   result.get("wind_speed_mph"),
+            "wind_direction":   result.get("wind_direction"),
+            "confidence":       result.get("confidence"),
+
+            # Raw live buoy readings — use these for "right now" reporting
+            "live_buoys":       live_buoys,
+            "model_data":       model_buoys,
+            "has_live_buoy":    len(live_buoys) > 0,
+            "data_note":        (
+                "Live NDBC buoy observations" if live_buoys
+                else "Model-only (no live buoy data)"
+            ),
         }
     except Exception as e:
         return {"error": str(e), "spot_id": spot_id}
@@ -4109,6 +4394,13 @@ async def _copilot_get_conditions_window(spot_id: str, hours: int = 24) -> Dict:
             if tide:
                 row["tide_ft"] = round(tide["v"], 1) if tide.get("v") is not None else None
                 row["tide_state"] = tide.get("state")
+            # Swell partition decomposition (present when GRIB parsed swell vars)
+            for k in range(1, 4):
+                key = f"swell_{k}"
+                if wave.get(key):
+                    row[key] = wave[key]
+            if wave.get("wind_sea"):
+                row["wind_sea"] = wave["wind_sea"]
             points.append(row)
 
         # Next 8 hi/lo events from now

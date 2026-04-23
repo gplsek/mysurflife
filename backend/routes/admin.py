@@ -5,6 +5,13 @@ from datetime import datetime
 router = APIRouter()
 
 try:
+    from routes.storms import load_storms_config, save_storms_config, _OCEAN_KEYS
+except ImportError:
+    load_storms_config = None
+    save_storms_config = None
+    _OCEAN_KEYS = []
+
+try:
     from database import get_supabase_admin_client
 except ImportError:
     get_supabase_admin_client = lambda: None
@@ -106,9 +113,12 @@ async def create_persona(
 
 # ── User Management ───────────────────────────────────────────────────────────
 
+VALID_SKILL_LEVELS = {"beginner", "intermediate", "experienced", "expert"}
+
+
 @router.get("/api/admin/users")
 async def list_users(user: Dict = Depends(require_admin)):
-    """List all users with their roles (admin only)."""
+    """List all users with roles and profiles (admin only)."""
     admin_client = get_supabase_admin_client()
     if not admin_client:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -117,14 +127,21 @@ async def list_users(user: Dict = Depends(require_admin)):
         roles_response = admin_client.table("user_roles").select("*").execute()
         roles_map = {role["user_id"]: role for role in roles_response.data}
 
+        try:
+            profiles_response = admin_client.table("user_profiles").select("*").execute()
+            profiles_map = {p["user_id"]: p for p in (profiles_response.data or [])}
+        except Exception:
+            profiles_map = {}
+
         users_with_roles = [
             {
-                "id": u.id,
-                "email": u.email,
-                "created_at": u.created_at,
+                "id":             u.id,
+                "email":          u.email,
+                "created_at":     u.created_at,
                 "last_sign_in_at": u.last_sign_in_at,
-                "is_admin": roles_map.get(u.id, {}).get("is_admin", False),
+                "is_admin":       roles_map.get(u.id, {}).get("is_admin", False),
                 "role_created_at": roles_map.get(u.id, {}).get("created_at"),
+                "profile": profiles_map.get(u.id, {}),
             }
             for u in users_response
         ]
@@ -132,6 +149,38 @@ async def list_users(user: Dict = Depends(require_admin)):
         return {"success": True, "users": users_with_roles}
     except Exception as e:
         print(f"❌ Error listing users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/api/admin/users/{user_id}/profile")
+async def update_user_profile(
+    user_id: str,
+    profile_data: Dict[str, Any],
+    user: Dict = Depends(require_admin),
+):
+    """Upsert a user's profile (admin only)."""
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+
+    skill = profile_data.get("skill_level")
+    if skill and skill not in VALID_SKILL_LEVELS:
+        raise HTTPException(status_code=400, detail=f"Invalid skill_level: {skill}")
+
+    payload: Dict[str, Any] = {"user_id": user_id}
+    for field in ("display_name", "skill_level", "home_spot_id", "home_spot_name"):
+        if field in profile_data:
+            val = profile_data[field]
+            payload[field] = val.strip() if isinstance(val, str) else val
+
+    try:
+        admin_client.table("user_profiles").upsert(payload).execute()
+        updated = admin_client.table("user_profiles").select("*").eq("user_id", user_id).execute()
+        result = updated.data[0] if updated.data else payload
+        print(f"✅ Profile updated for {user_id} by {user.get('email', 'unknown')}")
+        return {"success": True, "profile": result}
+    except Exception as e:
+        print(f"❌ Error updating profile for {user_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -220,3 +269,56 @@ async def delete_user(
     except Exception as e:
         print(f"❌ Error deleting user: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Storm Filter Config ───────────────────────────────────────────────────────
+
+@router.get("/api/admin/storms/config")
+async def get_storms_config(
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """Return current storm filter configuration (admin only)."""
+    if not load_storms_config:
+        raise HTTPException(status_code=500, detail="Storm config module unavailable")
+    return {"success": True, "config": load_storms_config()}
+
+
+@router.put("/api/admin/storms/config")
+async def update_storms_config(
+    body: Dict[str, Any],
+    user: Dict = Depends(require_admin) if require_admin else None
+):
+    """Update storm filter configuration (admin only). Persisted to disk."""
+    if not load_storms_config or not save_storms_config:
+        raise HTTPException(status_code=500, detail="Storm config module unavailable")
+
+    current = load_storms_config()
+
+    allowed = {"min_pressure_mb", "min_wind_kts", "include_highs", "oceans"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail=f"No valid fields. Allowed: {sorted(allowed)}")
+
+    # Validate
+    if "min_pressure_mb" in updates:
+        v = int(updates["min_pressure_mb"])
+        if not (900 <= v <= 1040):
+            raise HTTPException(status_code=400, detail="min_pressure_mb must be 900–1040")
+        updates["min_pressure_mb"] = v
+
+    if "min_wind_kts" in updates:
+        v = int(updates["min_wind_kts"])
+        if not (0 <= v <= 120):
+            raise HTTPException(status_code=400, detail="min_wind_kts must be 0–120")
+        updates["min_wind_kts"] = v
+
+    if "oceans" in updates:
+        bad = [o for o in updates["oceans"] if o not in _OCEAN_KEYS]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Unknown oceans: {bad}. Valid: {_OCEAN_KEYS}")
+
+    current.update(updates)
+    save_storms_config(current)
+    email = user.get("email", "unknown") if user else "unknown"
+    print(f"✅ Storm config updated by {email}: {updates}")
+    return {"success": True, "config": current}
