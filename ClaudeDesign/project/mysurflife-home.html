@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mysurflife — a personal surf intelligence platform</title>
+<meta name="description" content="Real-time buoys, 16-day forecasts, and an AI Copilot that learns how you surf and predicts your sessions." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a1218;
+    --bg:   oklch(0.16 0.018 230);
+    --bg-2: oklch(0.20 0.020 230);
+    --bg-3: oklch(0.24 0.022 230);
+    --fg:   oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --border:   oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --lime: oklch(0.82 0.16 140);
+    --coral: oklch(0.72 0.16 20);
+    --gold: oklch(0.82 0.14 85);
+    --violet: oklch(0.70 0.14 290);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+  h1, h2, h3, h4 { margin: 0; }
+  em { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; }
+
+  body::before {
+    content: ''; position: fixed; inset: -10%; z-index: -2;
+    background:
+      radial-gradient(900px 500px at 80% 0%, oklch(0.82 0.16 195 / 0.12), transparent 60%),
+      radial-gradient(700px 400px at 10% 100%, oklch(0.75 0.19 45 / 0.08), transparent 55%),
+      linear-gradient(180deg, oklch(0.14 0.02 230) 0%, oklch(0.17 0.02 230) 100%);
+    pointer-events: none;
+    animation: drift 26s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from { transform: translate3d(-2%, -1%, 0) scale(1.02); }
+    to   { transform: translate3d(2%, 1%, 0) scale(1.06); }
+  }
+
+  /* ---------- Nav ---------- */
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 20px;
+    padding: 16px 40px;
+    background: oklch(0.14 0.02 230 / 0.7);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; font-size: 16px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .nav-links { margin-left: auto; display: flex; gap: 28px; align-items: center; font-size: 13.5px; color: var(--fg-2); }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-links .sep { color: var(--border-2); }
+  .nav-signin {
+    padding: 8px 16px; border-radius: 8px;
+    border: 1px solid var(--border-2); color: var(--fg); font-weight: 500;
+    font-size: 13px; background: transparent;
+  }
+  .nav-signin:hover { background: var(--bg-2); }
+  .nav-start {
+    padding: 8px 16px; border-radius: 8px; border: none;
+    background: var(--aqua); color: var(--ink); font-weight: 600; font-size: 13px;
+  }
+  .nav-start:hover { background: oklch(0.88 0.16 195); }
+
+  main { max-width: 1260px; margin: 0 auto; padding: 0 40px; }
+
+  /* ---------- Section chrome ---------- */
+  section { padding: 120px 0 40px; position: relative; }
+  section:first-of-type { padding-top: 60px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--aqua);
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--aqua); box-shadow: 0 0 10px var(--aqua); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 10px var(--aqua); opacity: 1; }
+    50% { box-shadow: 0 0 22px var(--aqua); opacity: 0.7; }
+  }
+  .section-head { display: flex; flex-direction: column; gap: 18px; margin-bottom: 56px; max-width: 680px; }
+  .section-head h2 { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .section-head h2 em { color: var(--aqua); }
+  .section-head p { font-size: 17px; color: var(--fg-2); line-height: 1.6; margin: 0; max-width: 620px; }
+
+  /* ---------- HERO ---------- */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 64px; align-items: center; min-height: calc(100vh - 160px); padding-top: 60px; }
+  .hero h1 { font-size: clamp(44px, 5.5vw, 72px); font-weight: 700; letter-spacing: -0.035em; line-height: 0.99; margin: 22px 0 24px; }
+  .hero h1 em {
+    color: var(--aqua);
+    background: linear-gradient(90deg, var(--aqua) 0%, oklch(0.88 0.18 200) 50%, var(--aqua) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 6s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+  .hero .subhead { font-size: 18px; line-height: 1.6; color: var(--fg-2); max-width: 560px; margin: 0 0 32px; }
+  .hero .subhead b { color: var(--fg); font-weight: 500; }
+
+  .cta-row { display: flex; gap: 12px; margin-bottom: 40px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 22px; border-radius: 10px;
+    font-size: 14px; font-weight: 600; letter-spacing: -0.005em;
+    border: 1px solid var(--border-2); background: transparent; color: var(--fg);
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg-2); transform: translateY(-1px); }
+  .btn-primary { background: var(--aqua); color: var(--ink); border-color: var(--aqua); position: relative; overflow: hidden; }
+  .btn-primary:hover { background: oklch(0.88 0.16 195); box-shadow: 0 10px 24px oklch(0.82 0.16 195 / 0.35); }
+  .btn-primary::before {
+    content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.35), transparent);
+    transform: skewX(-20deg); animation: sheen 4.2s ease-in-out infinite;
+  }
+  @keyframes sheen { 0%, 70% { left: -60%; } 100% { left: 120%; } }
+  .btn .arr { transition: transform 0.15s; }
+  .btn:hover .arr { transform: translateX(3px); }
+
+  .trust-row {
+    display: flex; gap: 28px; padding-top: 28px; border-top: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .trust-item { display: flex; flex-direction: column; gap: 4px; }
+  .trust-item .n { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .trust-item .n .u { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .trust-item .l { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- Hero Copilot demo ---------- */
+  .copilot-demo {
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px oklch(0 0 0 / 0.45);
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    height: 560px;
+    display: flex; flex-direction: column;
+  }
+  .copilot-demo::before {
+    content: ''; position: absolute; inset: -1px; border-radius: 16px;
+    background: linear-gradient(180deg, oklch(0.82 0.16 195 / 0.3), transparent 28%);
+    z-index: -1; pointer-events: none;
+  }
+  .demo-head {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase;
+  }
+  .demo-head .dots { display: flex; gap: 5px; }
+  .demo-head .dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border-2); }
+  .demo-head .title { color: var(--fg-2); letter-spacing: 0.08em; }
+  .demo-head .pill { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; padding: 3px 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--lime); }
+  .demo-head .pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 6px var(--lime); }
+
+  .demo-scroll { flex: 1; padding: 0; overflow: hidden; position: relative; }
+  .demo-scroll::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 24px; z-index: 2;
+    background: linear-gradient(180deg, var(--bg-2), transparent); pointer-events: none;
+  }
+  .demo-scroll::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 28px; z-index: 2;
+    background: linear-gradient(0deg, var(--bg-2), transparent); pointer-events: none;
+  }
+  .demo-track {
+    padding: 18px 20px 14px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    min-height: 100%;
+    transition: transform 0.5s cubic-bezier(.2,.7,.2,1);
+    will-change: transform;
+  }
+
+  .bubble { max-width: 92%; margin-bottom: 12px; opacity: 0; transform: translateY(8px); animation: bubbleIn 0.4s ease forwards; }
+  @keyframes bubbleIn { to { opacity: 1; transform: translateY(0); } }
+  .bubble.user { margin-left: auto; }
+  .bubble.user .b {
+    background: var(--aqua); color: var(--ink);
+    padding: 10px 14px; border-radius: 14px 14px 2px 14px; font-size: 13.5px; font-weight: 500;
+    display: inline-block;
+  }
+  .bubble.bot .who {
+    font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 5px; display: flex; gap: 6px; align-items: center;
+  }
+  .bubble.bot .who::before {
+    content: ''; width: 14px; height: 14px; border-radius: 4px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><g transform='translate(32 40)' stroke='%23ff9966' fill='none' stroke-linecap='round'><path d='M-14 0 A14 14 0 0 1 14 0' stroke-width='2.5'/><path d='M-21 0 A21 21 0 0 1 21 0' stroke-width='2' opacity='0.5'/></g><circle cx='32' cy='40' r='4' fill='%2388eaff'/></svg>") center/cover var(--bg-3);
+  }
+  .bubble.bot .b {
+    background: var(--bg-3); border: 1px solid var(--border);
+    padding: 12px 14px; border-radius: 14px 14px 14px 2px; font-size: 13.5px; line-height: 1.55; color: var(--fg);
+  }
+  .bubble.bot .b b { color: var(--aqua); }
+  .bubble.bot .b em { color: var(--fg-2); font-size: 14px; }
+
+  .tool-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: oklch(0.82 0.16 195 / 0.08); border: 1px solid oklch(0.82 0.16 195 / 0.25);
+    padding: 3px 8px; border-radius: 5px; font-family: 'Geist Mono', monospace;
+    font-size: 10px; color: var(--aqua); margin-bottom: 8px;
+  }
+  .tool-chip .spin { width: 8px; height: 8px; border: 1.5px solid oklch(0.82 0.16 195 / 0.3); border-top-color: var(--aqua); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tool-chip.done .spin { display: none; }
+  .tool-chip.done::after { content: '✓'; font-family: 'Geist', sans-serif; }
+
+  .mini-card {
+    margin-top: 10px; padding: 10px 12px;
+    background: oklch(0.16 0.018 230);
+    border: 1px solid var(--border); border-radius: 10px;
+    display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center;
+  }
+  .mini-score { position: relative; width: 52px; height: 52px; }
+  .mini-score .num { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 17px; letter-spacing: -0.03em; }
+  .mini-card .meta .name { font-weight: 700; font-size: 14px; }
+  .mini-card .meta .sub { font-size: 11px; color: var(--fg-2); margin-top: 2px; }
+  .mini-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .mini-metrics .m { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); display: flex; flex-direction: column; gap: 1px; }
+  .mini-metrics .m b { font-weight: 600; color: var(--fg); font-size: 12px; }
+
+  .mini-chart { margin-top: 10px; padding: 10px; background: oklch(0.16 0.018 230); border: 1px solid var(--border); border-radius: 10px; }
+  .mini-chart .cap { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .mini-chart svg { width: 100%; height: 58px; display: block; }
+
+  .typing-inline { display: inline-flex; gap: 3px; padding: 2px 6px; vertical-align: middle; }
+  .typing-inline span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: bob 1.2s infinite; }
+  .typing-inline span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-inline span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bob { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+  .demo-input {
+    padding: 10px 12px; border-top: 1px solid var(--border);
+    display: flex; gap: 10px; align-items: center;
+    background: oklch(0.18 0.02 230);
+  }
+  .demo-input .inp {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 12px; color: var(--fg); font-size: 13px; font-family: inherit;
+    min-height: 38px; display: flex; align-items: center;
+  }
+  .demo-input .inp .caret { display: inline-block; width: 2px; height: 14px; background: var(--aqua); margin-left: 1px; animation: caret 1s steps(2) infinite; vertical-align: middle; }
+  @keyframes caret { 50% { opacity: 0; } }
+  .demo-input .send { width: 38px; height: 38px; border-radius: 8px; background: var(--aqua); color: var(--ink); border: none; display: grid; place-items: center; }
+
+  /* ---------- Stats band ---------- */
+  .stats-band {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;
+    padding: 28px 36px; margin-top: 60px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px;
+  }
+  .stats-band .item { display: flex; flex-direction: column; gap: 6px; }
+  .stats-band .v { font-size: 28px; font-weight: 700; letter-spacing: -0.025em; }
+  .stats-band .v em { color: var(--aqua); }
+  .stats-band .k { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- Features grid ---------- */
+  .feats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .feat {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px 26px; transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .feat:hover { transform: translateY(-4px); border-color: var(--border-2); box-shadow: 0 16px 36px oklch(0 0 0 / 0.3); }
+  .feat .tag { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--aqua); }
+  .feat h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; }
+  .feat p { font-size: 14px; color: var(--fg-2); line-height: 1.6; margin: 0; }
+  .feat .illus { height: 120px; margin: 4px -6px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; }
+
+  /* ---------- How it works ---------- */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .step {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px 22px 26px; transition: transform 0.3s, border-color 0.3s;
+  }
+  .step:hover { transform: translateY(-4px); border-color: var(--border-2); }
+  .step .num { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--aqua); display: block; margin-bottom: 18px; }
+  .step h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 8px; }
+  .step p { font-size: 13.5px; color: var(--fg-2); line-height: 1.55; margin: 0; }
+
+  /* ---------- Timeline chart block ---------- */
+  .timeline-wrap {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 16px;
+    padding: 26px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 36px; align-items: stretch;
+  }
+  .timeline-copy { padding: 12px 4px; }
+  .timeline-copy h3 { font-size: 26px; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 14px; }
+  .timeline-copy h3 em { color: var(--aqua); }
+  .timeline-copy p { color: var(--fg-2); font-size: 14.5px; line-height: 1.6; margin: 0 0 14px; }
+  .bullet-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .bullet-list li { padding-left: 18px; position: relative; font-size: 13.5px; color: var(--fg-2); line-height: 1.5; }
+  .bullet-list li::before { content: ''; position: absolute; left: 0; top: 7px; width: 8px; height: 8px; border: 1.5px solid var(--aqua); border-radius: 2px; }
+  .bullet-list li b { color: var(--fg); font-weight: 600; }
+  .timeline-view { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .timeline-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tl-tab { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 10px; border-radius: 5px; background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); }
+  .tl-tab.on { color: var(--aqua); border-color: oklch(0.82 0.16 195 / 0.3); background: oklch(0.82 0.16 195 / 0.06); }
+  .tl-chart svg { width: 100%; height: 180px; display: block; }
+
+  /* ---------- Category chip scale ---------- */
+  .cat-scale { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; margin: 18px 0 14px; }
+  .cat-chip { height: 22px; border-radius: 3px; display: grid; place-items: center; font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 600; color: var(--ink); }
+
+  /* ---------- Auth card (below fold primary CTA) ---------- */
+  .cta-block {
+    margin: 20px 0;
+    background: linear-gradient(135deg, var(--bg-2), oklch(0.22 0.03 200));
+    border: 1px solid var(--border-2); border-radius: 20px;
+    padding: 60px 56px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 48px; align-items: center;
+    position: relative; overflow: hidden;
+  }
+  .cta-block::after {
+    content: ''; position: absolute; right: -10%; top: -40%; width: 60%; height: 180%;
+    background: radial-gradient(closest-side, oklch(0.82 0.16 195 / 0.2), transparent);
+    pointer-events: none;
+  }
+  .cta-block h2 { font-size: 36px; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 14px; }
+  .cta-block h2 em { color: var(--aqua); }
+  .cta-block p { color: var(--fg-2); font-size: 15px; line-height: 1.6; margin: 0 0 22px; max-width: 440px; }
+  .inline-form { background: oklch(0.14 0.02 230); border: 1px solid var(--border-2); border-radius: 12px; padding: 24px; position: relative; z-index: 1; }
+  .inline-form label { display: block; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+  .inline-form input { width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; color: var(--fg); font-size: 14px; font-family: inherit; outline: none; margin-bottom: 12px; }
+  .inline-form input:focus { border-color: var(--aqua); }
+  .inline-form .go { width: 100%; padding: 13px; background: var(--aqua); color: var(--ink); border: none; border-radius: 9px; font-weight: 600; font-size: 14px; }
+  .inline-form .go:hover { background: oklch(0.88 0.16 195); }
+  .inline-form .legal { margin-top: 10px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5; }
+  .inline-form .legal a { color: var(--fg-2); text-decoration: underline; text-decoration-color: var(--border-2); }
+
+  /* ---------- Data sources strip ---------- */
+  .sources { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+  .src-chip {
+    font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.04em;
+    padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--fg-2); background: var(--bg-2);
+  }
+  .src-chip b { color: var(--aqua); font-weight: 600; }
+
+  /* ---------- Quote strip ---------- */
+  .pullquote {
+    margin: 40px auto; max-width: 820px; text-align: center;
+    font-family: 'Instrument Serif', serif; font-style: italic; font-size: 28px; line-height: 1.35;
+    color: var(--fg); letter-spacing: -0.01em;
+  }
+  .pullquote::before, .pullquote::after { content: '"'; color: var(--aqua); font-size: 36px; display: inline-block; transform: translateY(6px); }
+  .pullquote small { display: block; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-top: 18px; font-style: normal; }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--border); padding: 48px 40px 32px; margin-top: 120px; }
+  .foot-inner { max-width: 1260px; margin: 0 auto; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 40px; }
+  .foot-brand-block .foot-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; margin-bottom: 10px; }
+  .foot-brand-block p { color: var(--fg-2); font-size: 13px; line-height: 1.55; margin: 0 0 10px; max-width: 280px; }
+  .foot-col h5 { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; font-weight: 500; }
+  .foot-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .foot-col a { font-size: 13px; color: var(--fg-2); }
+  .foot-col a:hover { color: var(--fg); }
+  .foot-base { max-width: 1260px; margin: 32px auto 0; padding-top: 22px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; flex-wrap: wrap; gap: 14px; }
+
+  /* Reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.8s cubic-bezier(.2,.7,.2,1), transform 0.8s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    .reveal { opacity: 1 !important; transform: none !important; }
+  }
+
+  @media (max-width: 1100px) {
+    .hero { grid-template-columns: 1fr; }
+    .timeline-wrap { grid-template-columns: 1fr; }
+    .cta-block { grid-template-columns: 1fr; padding: 40px 28px; }
+  }
+  @media (max-width: 820px) {
+    .stats-band { grid-template-columns: repeat(2, 1fr); }
+    .feats { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    main { padding: 0 22px; }
+    nav.top { padding: 14px 22px; }
+    .nav-links a:not(.nav-start):not(.nav-signin) { display: none; }
+    footer { padding: 32px 22px 20px; }
+    .foot-inner { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Brand mark symbol -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.55"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.28"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--mark-dot, currentColor)"/>
+  </symbol>
+</svg>
+
+<!-- ========== NAV ========== -->
+<nav class="top">
+  <a href="#" class="brand">
+    <svg class="brand-mark" viewBox="0 0 64 64" style="color: var(--fire); --mark-dot: var(--aqua);"><use href="#mark"/></svg>
+    mysurflife
+  </a>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#copilot">Copilot</a>
+    <a href="#forecast">Forecast</a>
+    <a href="#journal">Journal</a>
+    <a href="#spots">Spots</a>
+    <span class="sep">·</span>
+    <button class="nav-signin">Sign in</button>
+    <button class="nav-start">Start free</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ========== HERO ========== -->
+  <section class="hero">
+    <div>
+      <div class="eyebrow">
+        <span class="dot"></span>
+        Personal surf intelligence · Beta
+      </div>
+      <h1>
+        The surf forecast that<br>
+        <em>learns how you surf.</em>
+      </h1>
+      <p class="subhead">
+        Real-time buoys. <b>16-day</b> wave models. An AI Copilot that synthesizes it all and tells you when <em style="color:var(--fg);">your</em> conditions are aligning — and gets sharper every time you paddle out.
+      </p>
+      <div class="cta-row">
+        <button class="btn btn-primary">
+          Start for free
+          <svg class="arr" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+        <button class="btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          Watch a 60-sec demo
+        </button>
+      </div>
+      <div class="trust-row">
+        <div class="trust-item">
+          <span class="n">9,500<span class="u">+</span></span>
+          <span class="l">Spots worldwide</span>
+        </div>
+        <div class="trust-item">
+          <span class="n">16<span class="u"> day</span></span>
+          <span class="l">Forecast horizon</span>
+        </div>
+        <div class="trust-item">
+          <span class="n">NOAA</span>
+          <span class="l">Buoys + WW3 + tides</span>
+        </div>
+        <div class="trust-item">
+          <span class="n">±0.8<span class="u"> pts</span></span>
+          <span class="l">Personal accuracy</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Self-animating Copilot demo -->
+    <div class="copilot-demo" aria-label="Animated Copilot demo">
+      <div class="demo-head">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="title">mysurflife / copilot</span>
+        <span class="pill">LIVE</span>
+      </div>
+      <div class="demo-scroll"><div class="demo-track" id="demoScroll"></div></div>
+      <div class="demo-input">
+        <div class="inp" id="demoInput"><span class="caret"></span></div>
+        <button class="send" aria-label="Send">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- stats band -->
+  <div class="stats-band reveal">
+    <div class="item"><div class="v"><em>NOAA</em> buoys</div><div class="k">Live observations</div></div>
+    <div class="item"><div class="v"><em>WW3</em> + GFS</div><div class="k">Global wave models</div></div>
+    <div class="item"><div class="v"><em>CO-OPS</em> tides</div><div class="k">Station-accurate</div></div>
+    <div class="item"><div class="v"><em>Stormsurf</em> physics</div><div class="k">Validated decay + arrival</div></div>
+  </div>
+
+  <!-- ========== THE PROBLEM ========== -->
+  <section>
+    <div class="section-head reveal">
+      <div class="eyebrow"><span class="dot"></span>The problem</div>
+      <h2>You already do the synthesis. <em>In your head. Every swell.</em></h2>
+      <p>Before any good day, the best surfers are tracking storms on satellite wind maps, reading buoys, cross-referencing tides, and pulling up a second forecast to sanity-check the first. That calculation — <em>will this swell actually work at my spot on my schedule</em> — lives entirely in their head. No app helps. No app learns from it.</p>
+    </div>
+    <div class="pullquote">
+      Experienced surfers don't use one source. They use five, then make a decision their app could've made for them.
+      <small>— the reason mysurflife exists</small>
+    </div>
+  </section>
+
+  <!-- ========== HOW IT WORKS ========== -->
+  <section id="how">
+    <div class="section-head reveal">
+      <div class="eyebrow"><span class="dot"></span>How it works</div>
+      <h2>From zero to <em>predicted sessions</em> in four steps.</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <span class="num">01 — ADD</span>
+        <h3>Add your spots</h3>
+        <p>We map the nearest buoys, pre-load the bathymetry, and analyze the swell windows and blockers for each. Not a generic regional forecast — yours.</p>
+      </div>
+      <div class="step reveal">
+        <span class="num">02 — ASK</span>
+        <h3>Ask the Copilot anything</h3>
+        <p>"How does Wednesday morning look at Blacks?" Pulls live buoys, model forecasts, and tides — explains the answer in plain language, backed by physics.</p>
+      </div>
+      <div class="step reveal">
+        <span class="num">03 — LOG</span>
+        <h3>Log sessions in 30 seconds</h3>
+        <p>Tap your spot, rate it 1–10. We auto-populate the actual buoy, tide, and wind readings for that window so the log is complete without you typing numbers.</p>
+      </div>
+      <div class="step reveal">
+        <span class="num">04 — LEARN</span>
+        <h3>Watch it get smarter</h3>
+        <p>After a handful of sessions, mysurflife knows your sweet spot. Predictions use <em>your</em> history, not generic scores. Your 8/10 is calibrated to you.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FORECAST / TIMELINE ========== -->
+  <section id="forecast">
+    <div class="section-head reveal">
+      <div class="eyebrow"><span class="dot"></span>The forecast that explains itself</div>
+      <h2>Wave, wind, tide — <em>one timeline, one explanation.</em></h2>
+      <p>Most apps show you charts and expect you to interpret them. We explain what the charts mean for your session — in the Copilot, in the answer, and on the chart itself.</p>
+    </div>
+
+    <div class="timeline-wrap reveal">
+      <div class="timeline-copy">
+        <h3>The 16-day timeline, <em>unified</em>.</h3>
+        <p>Every spot gets wave height + period, wind speed + direction, and tide state on the same axis. Filter windows by your preference profile. Pull it up in the Copilot with a single question.</p>
+        <ul class="bullet-list">
+          <li><b>Swell arrival tracking.</b> Storm distance + period + decay tells you when the leading edge hits — to the hour.</li>
+          <li><b>Stormsurf Category scale.</b> 6ft @ 14s is a Cat 3 (shoulder-to-head). 6ft @ 7s is Cat 1 (closed out). <em>Period matters.</em></li>
+          <li><b>Spot-specific adjustments.</b> Blacks amplifies canyon swell 30–40%. Del Mar doesn't. The forecast knows.</li>
+        </ul>
+      </div>
+      <div class="timeline-view">
+        <div class="timeline-tabs">
+          <span class="tl-tab on">Wave</span>
+          <span class="tl-tab">Wind</span>
+          <span class="tl-tab">Tide</span>
+          <span class="tl-tab">All</span>
+          <span style="margin-left:auto; font-family:'Geist Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.1em; display:flex; align-items:center;">BLACKS · 16D</span>
+        </div>
+        <div class="tl-chart">
+          <svg viewBox="0 0 600 180" preserveAspectRatio="none">
+            <!-- grid -->
+            <g stroke="oklch(1 0 0 / 0.05)" stroke-width="1">
+              <line x1="0" y1="45" x2="600" y2="45"/>
+              <line x1="0" y1="90" x2="600" y2="90"/>
+              <line x1="0" y1="135" x2="600" y2="135"/>
+            </g>
+            <!-- Tide curve (soft) -->
+            <path d="M0 110 Q 75 70 150 110 T 300 110 T 450 110 T 600 110" stroke="var(--aqua)" stroke-width="1.2" fill="none" opacity="0.4"/>
+            <!-- Wave height area -->
+            <path d="M0 120 L40 115 L80 100 L120 85 L160 65 L200 50 L240 40 L280 55 L320 75 L360 70 L400 90 L440 100 L480 95 L520 105 L560 115 L600 120 L600 180 L0 180 Z" fill="oklch(0.82 0.16 195 / 0.14)"/>
+            <path d="M0 120 L40 115 L80 100 L120 85 L160 65 L200 50 L240 40 L280 55 L320 75 L360 70 L400 90 L440 100 L480 95 L520 105 L560 115 L600 120" stroke="var(--aqua)" stroke-width="2" fill="none"/>
+            <!-- Wind bars -->
+            <g fill="var(--fire)" opacity="0.65">
+              <rect x="20" y="140" width="4" height="18"/>
+              <rect x="60" y="144" width="4" height="14"/>
+              <rect x="100" y="148" width="4" height="10"/>
+              <rect x="140" y="150" width="4" height="8"/>
+              <rect x="180" y="152" width="4" height="6"/>
+              <rect x="220" y="150" width="4" height="8"/>
+              <rect x="260" y="142" width="4" height="16"/>
+              <rect x="300" y="138" width="4" height="20"/>
+              <rect x="340" y="140" width="4" height="18"/>
+              <rect x="380" y="146" width="4" height="12"/>
+              <rect x="420" y="148" width="4" height="10"/>
+              <rect x="460" y="146" width="4" height="12"/>
+              <rect x="500" y="142" width="4" height="16"/>
+              <rect x="540" y="138" width="4" height="20"/>
+              <rect x="580" y="136" width="4" height="22"/>
+            </g>
+            <!-- Swell arrival marker -->
+            <line x1="200" y1="10" x2="200" y2="170" stroke="var(--gold)" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="206" y="20" fill="var(--gold)" font-family="Geist Mono" font-size="9" letter-spacing="1">NW ARRIVAL · SAT 6AM</text>
+            <!-- peak label -->
+            <circle cx="240" cy="40" r="4" fill="var(--aqua)"/>
+            <text x="250" y="36" fill="var(--fg)" font-family="Geist Mono" font-size="10" font-weight="600">7.8FT · 15S · CAT 4</text>
+            <!-- axis -->
+            <g fill="var(--muted)" font-family="Geist Mono" font-size="8" letter-spacing="1">
+              <text x="0" y="178">SUN</text>
+              <text x="90" y="178">MON</text>
+              <text x="180" y="178">TUE</text>
+              <text x="270" y="178">WED</text>
+              <text x="360" y="178">THU</text>
+              <text x="450" y="178">FRI</text>
+              <text x="540" y="178">SAT</text>
+            </g>
+          </svg>
+        </div>
+        <!-- Category scale -->
+        <div style="margin-top:14px;">
+          <div style="font-family:'Geist Mono',monospace; font-size:10px; letter-spacing:0.14em; color:var(--muted); margin-bottom:6px; text-transform:uppercase;">Stormsurf Cat Scale</div>
+          <div class="cat-scale">
+            <div class="cat-chip" style="background:oklch(0.25 0.02 230); color:var(--fg-2);">0</div>
+            <div class="cat-chip" style="background:oklch(0.42 0.09 230);">1</div>
+            <div class="cat-chip" style="background:oklch(0.55 0.13 215);">2</div>
+            <div class="cat-chip" style="background:oklch(0.68 0.15 200);">3</div>
+            <div class="cat-chip" style="background:oklch(0.82 0.16 195);">4</div>
+            <div class="cat-chip" style="background:oklch(0.82 0.14 140);">5</div>
+            <div class="cat-chip" style="background:oklch(0.82 0.15 105);">6</div>
+            <div class="cat-chip" style="background:oklch(0.82 0.14 85);">7</div>
+            <div class="cat-chip" style="background:oklch(0.78 0.18 55);">8</div>
+            <div class="cat-chip" style="background:oklch(0.72 0.19 35);">9</div>
+            <div class="cat-chip" style="background:oklch(0.60 0.22 25); color:#fff;">10</div>
+          </div>
+          <div style="font-family:'Geist Mono',monospace; font-size:9px; color:var(--muted); display:flex; justify-content:space-between; letter-spacing:0.1em;">
+            <span>FLAT</span><span>WAIST</span><span>HEAD+</span><span>DOUBLE</span><span>MACKING</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== COPILOT ========== -->
+  <section id="copilot">
+    <div class="section-head reveal">
+      <div class="eyebrow"><span class="dot"></span>AI Copilot</div>
+      <h2>Not a chatbot. <em>A surf-specific AI with access to everything.</em></h2>
+      <p>The Copilot is the interface between you and everything we know about the ocean — live data, real physics, your personal history. Every answer comes with the reasoning, so you're not just getting predictions, you're learning to read the ocean.</p>
+    </div>
+
+    <div class="feats">
+      <div class="feat reveal">
+        <span class="tag">01 · RECOMMEND</span>
+        <h3>"Should I surf Blacks tomorrow morning?"</h3>
+        <p>A personalized yes or no with the reasoning — the specific swell direction hitting the window, the tide dropping through your ideal range, the offshore holding until 10am.</p>
+      </div>
+      <div class="feat reveal">
+        <span class="tag">02 · ARRIVAL</span>
+        <h3>"There's a storm at 42°N 155°W. When does it hit?"</h3>
+        <p>Runs the actual great-circle calculation: storm distance, swell period, travel speed, decay. Tells you Saturday 6am with 15-second NW energy — not "surf's up soon."</p>
+      </div>
+      <div class="feat reveal">
+        <span class="tag">03 · COMPARE</span>
+        <h3>"Compare Cardiff and Swami's Thursday afternoon."</h3>
+        <p>Pulls both forecasts, scores each to your preferences, flags the tradeoffs (bigger vs cleaner, crowd vs drive), and names the winner with confidence.</p>
+      </div>
+      <div class="feat reveal">
+        <span class="tag">04 · EXPLAIN</span>
+        <h3>"Will this south swell reach Malibu, or will Point Dume block it?"</h3>
+        <p>Checks the spot's swell window, the incoming direction, the blocker geometry — and gives you a real answer backed by the bathymetry, not a hunch.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SESSION JOURNAL ========== -->
+  <section id="journal">
+    <div class="section-head reveal">
+      <div class="eyebrow"><span class="dot"></span>Session journal</div>
+      <h2>The log that <em>makes you a better forecaster</em>.</h2>
+      <p>Every session you log teaches mysurflife something about how you surf. Over time, your session history becomes a personal calibration dataset — connecting what was in the water to what you actually rated highly.</p>
+    </div>
+
+    <div class="feats" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="feat reveal">
+        <span class="tag">AUTO-FILL</span>
+        <h3>Log in 30 seconds.</h3>
+        <p>You log spot, time, duration, rating. We pull the actual buoy, tide, and wind readings for that exact window — so your log is always complete, even if you write it three days later.</p>
+      </div>
+      <div class="feat reveal">
+        <span class="tag">PROFILE</span>
+        <h3>Build your preference profile.</h3>
+        <p>After a handful of sessions at a spot, we know your sweet spot — the size, period, tide, and wind you rate highest. Private, yours, more accurate over time.</p>
+      </div>
+      <div class="feat reveal">
+        <span class="tag">CALIBRATE</span>
+        <h3>Your personal calibration factor.</h3>
+        <p>Some surfers consistently perceive waves bigger than buoys report. Some smaller. Your factor gets baked into every prediction the Copilot makes for you.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== SPOTS ========== -->
+  <section id="spots">
+    <div class="section-head reveal">
+      <div class="eyebrow"><span class="dot"></span>Spot intelligence</div>
+      <h2>9,500+ spots. <em>Intelligently understood.</em></h2>
+      <p>Every spot is enriched beyond a name and a GPS pin. From Malibu to Margaret River, Lowers to Uluwatu — we know the buoys, the swell windows, the blockers, and the bathymetry that makes each break what it is.</p>
+    </div>
+    <div class="sources reveal">
+      <span class="src-chip"><b>Buoys</b> · NOAA NDBC network</span>
+      <span class="src-chip"><b>Swell window</b> · unobstructed fetch analysis</span>
+      <span class="src-chip"><b>Blockers</b> · headlands, islands, reefs</span>
+      <span class="src-chip"><b>Bathymetry</b> · canyon + shelf focusing</span>
+      <span class="src-chip"><b>Break type</b> · reef, point, beach, river mouth</span>
+      <span class="src-chip"><b>Tide sensitivity</b> · low / mid / high windows</span>
+      <span class="src-chip"><b>Hazards</b> · rocks, crowds, currents</span>
+      <span class="src-chip"><b>Wannasurf</b> · 9,500 global break DB</span>
+    </div>
+  </section>
+
+  <!-- ========== CTA ========== -->
+  <section>
+    <div class="cta-block reveal">
+      <div>
+        <div class="eyebrow" style="margin-bottom:16px;"><span class="dot"></span>Free during beta</div>
+        <h2>Start predicting <em>your</em> sessions.</h2>
+        <p>Your data, your predictions, forever yours. Private by default — no ads, no selling, no ranking against other users. Just better sessions, fewer blown drives.</p>
+        <div class="sources" style="margin-top: 8px;">
+          <span class="src-chip">✓ Sessions are private</span>
+          <span class="src-chip">✓ Global coverage</span>
+          <span class="src-chip">✓ Works offline after load</span>
+        </div>
+      </div>
+      <form class="inline-form" onsubmit="event.preventDefault()">
+        <label>Email</label>
+        <input type="email" placeholder="you@email.com" autocomplete="email" />
+        <label>Password</label>
+        <input type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+        <button type="submit" class="go">Create account →</button>
+        <div class="legal">By creating an account, you agree to our <a href="#">Terms</a> and <a href="#">Privacy</a>. <br>Already have one? <a href="#" style="color:var(--aqua);">Sign in</a>.</div>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="foot-inner">
+    <div class="foot-brand-block">
+      <div class="foot-brand">
+        <svg width="24" height="24" viewBox="0 0 64 64" style="color: var(--fire); --mark-dot: var(--aqua);"><use href="#mark"/></svg>
+        mysurflife
+      </div>
+      <p>A personal surf intelligence platform. Real-time buoys, 16-day forecasts, and an AI Copilot that learns how you surf.</p>
+    </div>
+    <div class="foot-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="#">Forecast</a></li>
+        <li><a href="#">Copilot</a></li>
+        <li><a href="#">Journal</a></li>
+        <li><a href="#">Spots</a></li>
+        <li><a href="#">Pricing</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h5>Data</h5>
+      <ul>
+        <li><a href="#">NOAA NDBC buoys</a></li>
+        <li><a href="#">WaveWatch III</a></li>
+        <li><a href="#">CO-OPS tides</a></li>
+        <li><a href="#">Stormsurf physics</a></li>
+        <li><a href="#">Wannasurf DB</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h5>Company</h5>
+      <ul>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Terms</a></li>
+        <li><a href="#">Status</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot-base">
+    <span>© 2026 mysurflife · Made on the coast</span>
+    <span>V0.4 BETA · SURFNET PHYSICS · LAST UPDATE APR 21</span>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // ========== Self-animating Copilot demo ==========
+  const scroll = document.getElementById('demoScroll');
+  const inputEl = document.getElementById('demoInput');
+  const caretHTML = '<span class="caret"></span>';
+
+  const conversation = [
+    {
+      type: 'type', text: "Anything coming for next weekend?",
+    },
+    { type: 'send' },
+    {
+      type: 'bot',
+      tools: ['track_storms', 'swell_arrival'],
+      html: `
+        <p><b>Yes — Saturday AM.</b> A storm at <b>42°N 155°W</b> is generating 45kt NW winds over 900nm of fetch. I ran the arrival calc:</p>
+        <div class="mini-chart" style="margin-top:10px;">
+          <div class="cap"><span>SWELL ARRIVAL · BLACKS</span><span>15S NW</span></div>
+          <svg viewBox="0 0 300 58" preserveAspectRatio="none">
+            <path d="M0 48 L60 46 L120 38 L180 20 L240 12 L300 16" stroke="var(--aqua)" stroke-width="2" fill="none"/>
+            <path d="M0 48 L60 46 L120 38 L180 20 L240 12 L300 16 L300 58 L0 58 Z" fill="oklch(0.82 0.16 195 / 0.15)"/>
+            <line x1="180" y1="4" x2="180" y2="56" stroke="var(--gold)" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="184" y="12" fill="var(--gold)" font-family="Geist Mono" font-size="8" letter-spacing="1">SAT 6AM · PEAK</text>
+            <g fill="var(--muted)" font-family="Geist Mono" font-size="7" letter-spacing="1"><text x="0" y="56">THU</text><text x="70" y="56">FRI</text><text x="150" y="56">SAT</text><text x="230" y="56">SUN</text><text x="280" y="56">MON</text></g>
+          </svg>
+        </div>
+        <p style="margin:10px 0 0;">Leading edge hits SD Sat 6am, peaks 7.8ft @ 15s by noon. Winds stay light E <em>until about 10am</em>.</p>
+      `
+    },
+    {
+      type: 'type', text: "Perfect. How does Blacks vs. Cardiff look Sat morning?",
+    },
+    { type: 'send' },
+    {
+      type: 'bot',
+      tools: ['compare_spots'],
+      html: `
+        <p><b>Blacks wins for you</b> — canyon amplifies this NW by ~30%, overhead sets. Cardiff softens it, chest-high and fun.</p>
+        <div class="mini-card">
+          <div class="mini-score">
+            <svg viewBox="0 0 52 52">
+              <circle cx="26" cy="26" r="21" fill="none" stroke="oklch(1 0 0 / 0.08)" stroke-width="4"/>
+              <circle cx="26" cy="26" r="21" fill="none" stroke="var(--aqua)" stroke-width="4" stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="20" transform="rotate(-90 26 26)"/>
+            </svg>
+            <div class="num">8.4</div>
+          </div>
+          <div class="meta">
+            <div class="name">Blacks · SAT 6–10 AM</div>
+            <div class="sub">Overhead, light E offshore, low tide rising</div>
+            <div class="mini-metrics">
+              <div class="m">SIZE<b>7.8ft</b></div>
+              <div class="m">PERIOD<b>15s</b></div>
+              <div class="m">WIND<b>4E</b></div>
+              <div class="m">TIDE<b>1.8↑</b></div>
+            </div>
+          </div>
+        </div>
+      `
+    },
+    {
+      type: 'type', text: "What board should I bring?",
+    },
+    { type: 'send' },
+    {
+      type: 'bot',
+      tools: ['recommend_equipment'],
+      html: `
+        <p>Your <b>6'4" step-up</b>. That 15s period will have real push — the 5'10" fish you usually ride will feel underpowered on set waves. Book the dawn patrol, winds turn onshore <em>by 11am</em>.</p>
+      `
+    },
+  ];
+
+  const TYPE_SPEED = 42;   // ms per char
+  const THINK_MS = 500;    // after user send, before bot reply
+  const BOT_DELAY = 700;   // time the tool-chips are "spinning"
+  const READ_MS = 2200;    // pause to read each bot answer
+
+  let runningTimeout;
+  function sleep(ms) { return new Promise(r => { runningTimeout = setTimeout(r, ms); }); }
+
+  async function typeInto(el, text) {
+    el.innerHTML = '';
+    for (let i = 0; i < text.length; i++) {
+      el.innerHTML = text.slice(0, i + 1) + caretHTML;
+      await sleep(TYPE_SPEED);
+    }
+  }
+
+  const viewport = document.querySelector('.demo-scroll');
+  function settleScroll() {
+    // translate the track up so its bottom aligns with the viewport bottom
+    const overflow = scroll.scrollHeight - viewport.clientHeight;
+    scroll.style.transform = overflow > 0 ? `translateY(${-overflow}px)` : 'translateY(0)';
+  }
+  function appendBubble(html, cls) {
+    const b = document.createElement('div');
+    b.className = 'bubble ' + cls;
+    b.innerHTML = html;
+    scroll.appendChild(b);
+    requestAnimationFrame(settleScroll);
+    return b;
+  }
+
+  async function playConversation() {
+    for (const step of conversation) {
+      if (step.type === 'type') {
+        await typeInto(inputEl, step.text);
+      } else if (step.type === 'send') {
+        // move the typed text from input into a user bubble
+        const text = inputEl.textContent.trim();
+        inputEl.innerHTML = caretHTML;
+        appendBubble(`<div class="b">${text}</div>`, 'user');
+        await sleep(THINK_MS);
+      } else if (step.type === 'bot') {
+        // typing indicator first
+        const thinking = appendBubble(
+          `<div class="who">Copilot</div>
+           <div class="b"><span class="typing-inline"><span></span><span></span><span></span></span></div>`, 'bot');
+        await sleep(THINK_MS);
+        // replace with tool chips
+        const toolChips = (step.tools || []).map(t => `<span class="tool-chip"><span class="spin"></span>${t}</span>`).join(' ');
+        thinking.querySelector('.b').innerHTML = toolChips + '<div style="height:4px;"></div><span class="typing-inline"><span></span><span></span><span></span></span>';
+        requestAnimationFrame(settleScroll);
+        await sleep(BOT_DELAY);
+        // mark tools done + render html
+        thinking.querySelectorAll('.tool-chip').forEach(c => c.classList.add('done'));
+        const body = document.createElement('div');
+        body.innerHTML = step.html;
+        // replace typing with actual content, keep tools
+        const b = thinking.querySelector('.b');
+        b.innerHTML = b.querySelectorAll('.tool-chip').length
+          ? Array.from(b.querySelectorAll('.tool-chip')).map(c => c.outerHTML).join(' ') + '<div style="height:6px;"></div>' + step.html
+          : step.html;
+        requestAnimationFrame(settleScroll);
+        await sleep(READ_MS);
+      }
+    }
+    // End: pause then restart
+    await sleep(2500);
+    scroll.innerHTML = '';
+    scroll.style.transform = 'translateY(0)';
+    inputEl.innerHTML = caretHTML;
+    await sleep(800);
+    playConversation();
+  }
+
+  // Start when demo enters viewport (mobile) or immediately (desktop)
+  const demoIO = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { demoIO.disconnect(); playConversation(); } });
+  }, { threshold: 0.2 });
+  demoIO.observe(scroll);
+</script>
+
+</body>
+</html>

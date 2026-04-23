@@ -222,21 +222,33 @@ def surf_height_from_buoy(
             "adjusted_min":   10.1,   # after size_bias
             "adjusted_max":   13.5,   # after size_bias
             "size_bias":      1.35,
+            "below_surf_min": False,  # True when Hs < 1.5ft (long-period but sub-surf energy)
         }
     """
+    # Practical minimum: even very long period energy below 1.5ft Hs does not
+    # produce meaningful surf at open beach breaks. Long-period shoaling equations
+    # still give inflated categories for 0.8ft @ 20s, which misleads surfers.
+    # Cap at Cat 1 for sub-1.5ft readings regardless of period.
+    SURF_MIN_HS_FT = 1.5
+    below_surf_min = wvht_ft < SURF_MIN_HS_FT
+
     cat = swell_category(wvht_ft, period_s)
+    if below_surf_min:
+        cat = min(cat, 1)
+
     face_min, face_max = category_face_height(cat)
     face_mid = (face_min + face_max) / 2.0
 
     return {
-        "category":     cat,
-        "label":        category_label(cat),
-        "face_min_ft":  round(face_min, 1),
-        "face_max_ft":  round(face_max, 1) if face_max < 900 else None,
-        "face_mid_ft":  round(face_mid, 1),
-        "adjusted_min": round(face_min * size_bias, 1),
-        "adjusted_max": round(face_max * size_bias, 1) if face_max < 900 else None,
-        "size_bias":    size_bias,
+        "category":       cat,
+        "label":          category_label(cat),
+        "face_min_ft":    round(face_min, 1),
+        "face_max_ft":    round(face_max, 1) if face_max < 900 else None,
+        "face_mid_ft":    round(face_mid, 1),
+        "adjusted_min":   round(face_min * size_bias, 1),
+        "adjusted_max":   round(face_max * size_bias, 1) if face_max < 900 else None,
+        "size_bias":      size_bias,
+        "below_surf_min": below_surf_min,
     }
 
 

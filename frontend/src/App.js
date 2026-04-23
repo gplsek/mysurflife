@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
+import { ThemeProvider } from './design/ThemeProvider';
+import MapView from './pages/Map';
 import MapOverlay from './MapOverlay';
 import SpotDetail from './SpotDetail';
 import ManagePersonas from './ManagePersonas';
 import ManageUsers from './ManageUsers';
+import ManageStorms from './ManageStorms';
 import Dashboard from './screens/Dashboard';
 import SessionJournal from './screens/SessionJournal';
 import Alerts from './screens/Alerts';
@@ -12,6 +15,8 @@ import Copilot from './screens/Copilot';
 import Home from './screens/Home';
 import Logo from './design/Logo';
 import LogoPulse from './design/LogoPulse';
+import NavDrawer from './components/shell/NavDrawer';
+import { useMapState } from './components/map/useMapState';
 import './design/shell.css';
 
 // ─── Nav icon helpers ──────────────────────────────────────────────
@@ -75,7 +80,20 @@ function Shell() {
   const navigate = useNavigate();
   const { user, isAdmin, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mapMode, setMapMode] = useState('buoys'); // 'buoys' | 'wind'
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const searchRef = useRef(null);
+  const { state: mapState, stateRef: mapStateRef, toggleState: mapToggle, setRegion: mapSetRegion, setQuery: mapSetQuery } = useMapState();
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   const view = pathname === '/map' ? 'map'
              : pathname === '/journal' ? 'journal'
@@ -107,7 +125,13 @@ function Shell() {
       {/* ── Background screens ── */}
       {view === 'map' && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-          <MapOverlay mode={mapMode} />
+          <MapView
+            state={mapState}
+            stateRef={mapStateRef}
+            toggleState={mapToggle}
+            setRegion={mapSetRegion}
+            setQuery={mapSetQuery}
+          />
         </div>
       )}
       {view === 'dashboard' && <Dashboard onOpenMap={() => navTo('map')} />}
@@ -117,6 +141,17 @@ function Shell() {
 
       {/* ── Floating topbar ── */}
       <div className="topbar">
+        {/* Hamburger (mobile) */}
+        <button
+          className="hamburger-btn"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open menu"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2 4h12M2 8h12M2 12h12" strokeLinecap="round"/>
+          </svg>
+        </button>
+
         {/* Brand */}
         <div className="brand" onClick={() => navTo('dashboard')} style={{ cursor: 'pointer' }}>
           <Logo variant="mark" size={22} />
@@ -147,7 +182,7 @@ function Shell() {
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
             <circle cx="5" cy="5" r="3.5"/><path d="M8 8l3 3"/>
           </svg>
-          <input placeholder="Search spots, regions…" />
+          <input ref={searchRef} placeholder="Search spots, regions…" />
           <span className="mono-tiny" style={{ opacity: 0.5 }}>⌘K</span>
         </div>
 
@@ -188,6 +223,13 @@ function Shell() {
                         >
                           Manage AI Personas
                         </Link>
+                        <Link
+                          to="/admin/storms"
+                          className="auth-dropdown-link"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          Storm Filters
+                        </Link>
                         <div className="auth-dropdown-divider" />
                       </>
                     )}
@@ -213,82 +255,61 @@ function Shell() {
         </div>
       </div>
 
-      {/* ── Map-specific controls ── */}
-      {view === 'map' && (
-        <>
-          <div className="layers">
-            <button
-              className={`layer-btn ${mapMode === 'buoys' ? 'on' : ''}`}
-              onClick={() => setMapMode('buoys')}
-              title="Live buoy data"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
-                <circle cx="7" cy="7" r="3"/>
-                <path d="M7 1v2M7 11v2M1 7h2M11 7h2"/>
-              </svg>
-              <span>BUOYS</span>
-            </button>
-            <button
-              className={`layer-btn ${mapMode === 'wind' ? 'on' : ''}`}
-              onClick={() => setMapMode('wind')}
-              title="Wind overlay"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
-                <path d="M1 5h8a2 2 0 100-4" strokeLinecap="round"/>
-                <path d="M1 7h10a2 2 0 110 4H9" strokeLinecap="round"/>
-                <path d="M1 9h6" strokeLinecap="round"/>
-              </svg>
-              <span>WIND</span>
-            </button>
-            <div className="layers-sep" />
-            <button className="layer-btn" title="Tides — coming soon" style={{ opacity: 0.4 }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
-                <path d="M2 8 Q5 5 7 8 Q9 11 12 8" strokeLinecap="round"/>
-              </svg>
-              <span>TIDE</span>
-            </button>
-          </div>
-
-          <div className="spot-legend">
-            <div className="legend-head">SPOT RATING</div>
-            <div className="legend-row"><span className="legend-dot" style={{ background: 'var(--fire)' }} /> Firing / XXL</div>
-            <div className="legend-row"><span className="legend-dot" style={{ background: 'var(--accent)' }} /> Solid</div>
-            <div className="legend-row"><span className="legend-dot" style={{ background: 'oklch(0.58 0.10 230)' }} /> Fair</div>
-            <div className="legend-row"><span className="legend-dot" style={{ background: 'var(--muted-2)' }} /> Flat / Blown</div>
-          </div>
-        </>
-      )}
+      <NavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        view={view}
+        mapState={mapState}
+        onMapToggle={mapToggle}
+      />
     </div>
   );
 }
 
 // ─── Root app with routing ─────────────────────────────────────────
+const DevPrimitives = process.env.NODE_ENV !== 'production'
+  ? React.lazy(() => import('./screens/DevPrimitives'))
+  : null;
+
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Root: Home if logged out, Shell (dashboard) if logged in */}
-          <Route path="/" element={<RootRoute />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <Routes>
+            {/* Root: Home if logged out, Shell (dashboard) if logged in */}
+            <Route path="/" element={<RootRoute />} />
 
-          {/* Protected shell routes */}
-          <Route path="/map"      element={<RequireAuth><Shell /></RequireAuth>} />
-          <Route path="/journal"  element={<RequireAuth><Shell /></RequireAuth>} />
-          <Route path="/alerts"   element={<RequireAuth><Shell /></RequireAuth>} />
-          <Route path="/copilot"  element={<RequireAuth><Shell /></RequireAuth>} />
+            {/* Protected shell routes */}
+            <Route path="/map"      element={<RequireAuth><Shell /></RequireAuth>} />
+            <Route path="/journal"  element={<RequireAuth><Shell /></RequireAuth>} />
+            <Route path="/alerts"   element={<RequireAuth><Shell /></RequireAuth>} />
+            <Route path="/copilot"  element={<RequireAuth><Shell /></RequireAuth>} />
 
-          {/* Spot detail — public */}
-          <Route path="/spots/:slug" element={<SpotDetail />} />
+            {/* Old map — available until Phase 5 ships */}
+            <Route path="/old-map" element={<RequireAuth><MapOverlay /></RequireAuth>} />
 
-          {/* Admin — protected */}
-          <Route path="/admin/users"    element={<RequireAuth><ManageUsers /></RequireAuth>} />
-          <Route path="/admin/personas" element={<RequireAuth><ManagePersonas /></RequireAuth>} />
+            {/* Spot detail — public */}
+            <Route path="/spots/:slug" element={<SpotDetail />} />
 
-          {/* /login → home (auth card is on the homepage) */}
-          <Route path="/login" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+            {/* Admin — protected */}
+            <Route path="/admin/users"    element={<RequireAuth><ManageUsers /></RequireAuth>} />
+            <Route path="/admin/personas" element={<RequireAuth><ManagePersonas /></RequireAuth>} />
+            <Route path="/admin/storms"   element={<RequireAuth><ManageStorms /></RequireAuth>} />
+
+            {/* /login → home (auth card is on the homepage) */}
+            <Route path="/login" element={<Navigate to="/" replace />} />
+
+            {/* Dev harness — not available in production */}
+            {process.env.NODE_ENV !== 'production' && DevPrimitives && (
+              <Route path="/dev/primitives" element={
+                <React.Suspense fallback={null}><DevPrimitives /></React.Suspense>
+              } />
+            )}
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

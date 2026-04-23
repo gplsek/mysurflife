@@ -194,3 +194,10 @@ def optional_auth(authorization: Optional[str] = Header(None)) -> Optional[Dict]
         return verify_jwt_token(authorization)
     except HTTPException:
         return None
+
+
+def require_auth(authorization: Optional[str] = Header(None)) -> Dict:
+    """FastAPI dependency that requires a valid JWT. Raises 401 if missing or invalid."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return verify_jwt_token(authorization)

@@ -32,6 +32,13 @@
   --font-mono:  'Geist Mono', ui-monospace, SFMono-Regular, 'Courier New', monospace;
   --font-serif: 'Instrument Serif', 'Times New Roman', serif;
 
+  /* Swell partition + wind colors used by Compass, SwellBreakdown, StripChart */
+  --s1:   oklch(0.82 0.16 195);   /* primary swell — aqua */
+  --s2:   oklch(0.72 0.16 280);   /* secondary swell — violet */
+  --s3:   oklch(0.78 0.15 155);   /* tertiary swell — green */
+  --wind: oklch(0.78 0.18 50);    /* wind arrow / wind-sea */
+  --gold: oklch(0.82 0.14 85);
+
   /* D1 logo dot color — aqua on dark themes, AA-safe aqua on daylight */
   --logo-dot: var(--accent);
 }
@@ -74,9 +81,17 @@
 /* Base reset that tokens.css owns */
 *, *::before, *::after { box-sizing: border-box; }
 
-html, body {
+html {
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   height: 100%;
   background: var(--bg);
   color: var(--fg);
@@ -85,8 +100,6 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-#root { height: 100vh; }
 
 /* Pulse-ring keyframes for LogoPulse and any CSS-driven loading states.
  * The LogoPulse React component uses SVG SMIL <animate> instead (broader

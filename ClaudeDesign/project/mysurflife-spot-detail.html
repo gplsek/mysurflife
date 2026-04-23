@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ocean">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Seaside Reef · mysurflife</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.13 0.02 230);
+    --bg-2: oklch(0.17 0.02 230);
+    --bg-3: oklch(0.22 0.022 230);
+    --panel: oklch(0.16 0.018 230 / 0.94);
+    --border: oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --muted-2: oklch(0.42 0.012 230);
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --gold: oklch(0.82 0.14 85);
+    --good: oklch(0.80 0.16 150);
+    /* 3 swell colors */
+    --s1: oklch(0.82 0.16 195);   /* primary NW */
+    --s2: oklch(0.72 0.16 280);   /* secondary S */
+    --s3: oklch(0.78 0.15 155);   /* tertiary SW */
+    --wind: oklch(0.78 0.18 50);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--fg); font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+  h1, h2, h3 { margin: 0; }
+  em { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; }
+
+  /* ─── Top bar (floating over the map) ─── */
+  .topbar {
+    position: absolute; top: 14px; left: 14px; right: 14px; z-index: 30;
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-radius: 10px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); color: var(--fg); font-size: 13px; font-weight: 500;
+  }
+  .chip:hover { border-color: var(--border-2); }
+  .chip.ghost { background: transparent; border-color: var(--border); }
+  .chip .arr { transition: transform 0.15s; }
+  .chip:hover .arr { transform: translateX(-3px); }
+  .chip.star { margin-left: auto; }
+  .chip.edit { color: var(--aqua); }
+
+  .brand {
+    padding: 9px 14px; font-weight: 700; letter-spacing: -0.02em;
+    display: inline-flex; align-items: center; gap: 10px; color: var(--fg);
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  .brand svg { color: var(--fire); --mark-dot: var(--aqua); }
+
+  /* ─── Map hero ─── */
+  .map-hero { position: relative; height: 62vh; min-height: 520px; overflow: hidden; background: #0a1624; }
+  .map-img {
+    position: absolute; inset: 0;
+    /* Stylized satellite map — CSS-drawn coastline so the page is fully self-contained */
+    background:
+      linear-gradient(90deg, oklch(0.22 0.04 145) 0% 58%, transparent 58.5%),
+      radial-gradient(ellipse 220px 140px at 41% 52%, oklch(0.12 0.03 235) 0%, transparent 70%),
+      radial-gradient(ellipse 70% 55% at 78% 50%, oklch(0.25 0.06 140) 0%, transparent 70%),
+      linear-gradient(135deg, oklch(0.15 0.04 235) 0%, oklch(0.11 0.03 235) 100%);
+    filter: saturate(1.05);
+  }
+  /* painted details — freeways, canyons, neighborhoods for flavor */
+  .map-detail { position: absolute; inset: 0; opacity: 0.8; mix-blend-mode: screen; }
+  .map-dim {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(1200px 420px at 50% 120%, oklch(0.13 0.02 230 / 0.9), transparent 60%),
+      linear-gradient(180deg, transparent 55%, oklch(0.13 0.02 230 / 0.92) 100%);
+  }
+  .map-vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 220px 60px oklch(0 0 0 / 0.55); }
+  .map-grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(oklch(1 0 0 / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(1 0 0 / 0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, black 0%, transparent 70%);
+  }
+
+  /* ─── Radial compass (center of the map hero) ─── */
+  .compass-wrap {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    pointer-events: none;
+  }
+  .compass {
+    position: relative; width: 520px; height: 520px;
+    pointer-events: none;
+  }
+  .compass svg { width: 100%; height: 100%; overflow: visible; }
+
+  .spot-title {
+    position: absolute; top: 12%; left: 50%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+    text-shadow: 0 2px 12px oklch(0 0 0 / 0.6);
+    z-index: 10;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    pointer-events: auto;
+  }
+  .spot-title .tag { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--aqua); text-transform: uppercase; font-weight: 500; }
+
+  /* ─── Forecast panel (bottom) ─── */
+  main.content {
+    position: relative; z-index: 5;
+    max-width: 1280px; margin: -80px auto 0; padding: 0 22px 80px;
+  }
+  .card {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 16px;
+    padding: 22px 24px;
+    box-shadow: 0 18px 50px oklch(0 0 0 / 0.4);
+  }
+  .card + .card { margin-top: 18px; }
+  .card-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+
+  /* Timeline slider */
+  .timeline-card { padding: 20px 24px; }
+  .timeline-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; gap: 16px; }
+  .timeline-head .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 12px; background: var(--aqua); color: oklch(0.14 0.02 230);
+    border-radius: 20px; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums;
+  }
+  .timeline-head .pill svg { opacity: 0.7; }
+
+  /* Day dropdown (replaces static pill) */
+  .day-picker { position: relative; }
+  .pill-btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 8px 12px 8px 14px;
+    background: var(--aqua); color: oklch(0.14 0.02 230);
+    border: none; border-radius: 20px;
+    font-family: inherit; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums;
+    box-shadow: 0 4px 14px oklch(0.82 0.16 195 / 0.28);
+    transition: box-shadow 0.15s, transform 0.15s;
+  }
+  .pill-btn:hover { box-shadow: 0 6px 20px oklch(0.82 0.16 195 / 0.4); }
+  .pill-btn .chev { transition: transform 0.2s ease; opacity: 0.7; }
+  .pill-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+  .day-menu {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    min-width: 260px;
+    background: var(--bg-2); border: 1px solid var(--border-2); border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 18px 50px oklch(0 0 0 / 0.55);
+    opacity: 0; transform: translateY(-6px) scale(0.98);
+    pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 50;
+  }
+  .day-menu.open { opacity: 1; transform: none; pointer-events: auto; }
+  .day-opt {
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 10px 12px; border-radius: 8px;
+    background: transparent; border: none; color: var(--fg); text-align: left;
+    font-family: inherit; font-size: 13px;
+    cursor: pointer;
+  }
+  .day-opt:hover { background: var(--bg-3); }
+  .day-opt.on { background: oklch(0.82 0.16 195 / 0.12); }
+  .day-opt .dow {
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em;
+    color: var(--muted); text-transform: uppercase; min-width: 34px;
+  }
+  .day-opt.on .dow { color: var(--aqua); }
+  .day-opt .label { font-weight: 500; }
+  .day-opt .label .date { font-family: 'Geist Mono', monospace; color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 11px; }
+  .day-opt .rating {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .day-opt .rating .sq {
+    width: 8px; height: 12px; border-radius: 1.5px;
+  }
+
+  .slider {
+    position: relative; height: 52px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .slider .track-row { position: relative; height: 12px; display: flex; align-items: center; }
+  .slider .track {
+    position: absolute; inset: 4px 0; border-radius: 4px;
+    background: linear-gradient(90deg, var(--good) 0%, var(--aqua) 40%, var(--gold) 70%, var(--fire) 100%);
+    opacity: 0.85;
+  }
+  .slider input[type=range] {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    -webkit-appearance: none; appearance: none;
+    background: transparent; outline: none; cursor: pointer; margin: 0;
+  }
+  .slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--bg-2); border: 3px solid var(--aqua);
+    box-shadow: 0 0 0 4px oklch(0.82 0.16 195 / 0.18), 0 2px 8px oklch(0 0 0 / 0.4);
+    margin-top: 0;
+  }
+  .slider input[type=range]::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--bg-2); border: 3px solid var(--aqua); box-shadow: 0 0 0 4px oklch(0.82 0.16 195 / 0.18);
+  }
+  .slider .ticks {
+    display: flex; justify-content: space-between;
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+    color: var(--muted); text-transform: uppercase;
+    padding: 0 2px;
+  }
+  .slider .ticks span.current { color: var(--aqua); }
+
+  /* Conditions grid */
+  .cond-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-top: 22px; }
+  .cond {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .cond .k { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+  .cond .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 4px; }
+  .cond .v .u { font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .cond .s { font-size: 11px; color: var(--fg-2); }
+
+  /* Multi-swell breakdown */
+  .swell-rows { display: flex; flex-direction: column; gap: 10px; }
+  .swell-row {
+    display: grid; grid-template-columns: 24px 1fr auto auto auto auto; gap: 14px; align-items: center;
+    padding: 12px 14px; border-radius: 10px;
+    background: var(--bg-3); border: 1px solid var(--border);
+  }
+  .swell-row .swatch {
+    width: 16px; height: 16px; border-radius: 4px; box-shadow: 0 0 0 3px oklch(0 0 0 / 0.25);
+  }
+  .swell-row .name { font-weight: 600; font-size: 14px; }
+  .swell-row .name .sub { font-family: 'Geist Mono', monospace; color: var(--muted); font-weight: 400; font-size: 11px; letter-spacing: 0.08em; display: block; margin-top: 2px; }
+  .swell-row .met { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--fg); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 72px; }
+  .swell-row .met .lbl { color: var(--muted); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; }
+
+  /* Forecast strip chart */
+  .strip { display: grid; grid-template-columns: 100px 1fr; gap: 18px; align-items: center; }
+  .strip .lbl { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+  .strip-rows { display: flex; flex-direction: column; gap: 8px; }
+  .strip-chart { height: 34px; position: relative; }
+  .strip-chart svg { width: 100%; height: 100%; display: block; }
+
+  /* Tab header */
+  .tabs { display: flex; gap: 4px; padding: 4px; background: var(--bg-3); border-radius: 10px; width: fit-content; border: 1px solid var(--border); margin-bottom: 18px; }
+  .tab { padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 500; color: var(--fg-2); background: transparent; border: none; font-family: 'Geist Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; }
+  .tab.on { background: var(--bg-2); color: var(--fg); box-shadow: 0 1px 3px oklch(0 0 0 / 0.3); }
+
+  /* AI callout */
+  .ai-note {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 18px; border-radius: 12px;
+    background: linear-gradient(135deg, oklch(0.82 0.16 195 / 0.08), oklch(0.75 0.19 45 / 0.05));
+    border: 1px solid oklch(0.82 0.16 195 / 0.25);
+    margin-top: 18px;
+  }
+  .ai-note .ai-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--aqua); box-shadow: 0 0 10px var(--aqua);
+    flex-shrink: 0; margin-top: 6px;
+    animation: pulseDot 2.4s ease-in-out infinite;
+  }
+  @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; box-shadow: 0 0 18px var(--aqua); } }
+  .ai-note .body { flex: 1; }
+  .ai-note .eyebrow { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--aqua); text-transform: uppercase; margin-bottom: 4px; }
+  .ai-note h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .ai-note p { font-size: 13px; color: var(--fg-2); line-height: 1.55; margin: 0; }
+
+  /* Legend */
+  .legend-row { display: flex; gap: 18px; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+  .legend-row .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+  .cols-2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+
+  /* Row for break info */
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+  .fact { padding: 12px 14px; background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; }
+  .fact .k { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .fact .v { font-size: 13px; font-weight: 500; }
+
+  @media (max-width: 1000px) {
+    .cond-grid { grid-template-columns: repeat(3, 1fr); }
+    .cols-2 { grid-template-columns: 1fr; }
+    .compass { width: 360px; height: 360px; }
+    .map-hero { height: 52vh; min-height: 420px; }
+  }
+  @media (max-width: 640px) {
+    .cond-grid { grid-template-columns: repeat(2, 1fr); }
+    .facts { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.55"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.28"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--mark-dot, currentColor)"/>
+  </symbol>
+  <symbol id="bolt" viewBox="0 0 24 24">
+    <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<section class="map-hero">
+  <div class="map-img" aria-hidden="true"></div>
+
+  <!-- Stylized satellite-map layer with coastline, canyon, streets, neighborhoods -->
+  <svg class="map-detail" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="water" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="#0a1a2a" stop-opacity="0.7"/>
+        <stop offset="1" stop-color="#10263a" stop-opacity="0.2"/>
+      </linearGradient>
+      <linearGradient id="land" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0" stop-color="#2e4a2c"/>
+        <stop offset="1" stop-color="#1a2a1a"/>
+      </linearGradient>
+      <filter id="soft"><feGaussianBlur stdDeviation="1.2"/></filter>
+    </defs>
+    <!-- Water (left half) -->
+    <path d="M0 0 L0 900 L900 900 Q 880 760 820 640 Q 760 520 780 380 Q 800 240 740 120 Q 720 60 680 0 Z" fill="url(#water)"/>
+    <!-- Land (right side) with curving coastline -->
+    <path d="M680 0 Q 720 60 740 120 Q 800 240 780 380 Q 760 520 820 640 Q 880 760 900 900 L1600 900 L1600 0 Z" fill="url(#land)"/>
+    <!-- Darker kelp / reef patches in water -->
+    <path d="M520 470 Q 600 440 650 480 Q 620 540 540 520 Z" fill="#0d2334" opacity="0.85"/>
+    <path d="M420 620 Q 500 590 560 640 Q 500 700 440 680 Z" fill="#0d2334" opacity="0.7"/>
+    <!-- Beach edge highlight -->
+    <path d="M680 0 Q 720 60 740 120 Q 800 240 780 380 Q 760 520 820 640 Q 880 760 900 900" stroke="oklch(0.60 0.08 80 / 0.45)" stroke-width="3" fill="none" filter="url(#soft)"/>
+
+    <!-- Freeway -->
+    <path d="M1060 0 Q 1020 200 990 380 Q 960 560 1000 900" stroke="oklch(0.55 0.05 80 / 0.55)" stroke-width="6" fill="none"/>
+    <path d="M1060 0 Q 1020 200 990 380 Q 960 560 1000 900" stroke="oklch(0.85 0.08 80 / 0.4)" stroke-width="1.5" fill="none" stroke-dasharray="12 10"/>
+
+    <!-- Streets grid in neighborhoods -->
+    <g stroke="oklch(0.50 0.03 80 / 0.25)" stroke-width="1" fill="none">
+      <path d="M900 700 L1600 700"/><path d="M900 750 L1600 750"/><path d="M900 800 L1600 800"/><path d="M900 850 L1600 850"/>
+      <path d="M1150 600 L1150 900"/><path d="M1220 600 L1220 900"/><path d="M1290 600 L1290 900"/><path d="M1360 600 L1360 900"/><path d="M1430 600 L1430 900"/><path d="M1500 600 L1500 900"/>
+      <path d="M1100 300 L1600 300"/><path d="M1100 360 L1600 360"/><path d="M1100 420 L1600 420"/>
+      <path d="M1200 100 L1200 400"/><path d="M1300 100 L1300 400"/><path d="M1400 100 L1400 400"/>
+    </g>
+    <!-- neighborhood blocks -->
+    <g fill="oklch(0.35 0.04 90 / 0.35)">
+      <rect x="1160" y="710" width="50" height="30"/><rect x="1230" y="710" width="50" height="30"/><rect x="1300" y="710" width="50" height="30"/>
+      <rect x="1160" y="760" width="50" height="30"/><rect x="1230" y="760" width="50" height="30"/><rect x="1300" y="760" width="50" height="30"/>
+      <rect x="1210" y="310" width="80" height="40"/><rect x="1310" y="310" width="80" height="40"/>
+      <rect x="1210" y="370" width="80" height="40"/>
+    </g>
+    <!-- Park / greens -->
+    <path d="M1420 520 Q 1500 490 1560 540 Q 1540 620 1450 610 Z" fill="oklch(0.35 0.08 140 / 0.55)"/>
+
+    <!-- Bathymetry contour lines in water -->
+    <g stroke="oklch(0.35 0.04 210 / 0.3)" stroke-width="0.8" fill="none">
+      <path d="M100 200 Q 300 280 560 340 Q 680 370 700 400"/>
+      <path d="M100 350 Q 300 420 540 470 Q 660 500 700 540"/>
+      <path d="M100 500 Q 280 560 520 600 Q 640 630 700 660"/>
+      <path d="M100 650 Q 260 700 500 720 Q 620 730 700 760"/>
+    </g>
+  </svg>
+
+  <div class="map-grid" aria-hidden="true"></div>
+  <div class="map-vignette" aria-hidden="true"></div>
+  <div class="map-dim" aria-hidden="true"></div>
+
+  <!-- Top chrome -->
+  <nav class="topbar">
+    <a href="#" class="chip ghost"><span class="arr">←</span> Back to Map</a>
+    <a href="#" class="brand">
+      <svg width="22" height="22" viewBox="0 0 64 64"><use href="#mark"/></svg>
+      mysurflife
+    </a>
+    <button class="chip edit star">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+      Edit
+    </button>
+    <button class="chip" title="Favorite">
+      🔥
+    </button>
+  </nav>
+
+  <!-- Spot title + radial compass -->
+  <div class="spot-title">
+    <span class="tag">SEASIDE · CARDIFF, CA</span>
+    <span>Seaside Reef</span>
+  </div>
+
+  <div class="compass-wrap">
+    <div class="compass" id="compass">
+      <svg viewBox="-260 -260 520 520" aria-label="Swell and wind direction compass">
+        <!-- Outer ring -->
+        <circle cx="0" cy="0" r="240" fill="none" stroke="oklch(1 0 0 / 0.12)" stroke-width="1.2"/>
+        <!-- Mid ring -->
+        <circle cx="0" cy="0" r="175" fill="none" stroke="oklch(1 0 0 / 0.18)" stroke-width="1.2"/>
+        <!-- Inner ring -->
+        <circle cx="0" cy="0" r="110" fill="none" stroke="oklch(1 0 0 / 0.22)" stroke-width="1.2"/>
+        <!-- Cardinal markers -->
+        <g font-family="Geist Mono" font-size="11" fill="oklch(1 0 0 / 0.5)" letter-spacing="1.5" text-anchor="middle">
+          <text x="0" y="-246">N</text>
+          <text x="246" y="4">E</text>
+          <text x="0" y="252">S</text>
+          <text x="-246" y="4">W</text>
+        </g>
+        <!-- Cardinal tick marks -->
+        <g stroke="oklch(1 0 0 / 0.25)" stroke-width="1">
+          <line x1="0" y1="-235" x2="0" y2="-225"/>
+          <line x1="0" y1="225" x2="0" y2="235"/>
+          <line x1="-235" y1="0" x2="-225" y2="0"/>
+          <line x1="225" y1="0" x2="235" y2="0"/>
+        </g>
+
+        <!-- Wind arrow (outer, short label) -->
+        <!-- group rotated by wind direction; arrow points INTO center (wind FROM dir) -->
+        <g id="windArrow" transform="rotate(-30)">
+          <!-- Ring the arrow sits on -->
+          <g transform="translate(0 -240)">
+            <!-- arrow head pointing toward center (down) -->
+            <path d="M0 18 L-10 -2 L0 6 L10 -2 Z" fill="var(--wind)" opacity="0.85"/>
+            <!-- label box -->
+            <g transform="translate(0 -22)">
+              <rect x="-26" y="-14" width="52" height="22" rx="11" fill="oklch(0.14 0.02 230)" stroke="var(--wind)" stroke-width="1" opacity="0.95"/>
+              <text x="0" y="1" text-anchor="middle" font-family="Geist" font-weight="600" font-size="11" fill="var(--wind)" dominant-baseline="middle">6 mph</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- Swell 1 (primary NW) -->
+        <g id="swell1" transform="rotate(-50)">
+          <g transform="translate(0 -175)">
+            <path d="M0 20 L-10 0 L0 8 L10 0 Z" fill="var(--s1)"/>
+            <g transform="translate(0 -20)">
+              <rect x="-34" y="-14" width="68" height="22" rx="11" fill="oklch(0.14 0.02 230)" stroke="var(--s1)" stroke-width="1"/>
+              <text x="0" y="1" text-anchor="middle" font-family="Geist" font-weight="700" font-size="11" fill="var(--s1)" dominant-baseline="middle">4.2ft · 15s</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- Swell 2 (secondary S) -->
+        <g id="swell2" transform="rotate(175)">
+          <g transform="translate(0 -175)">
+            <path d="M0 18 L-8 2 L0 8 L8 2 Z" fill="var(--s2)" opacity="0.9"/>
+            <g transform="translate(0 -20)">
+              <rect x="-32" y="-14" width="64" height="22" rx="11" fill="oklch(0.14 0.02 230)" stroke="var(--s2)" stroke-width="1"/>
+              <text x="0" y="1" text-anchor="middle" font-family="Geist" font-weight="700" font-size="11" fill="var(--s2)" dominant-baseline="middle">2.1ft · 12s</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- Swell 3 (tertiary SW) -->
+        <g id="swell3" transform="rotate(-140)">
+          <g transform="translate(0 -110)">
+            <path d="M0 14 L-7 2 L0 7 L7 2 Z" fill="var(--s3)" opacity="0.85"/>
+            <g transform="translate(0 -16)">
+              <rect x="-30" y="-13" width="60" height="20" rx="10" fill="oklch(0.14 0.02 230)" stroke="var(--s3)" stroke-width="1"/>
+              <text x="0" y="0" text-anchor="middle" font-family="Geist" font-weight="700" font-size="10" fill="var(--s3)" dominant-baseline="middle">1.4ft · 9s</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- Spot center icon -->
+        <g>
+          <circle cx="0" cy="0" r="30" fill="oklch(0.14 0.02 230)" stroke="oklch(1 0 0 / 0.3)" stroke-width="1.5"/>
+          <circle cx="0" cy="0" r="22" fill="var(--aqua)" opacity="0.12"/>
+          <circle cx="0" cy="0" r="22" fill="none" stroke="var(--aqua)" stroke-width="1.5" opacity="0.5"/>
+          <svg x="-12" y="-12" width="24" height="24" viewBox="0 0 24 24">
+            <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" fill="var(--fire)"/>
+          </svg>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<main class="content">
+
+  <!-- Timeline slider card -->
+  <div class="card timeline-card">
+    <div class="timeline-head">
+      <div>
+        <div class="card-title">Forecast Timeline</div>
+        <div style="font-size:12px; color:var(--fg-2); margin-top:2px;">Scrub through the next 7 days · <span style="font-family:'Geist Mono',monospace; color:var(--muted);">168h</span></div>
+      </div>
+      <div class="day-picker" id="dayPicker">
+        <button class="pill-btn" id="pillBtn" aria-haspopup="listbox" aria-expanded="false">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span id="pillText">Today · +6hrs · 02:11 PM</span>
+          <svg class="chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="day-menu" id="dayMenu" role="listbox" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div class="slider">
+      <div class="track-row">
+        <div class="track"></div>
+        <input type="range" id="tRange" min="0" max="168" value="6" step="1" />
+      </div>
+      <div class="ticks">
+        <span id="tick0">Now</span>
+        <span>24h</span>
+        <span>48h</span>
+        <span>72h</span>
+        <span>96h</span>
+        <span>120h</span>
+        <span>144h</span>
+        <span>168h</span>
+      </div>
+    </div>
+
+    <!-- Mini strip chart -->
+    <div style="margin-top: 22px; display: grid; grid-template-columns: 90px 1fr; gap: 16px; align-items: center;">
+      <div style="font-family:'Geist Mono',monospace; font-size:10px; letter-spacing:0.14em; color:var(--muted); text-transform:uppercase;">7-DAY WAVE</div>
+      <svg id="miniStrip" viewBox="0 0 700 46" preserveAspectRatio="none" style="width:100%; height:46px;"></svg>
+    </div>
+    <div class="legend-row" style="margin-top:14px;">
+      <span><span class="dot" style="background:var(--s1);"></span>NW 290° primary</span>
+      <span><span class="dot" style="background:var(--s2);"></span>S 185° secondary</span>
+      <span><span class="dot" style="background:var(--s3);"></span>SW 220° wind swell</span>
+      <span><span class="dot" style="background:var(--wind);"></span>Wind (from dir)</span>
+    </div>
+  </div>
+
+  <!-- Conditions grid -->
+  <div class="card">
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; gap: 16px; margin-bottom: 8px;">
+      <div>
+        <div class="card-title">Forecast Conditions (<span id="condWhen">+6hrs</span>)</div>
+        <div style="font-size:12px; color:var(--fg-2); margin-top:4px;"><span id="condDate">Apr 22, 02:11 PM</span> · Category 3 · shoulder-to-head</div>
+      </div>
+      <div class="tabs">
+        <button class="tab on">Wave</button>
+        <button class="tab">Wind</button>
+        <button class="tab">Tide</button>
+        <button class="tab">All</button>
+      </div>
+    </div>
+    <div class="cond-grid">
+      <div class="cond"><span class="k">Wave face</span><span class="v"><span id="mFace">4.2</span><span class="u">ft</span></span><span class="s">Cat 3 · chest-to-shoulder</span></div>
+      <div class="cond"><span class="k">Dom. period</span><span class="v"><span id="mPer">15</span><span class="u">s</span></span><span class="s">Groundswell</span></div>
+      <div class="cond"><span class="k">Primary dir</span><span class="v"><span id="mDir">290</span><span class="u">°</span></span><span class="s">WNW</span></div>
+      <div class="cond"><span class="k">Wind</span><span class="v"><span id="mWind">6</span><span class="u">mph</span></span><span class="s">Light E · offshore</span></div>
+      <div class="cond"><span class="k">Tide</span><span class="v"><span id="mTide">2.1</span><span class="u">ft ↑</span></span><span class="s">Rising · mid</span></div>
+      <div class="cond"><span class="k">Water</span><span class="v">61<span class="u">°F</span></span><span class="s">3/2 wetsuit</span></div>
+    </div>
+
+    <!-- Break facts -->
+    <div class="facts">
+      <div class="fact"><div class="k">Break type</div><div class="v">Reef · right + left peaks</div></div>
+      <div class="fact"><div class="k">Best direction</div><div class="v">270–300° WNW</div></div>
+      <div class="fact"><div class="k">Best tide</div><div class="v">Mid rising</div></div>
+      <div class="fact"><div class="k">Hazards</div><div class="v">Rocks on inside, localism</div></div>
+    </div>
+  </div>
+
+  <!-- Multi-swell + AI -->
+  <div class="cols-2">
+    <div class="card">
+      <div class="card-title">Swells in the water <span style="font-size:11px; color:var(--muted); font-weight:400; letter-spacing:0.14em; text-transform:uppercase; margin-left:8px; font-family:'Geist Mono',monospace;">3 detected</span></div>
+      <p style="color:var(--fg-2); font-size:13px; line-height:1.55; margin: 8px 0 16px;">The compass above shows live direction for each swell + wind at the selected time. As you scrub the timeline, arrows rotate to match.</p>
+      <div class="swell-rows">
+        <div class="swell-row">
+          <span class="swatch" style="background: var(--s1);"></span>
+          <div class="name">NW groundswell <span class="sub">290° · LOW-442 · 1,240nm</span></div>
+          <div class="met"><span class="lbl">SIZE</span><span>4.2 ft</span></div>
+          <div class="met"><span class="lbl">PERIOD</span><span>15 s</span></div>
+          <div class="met"><span class="lbl">DIR</span><span>WNW</span></div>
+          <div class="met"><span class="lbl">CAT</span><span>3</span></div>
+        </div>
+        <div class="swell-row">
+          <span class="swatch" style="background: var(--s2);"></span>
+          <div class="name">S groundswell <span class="sub">185° · Southern Hem · 4,800nm</span></div>
+          <div class="met"><span class="lbl">SIZE</span><span>2.1 ft</span></div>
+          <div class="met"><span class="lbl">PERIOD</span><span>12 s</span></div>
+          <div class="met"><span class="lbl">DIR</span><span>S</span></div>
+          <div class="met"><span class="lbl">CAT</span><span>1</span></div>
+        </div>
+        <div class="swell-row">
+          <span class="swatch" style="background: var(--s3);"></span>
+          <div class="name">SW wind swell <span class="sub">220° · Local · short fetch</span></div>
+          <div class="met"><span class="lbl">SIZE</span><span>1.4 ft</span></div>
+          <div class="met"><span class="lbl">PERIOD</span><span>9 s</span></div>
+          <div class="met"><span class="lbl">DIR</span><span>SW</span></div>
+          <div class="met"><span class="lbl">CAT</span><span>0</span></div>
+        </div>
+      </div>
+
+      <div class="ai-note">
+        <div class="ai-dot"></div>
+        <div class="body">
+          <div class="eyebrow">AI Insight · Confidence 82%</div>
+          <h3>Best window opens Saturday 6–10am.</h3>
+          <p>NW primary fills in from storm LOW-442 overnight — peaks 5.8ft @ 15s by dawn with light E offshore. You rated Seaside <em>4.8/5</em> on two near-identical sessions (Mar 14, Feb 02). Bring your 6'0" step-up.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Wave + Wind + Tide · 7-day strip</div>
+      <p style="color:var(--fg-2); font-size:13px; line-height:1.55; margin: 8px 0 16px;">Unified view. Yellow dashed line marks the time you've selected on the slider.</p>
+      <div class="strip-rows">
+        <div class="strip">
+          <span class="lbl" style="color:var(--s1);">Wave</span>
+          <svg class="strip-chart" id="stripWave" viewBox="0 0 700 34" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="strip">
+          <span class="lbl" style="color:var(--wind);">Wind</span>
+          <svg class="strip-chart" id="stripWind" viewBox="0 0 700 34" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="strip">
+          <span class="lbl" style="color:var(--aqua);">Tide</span>
+          <svg class="strip-chart" id="stripTide" viewBox="0 0 700 34" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+      <div class="legend-row" style="margin-top:16px; justify-content: space-between;">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ======== Forecast model (168 hourly points) ========
+  const HOURS = 168;
+  const data = Array.from({ length: HOURS + 1 }, (_, t) => {
+    // primary NW swell rising into a peak ~hr 54, then slowly fading
+    const s1 = Math.max(1.6, 3.2 + Math.sin((t - 54) / 22) * 2.4 + Math.sin(t / 18) * 0.6);
+    const s2 = 1.9 + Math.sin(t / 30 + 1.2) * 0.6;
+    const s3 = 1.3 + Math.sin(t / 9 + 0.7) * 0.5;
+    // directions drift
+    const d1 = 285 + Math.sin(t / 40) * 12;
+    const d2 = 185 + Math.cos(t / 50) * 6;
+    const d3 = 215 + Math.sin(t / 30) * 25;
+    // wind — offshore in the AM, onshore midday, small daily cycle
+    const hour = t % 24;
+    const diurnal = Math.sin(((hour - 14) / 24) * Math.PI * 2); // peaks around 14:00
+    const wind = Math.max(1, 8 + diurnal * 7 + Math.sin(t / 11) * 3);
+    const windDir = 90 + diurnal * 140; // E mornings, WSW afternoons
+    const period1 = 14 + Math.sin(t / 40) * 2;
+    const tide = 2.5 + Math.sin((t - 2) / 6.2) * 2.1;
+    return { t, s1, s2, s3, d1, d2, d3, wind, windDir, period1, tide };
+  });
+
+  const startDate = new Date('2026-04-22T08:11:00');
+  function fmtTime(hourOffset) {
+    const d = new Date(startDate.getTime() + hourOffset * 3600 * 1000);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  // ======== Elements ========
+  const range = document.getElementById('tRange');
+  const pillText = document.getElementById('pillText');
+  const condWhen = document.getElementById('condWhen');
+  const condDate = document.getElementById('condDate');
+  const tick0 = document.getElementById('tick0');
+  const mFace = document.getElementById('mFace');
+  const mPer  = document.getElementById('mPer');
+  const mDir  = document.getElementById('mDir');
+  const mWind = document.getElementById('mWind');
+  const mTide = document.getElementById('mTide');
+
+  const swell1 = document.getElementById('swell1');
+  const swell2 = document.getElementById('swell2');
+  const swell3 = document.getElementById('swell3');
+  const windArrow = document.getElementById('windArrow');
+
+  // ======== Mini strip on timeline card ========
+  function buildMiniStrip() {
+    const svg = document.getElementById('miniStrip');
+    const w = 700, h = 46;
+    const max = Math.max(...data.map(d => d.s1 + d.s2 * 0.4));
+    // area
+    let path = `M0 ${h}`;
+    data.forEach((d, i) => {
+      const x = (i / HOURS) * w;
+      const y = h - ((d.s1) / max) * (h - 4) - 2;
+      path += ` L${x.toFixed(1)} ${y.toFixed(1)}`;
+    });
+    path += ` L${w} ${h} Z`;
+    // line
+    let line = '';
+    data.forEach((d, i) => {
+      const x = (i / HOURS) * w;
+      const y = h - ((d.s1) / max) * (h - 4) - 2;
+      line += (i === 0 ? 'M' : 'L') + ` ${x.toFixed(1)} ${y.toFixed(1)} `;
+    });
+    // day gridlines
+    let grid = '';
+    for (let d = 0; d <= 7; d++) {
+      const x = (d * 24 / HOURS) * w;
+      grid += `<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="oklch(1 0 0 / 0.08)" stroke-width="0.8"/>`;
+    }
+    svg.innerHTML = `
+      ${grid}
+      <path d="${path}" fill="oklch(0.82 0.16 195 / 0.18)"/>
+      <path d="${line}" stroke="var(--s1)" stroke-width="1.6" fill="none"/>
+      <line id="miniCursor" x1="0" y1="0" x2="0" y2="${h}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    `;
+  }
+
+  function buildStrip(id, key, color, fillOpacity = 0.16) {
+    const svg = document.getElementById(id);
+    const w = 700, h = 34;
+    const vals = data.map(d => d[key]);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = 3;
+    const y = v => h - pad - ((v - min) / (max - min || 1)) * (h - pad * 2);
+    let path = '', area = `M0 ${h}`;
+    data.forEach((d, i) => {
+      const x = (i / HOURS) * w;
+      const yy = y(d[key]);
+      path += (i === 0 ? 'M' : 'L') + ` ${x.toFixed(1)} ${yy.toFixed(1)} `;
+      area += ` L${x.toFixed(1)} ${yy.toFixed(1)}`;
+    });
+    area += ` L${w} ${h} Z`;
+    let grid = '';
+    for (let d = 0; d <= 7; d++) {
+      const x = (d * 24 / HOURS) * w;
+      grid += `<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="oklch(1 0 0 / 0.07)" stroke-width="0.8"/>`;
+    }
+    svg.innerHTML = `
+      ${grid}
+      <path d="${area}" fill="${color}" fill-opacity="${fillOpacity}"/>
+      <path d="${path}" stroke="${color}" stroke-width="1.5" fill="none"/>
+      <line class="cursor" x1="0" y1="0" x2="0" y2="${h}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    `;
+  }
+
+  buildMiniStrip();
+  buildStrip('stripWave', 's1', 'var(--s1)', 0.20);
+  buildStrip('stripWind', 'wind', 'var(--wind)', 0.18);
+  buildStrip('stripTide', 'tide', 'var(--aqua)', 0.14);
+
+  // ======== Day picker ========
+  const DAY_NAMES = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  function dayRating(dayIdx) {
+    // Peak rating based on avg primary swell that day
+    const slice = data.slice(dayIdx * 24, dayIdx * 24 + 24);
+    const avg = slice.reduce((a,f)=>a+f.s1,0) / slice.length;
+    return Math.min(5, Math.max(1, Math.round(avg * 0.9 + 0.5)));
+  }
+  function ratingSquares(r) {
+    return Array.from({length:5},(_,i)=>`<span class="sq" style="background:${i<r?'var(--s1)':'oklch(1 0 0 / 0.08)'}"></span>`).join('');
+  }
+
+  const dayPicker = document.getElementById('dayPicker');
+  const dayMenu = document.getElementById('dayMenu');
+  const pillBtn = document.getElementById('pillBtn');
+  let currentDay = 0; // 0..6
+
+  function renderDayMenu() {
+    dayMenu.innerHTML = Array.from({length:7}, (_,i) => {
+      const d = new Date(startDate.getTime() + i*24*3600*1000);
+      const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US',{weekday:'long'});
+      const date = d.toLocaleDateString('en-US',{month:'short', day:'numeric'});
+      const r = dayRating(i);
+      return `<button class="day-opt ${i===currentDay?'on':''}" data-day="${i}">
+        <span class="dow">${DAY_NAMES[d.getDay()]}</span>
+        <span class="label">${label}<span class="date">${date}</span></span>
+        <span class="rating">${ratingSquares(r)}</span>
+      </button>`;
+    }).join('');
+    dayMenu.querySelectorAll('.day-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const di = parseInt(btn.dataset.day, 10);
+        const t = parseInt(range.value, 10);
+        const hourInDay = t % 24;
+        // snap to same hour on new day (clamped)
+        range.value = Math.min(HOURS, di * 24 + hourInDay);
+        currentDay = di;
+        closeMenu();
+        update();
+      });
+    });
+  }
+  function openMenu() { dayMenu.classList.add('open'); pillBtn.setAttribute('aria-expanded','true'); dayMenu.setAttribute('aria-hidden','false'); }
+  function closeMenu() { dayMenu.classList.remove('open'); pillBtn.setAttribute('aria-expanded','false'); dayMenu.setAttribute('aria-hidden','true'); }
+  pillBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dayMenu.classList.contains('open') ? closeMenu() : openMenu();
+  });
+  document.addEventListener('click', (e) => { if (!dayPicker.contains(e.target)) closeMenu(); });
+
+  function update() {
+    const t = parseInt(range.value, 10);
+    const d = data[t];
+    currentDay = Math.floor(t / 24);
+
+    // Pill + conditions label
+    const dateStr = fmtTime(t);
+    const dObj = new Date(startDate.getTime() + t * 3600 * 1000);
+    const timeOnly = dObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const dayLabel = currentDay === 0 ? 'Today' : currentDay === 1 ? 'Tomorrow' : dObj.toLocaleDateString('en-US',{weekday:'long'});
+    const hoursAhead = t;
+    const ahead = hoursAhead === 0 ? 'Now' : `+${hoursAhead}hr${hoursAhead===1?'':'s'}`;
+    pillText.textContent = `${dayLabel} · ${ahead} · ${timeOnly}`;
+    condWhen.textContent = t === 0 ? 'Now' : `+${t}hrs`;
+    condDate.textContent = dateStr;
+    tick0.textContent = 'Now';
+
+    // Refresh the highlighted row in the menu whenever the day changes
+    renderDayMenu();
+
+    // Conditions
+    mFace.textContent = d.s1.toFixed(1);
+    mPer.textContent  = Math.round(d.period1);
+    mDir.textContent  = Math.round(d.d1);
+    mWind.textContent = Math.round(d.wind);
+    mTide.textContent = d.tide.toFixed(1);
+
+    // Compass arrows: our arrows are drawn with their point toward center (pointing down after rotate(0)).
+    // A swell FROM direction D means the arrow sits on the ring at bearing D (from north) pointing inward.
+    // Our SVG has N at top, so rotate(D) positions a "translate(0 -r)" group to bearing D.
+    swell1.setAttribute('transform', `rotate(${d.d1 - 180})`);
+    swell2.setAttribute('transform', `rotate(${d.d2 - 180})`);
+    swell3.setAttribute('transform', `rotate(${d.d3 - 180})`);
+    windArrow.setAttribute('transform', `rotate(${d.windDir - 180})`);
+
+    // Cursors on strips
+    const w = 700;
+    const x = (t / HOURS) * w;
+    document.querySelectorAll('.strip-chart .cursor').forEach(el => { el.setAttribute('x1', x); el.setAttribute('x2', x); });
+    const mc = document.getElementById('miniCursor');
+    if (mc) { mc.setAttribute('x1', x); mc.setAttribute('x2', x); }
+  }
+
+  range.addEventListener('input', update);
+  update();
+</script>
+
+</body>
+</html>

@@ -236,7 +236,7 @@ function MapRefExposer({ onMapReady }) {
   return null;
 }
 
-export default function MapOverlay() {
+export default function MapOverlay({ showBuoys: showBuoysProp, showSurfSpots: showSurfSpotsProp, overlayType: overlayTypeProp, onOverlayChange }) {
   const [buoys, setBuoys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -256,7 +256,8 @@ export default function MapOverlay() {
   const [windData, setWindData] = useState(null);
   
   // Overlay type management
-  const [overlayType, setOverlayType] = useState('none'); // 'none', 'wind', 'waves' (default to none - buoys only)
+  const [overlayTypeInternal, setOverlayType] = useState('none'); // 'none', 'wind', 'waves' (default to none - buoys only)
+  const overlayType = overlayTypeProp !== undefined ? overlayTypeProp : overlayTypeInternal;
   const [currentZoom, setCurrentZoom] = useState(6); // Track current map zoom for UI updates
   const [selectedWindModel, setSelectedWindModel] = useState('gfs');
   const [overlayData, setOverlayData] = useState({});
@@ -317,14 +318,19 @@ export default function MapOverlay() {
   // Surf spots state
   const [surfSpots, setSurfSpots] = useState([]);
   const [surfSpotsLoading, setSurfSpotsLoading] = useState(false);
-  const [showSurfSpots, setShowSurfSpots] = useState(() => {
+  const [showSurfSpotsInternal, setShowSurfSpotsInternal] = useState(() => {
     const saved = localStorage.getItem('showSurfSpots');
     return saved !== null ? saved === 'true' : true;
   });
-  const [showBuoys, setShowBuoys] = useState(() => {
+  const showSurfSpots = typeof showSurfSpotsProp === 'boolean' ? showSurfSpotsProp : showSurfSpotsInternal;
+  const setShowSurfSpots = setShowSurfSpotsInternal;
+
+  const [showBuoysInternal, setShowBuoysInternal] = useState(() => {
     const saved = localStorage.getItem('showBuoys');
     return saved !== null ? saved === 'true' : true;
   });
+  const showBuoys = typeof showBuoysProp === 'boolean' ? showBuoysProp : showBuoysInternal;
+  const setShowBuoys = setShowBuoysInternal;
   const [selectedSpot, setSelectedSpot] = useState(null); // For detail panel
   
   // Compute daily tick metadata for footer timeline (Windy-style)
@@ -573,12 +579,23 @@ export default function MapOverlay() {
   }, [timezone]);
 
   useEffect(() => {
-    localStorage.setItem('showBuoys', showBuoys.toString());
-  }, [showBuoys]);
+    localStorage.setItem('showBuoys', showBuoysInternal.toString());
+  }, [showBuoysInternal]);
 
   useEffect(() => {
-    localStorage.setItem('showSurfSpots', showSurfSpots.toString());
-  }, [showSurfSpots]);
+    localStorage.setItem('showSurfSpots', showSurfSpotsInternal.toString());
+  }, [showSurfSpotsInternal]);
+
+  // Sync overlayType prop from App.js into internal state so useEffects fire correctly
+  useEffect(() => {
+    if (overlayTypeProp !== undefined && overlayTypeProp !== overlayTypeInternal) {
+      setOverlayType(overlayTypeProp);
+      if (overlayTypeProp === 'wind') {
+        fetchWindOverlay(selectedWindModel);
+      }
+    }
+  // eslint-disable-line
+  }, [overlayTypeProp]);
 
   // Track map zoom level for UI updates (warning messages, etc.)
   useEffect(() => {
@@ -762,19 +779,13 @@ export default function MapOverlay() {
 
   // Handle overlay type toggle (Wind or Swell)
   const handleOverlayTypeToggle = (type) => {
-    if (overlayType === type) {
-      // If clicking the same type, turn it off
-      setOverlayType('none');
-    } else {
-      // Switch to the new type
-      setOverlayType(type);
-      if (type === 'wind') {
-        fetchWindOverlay(selectedWindModel);
-      } else if (type === 'waves') {
-        // Wave data is fetched via useEffect when overlayType changes
-        // No need to call fetchSwellOverlay here
-      }
+    const nextType = overlayType === type ? 'none' : type;
+    setOverlayType(nextType);
+    onOverlayChange?.(nextType);
+    if (nextType === 'wind') {
+      fetchWindOverlay(selectedWindModel);
     }
+    // 'waves' data is fetched via useEffect when overlayType changes
   };
 
   // Handle wind model selection (only when wind overlay is active)
@@ -2315,7 +2326,9 @@ export default function MapOverlay() {
       <div style={{ position: 'relative', height: '100%', width: '100%', paddingBottom: overlayType === 'waves' ? '70px' : overlayType === 'wind' ? '92px' : '0px' }}>
         {/* Control Panel - Hide on mobile when detail view is shown */}
         {!(isMobile && showMobileDetail) && (
-        <div style={{
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
           position: 'absolute',
           top: '80px',
           right: '16px',

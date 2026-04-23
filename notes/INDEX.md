@@ -23,7 +23,9 @@ Complete index of all project documentation, organized by category.
 - **[WAVE_PERFORMANCE_V2_PLAN.md](./WAVE_PERFORMANCE_V2_PLAN.md)** - ⭐ 🚧 Windy-class overlay performance plan (tiles + WebGL)
 - **[GLOBAL_DATA_EXPANSION_PLAN.md](./GLOBAL_DATA_EXPANSION_PLAN.md)** - ⭐ 🚧 Global dataset expansion (waves, wind, buoys, spots) — companion to V2
 - **[DESIGN_V2_INTEGRATION_PLAN.md](./DESIGN_V2_INTEGRATION_PLAN.md)** - ⭐ 🚧 Claude Design integration (tokens, themes, MapLibre, Supabase sequencing)
-- **[SUPABASE_SESSIONS_SCHEMA.md](./SUPABASE_SESSIONS_SCHEMA.md)** - ⭐ 🚧 Session Journal + Favorites schema (Supabase Stage 1)
+- **[SUPABASE_SESSIONS_SCHEMA.md](./SUPABASE_SESSIONS_SCHEMA.md)** - ⭐ ✅ Session Journal + Favorites schema (Supabase Stage 1) — applied
+- **[copilot_driven_architecture.md](./copilot_driven_architecture.md)** - ⭐ 🚧 Copilot tool architecture (swell arrival, storm scan, tides)
+- **[copilot/SESSIONS_SCHEMA_AND_PERSONALIZATION.md](./copilot/SESSIONS_SCHEMA_AND_PERSONALIZATION.md)** - ✅ Session logging schema + size-bias personalization — applied + wired
 
 ### Performance & Monitoring
 - **[PERFORMANCE_OPTIMIZATION_PLAN.md](./PERFORMANCE_OPTIMIZATION_PLAN.md)** - Performance optimization strategies
@@ -67,6 +69,7 @@ Complete index of all project documentation, organized by category.
 
 ### Scoring & Formulas
 - **[SURF_HEIGHT_FORMULA_FIX.md](./SURF_HEIGHT_FORMULA_FIX.md)** - Surf height calculation improvements
+- **[ClaudeSuggestions/SWELL_TABLES.md](../ClaudeSuggestions%20/SWELL_TABLES.md)** - ✅ Stormsurf category table replaces homemade multiplier; `size_perception_bias` wired
 - **[TIMELINE_SLIDER_V1.md](./TIMELINE_SLIDER_V1.md)** - Timeline slider implementation
 
 ---
@@ -92,6 +95,11 @@ Complete index of all project documentation, organized by category.
 - **[WIND_SWELL_OVERLAY_STATUS.md](./WIND_SWELL_OVERLAY_STATUS.md)** - Wind/swell overlay status
 - **[wind-forecasting.md](./wind-forecasting.md)** - Wind forecasting implementation
 - **[WIND_STATION_MAPPING.md](./WIND_STATION_MAPPING.md)** - Wind station to buoy mapping
+
+### Swell & Tides (new — Apr 2026)
+- **[ClaudeSuggestions/SWELL_TABLES.md](../ClaudeSuggestions%20/SWELL_TABLES.md)** - ✅ Stormsurf category table implementation (`backend/swell_tables.py`)
+- **[ClaudeSuggestions/SWELL_ARRIVAL_PHYSICS.md](../ClaudeSuggestions%20/SWELL_ARRIVAL_PHYSICS.md)** - 🚧 Swell travel time + decay physics (`backend/swell_physics.py`) — needs Copilot tool
+- **[ClaudeSuggestions/TIDES_ENDPOINT.md](../ClaudeSuggestions%20/TIDES_ENDPOINT.md)** - ✅ NOAA CO-OPS tides endpoint (`backend/tides.py`) — Copilot.jsx merge pending
 
 ---
 
@@ -187,9 +195,9 @@ Production considerations...
 
 ---
 
-**Last Updated**: 2026-04-19
-**Total Documents**: 48
-**Categories**: 9
+**Last Updated**: 2026-04-21 (Session 2)
+**Total Documents**: 53
+**Categories**: 10
 
 ---
 

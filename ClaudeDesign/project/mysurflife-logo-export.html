@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mysurflife · D1 export pack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a1218;
+    --paper: #f4f1ea;
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --bg: oklch(0.16 0.018 230);
+    --bg-2: oklch(0.20 0.020 230);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --border: oklch(1 0 0 / 0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  }
+  .page { padding: 48px 56px 96px; max-width: 1400px; margin: 0 auto; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 36px; display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 10px;
+  }
+  h1 { margin: 0 0 10px; font-size: 38px; letter-spacing: -0.02em; font-weight: 500; }
+  .sub { color: var(--fg-2); font-size: 14px; max-width: 560px; line-height: 1.5; }
+  .note { font-family: 'Instrument Serif', serif; font-style: italic; font-size: 16px; color: var(--fg-2); margin-top: 10px; max-width: 640px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .btn {
+    font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    background: var(--bg-2); color: var(--fg); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 8px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: oklch(0.26 0.025 230); }
+  .btn.primary { background: var(--aqua); color: var(--ink); border-color: var(--aqua); }
+  .btn.primary:hover { background: oklch(0.88 0.16 195); }
+
+  .section-head {
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+    margin: 48px 0 16px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .section-head .rationale { font-family: 'Instrument Serif', serif; font-style: italic; text-transform: none; letter-spacing: normal; color: var(--fg-2); font-size: 14px; }
+
+  .grid {
+    display: grid; gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .cell {
+    background: var(--bg-2);
+    min-height: 200px;
+    padding: 32px 28px;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .cell.paper { background: var(--paper); color: var(--ink); }
+  .cell.ink { background: var(--ink); color: var(--paper); }
+  .cell.aqua { background: var(--aqua); color: var(--ink); }
+  .cell.fire { background: var(--fire); color: var(--ink); }
+  .cell-label {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; margin-top: auto; padding-top: 20px;
+    display: flex; justify-content: space-between;
+    opacity: 0.7;
+  }
+  .cell-label .name { opacity: 1; font-weight: 600; }
+  .mark-wrap { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* Export button over each cell */
+  .export-btn {
+    position: absolute; top: 12px; right: 12px;
+    font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.08em;
+    padding: 5px 8px; border-radius: 5px;
+    background: rgba(255,255,255,0.06); color: inherit;
+    border: 1px solid rgba(255,255,255,0.12);
+    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    text-transform: uppercase;
+  }
+  .cell:hover .export-btn { opacity: 1; }
+  .cell.paper .export-btn,
+  .cell.aqua .export-btn,
+  .cell.fire .export-btn {
+    background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15);
+  }
+
+  /* Hero */
+  .hero {
+    background: radial-gradient(120% 80% at 20% 0%, oklch(0.26 0.03 200) 0%, var(--bg) 60%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 72px 64px;
+    min-height: 360px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative;
+  }
+
+  .app-header-preview {
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px;
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .favicons {
+    display: flex; gap: 32px; align-items: flex-end;
+    padding: 32px 28px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    flex-wrap: wrap;
+  }
+  .fav-block { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; }
+  .fav-block .sz { font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; }
+
+  .browser-chrome {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .dots { display: flex; gap: 5px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .url { flex: 1; background: var(--bg); padding: 5px 10px; border-radius: 6px; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--fg-2); display: flex; align-items: center; gap: 8px; }
+
+  .spec-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    font-family: 'Geist Mono', monospace;
+  }
+  .spec-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .spec-table td:first-child { color: var(--muted); width: 180px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em; }
+  .spec-table td:last-child { color: var(--fg); }
+  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 8px; border: 1px solid var(--border); }
+
+  .tee {
+    aspect-ratio: 4/5; background: var(--ink); border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px; border: 1px solid var(--border);
+    position: relative;
+  }
+  .tee.paper { background: var(--paper); }
+
+  .anim-demo {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 48px; display: flex; align-items: center; justify-content: center;
+    min-height: 220px;
+  }
+  @keyframes pulse-out {
+    0%   { stroke-opacity: 1; r: 5; }
+    100% { stroke-opacity: 0; r: 40; }
+  }
+  .anim-ring {
+    animation: pulse-out 2.4s ease-out infinite;
+    transform-origin: 40px 40px;
+  }
+  .anim-ring.d2 { animation-delay: 0.8s; }
+  .anim-ring.d3 { animation-delay: 1.6s; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--aqua); color: var(--ink);
+    padding: 10px 18px; border-radius: 8px; font-family: 'Geist Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    z-index: 100; font-weight: 600;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ==========================================
+     REUSABLE D1 MARK — <symbol> defs
+     ========================================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- D1 icon only, drawn inside a 64×64 viewBox, centered -->
+  <symbol id="mark-d1" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.5"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.25"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--dot, currentColor)"/>
+  </symbol>
+</svg>
+
+<div class="page">
+  <header>
+    <div>
+      <div class="eyebrow">LOGO · D1 EXPORT PACK · FINAL</div>
+      <h1>mysurflife<span style="color:var(--muted);">.</span></h1>
+      <p class="sub">Orange swell radiating from an aqua origin. Every mark on this page is a self-contained inline SVG — hover any cell, click <strong>.svg</strong> to download that exact artwork.</p>
+      <p class="note">The icon lives in a single <code style="font-family:'Geist Mono',monospace; font-size:12px;">&lt;symbol id="mark-d1"&gt;</code> definition and is reused via <code style="font-family:'Geist Mono',monospace; font-size:12px;">&lt;use&gt;</code> throughout — change it once, every lockup updates.</p>
+    </div>
+    <div class="toolbar">
+      <button class="btn" onclick="downloadAll()">⬇ Download all · .zip</button>
+      <button class="btn primary" onclick="window.print()">⎙ Print brand sheet</button>
+    </div>
+  </header>
+
+  <!-- 1. The mark, alone -->
+  <div class="section-head">
+    <span>01 · PRIMARY MARK</span>
+    <span class="rationale">the icon on its own, across color fields</span>
+  </div>
+  <div class="grid g4">
+
+    <div class="cell">
+      <button class="export-btn" data-svg="mark-dark" data-name="mysurflife-mark-dark">.svg</button>
+      <div class="mark-wrap">
+        <svg width="120" height="120" viewBox="0 0 64 64" id="svg-mark-dark" style="color: var(--fire); --dot: var(--aqua);">
+          <use href="#mark-d1"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">primary · dark bg</span><span>120×120</span></div>
+    </div>
+
+    <div class="cell paper">
+      <button class="export-btn" data-svg="mark-light" data-name="mysurflife-mark-light">.svg</button>
+      <div class="mark-wrap">
+        <svg width="120" height="120" viewBox="0 0 64 64" id="svg-mark-light" style="color: var(--fire); --dot: #0a8a9e;">
+          <use href="#mark-d1"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">primary · light bg</span><span>aqua slightly darkened</span></div>
+    </div>
+
+    <div class="cell">
+      <button class="export-btn" data-svg="mark-mono-light" data-name="mysurflife-mark-mono-light">.svg</button>
+      <div class="mark-wrap">
+        <svg width="120" height="120" viewBox="0 0 64 64" id="svg-mark-mono-light" style="color: var(--paper); --dot: var(--paper);">
+          <use href="#mark-d1"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">mono · light on dark</span><span>single-color fallback</span></div>
+    </div>
+
+    <div class="cell paper">
+      <button class="export-btn" data-svg="mark-mono-dark" data-name="mysurflife-mark-mono-dark">.svg</button>
+      <div class="mark-wrap">
+        <svg width="120" height="120" viewBox="0 0 64 64" id="svg-mark-mono-dark" style="color: var(--ink); --dot: var(--ink);">
+          <use href="#mark-d1"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">mono · dark on light</span><span>print / embroidery-safe</span></div>
+    </div>
+  </div>
+
+  <!-- 2. Horizontal lockups -->
+  <div class="section-head">
+    <span>02 · HORIZONTAL LOCKUPS</span>
+    <span class="rationale">primary configuration — use in headers, marketing, signatures</span>
+  </div>
+  <div class="grid g3">
+
+    <div class="cell" style="min-height:180px;">
+      <button class="export-btn" data-svg="lockup-h-dark" data-name="mysurflife-lockup-horizontal-dark">.svg</button>
+      <div class="mark-wrap">
+        <svg width="340" height="80" viewBox="0 0 340 80" id="svg-lockup-h-dark">
+          <g transform="translate(8 32)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+            <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.5"/>
+            <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.25"/>
+          </g>
+          <circle cx="8" cy="32" r="4.2" fill="oklch(0.82 0.16 195)"/>
+          <text x="58" y="42" font-family="Geist, sans-serif" font-weight="800" font-size="34" letter-spacing="-0.04em" fill="#f4f1ea">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">horizontal · dark</span><span>primary lockup</span></div>
+    </div>
+
+    <div class="cell paper" style="min-height:180px;">
+      <button class="export-btn" data-svg="lockup-h-light" data-name="mysurflife-lockup-horizontal-light">.svg</button>
+      <div class="mark-wrap">
+        <svg width="340" height="80" viewBox="0 0 340 80" id="svg-lockup-h-light">
+          <g transform="translate(8 32)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+            <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.5"/>
+            <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.25"/>
+          </g>
+          <circle cx="8" cy="32" r="4.2" fill="#0a8a9e"/>
+          <text x="58" y="42" font-family="Geist, sans-serif" font-weight="800" font-size="34" letter-spacing="-0.04em" fill="#0a1218">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">horizontal · light</span><span>primary lockup</span></div>
+    </div>
+
+    <div class="cell" style="min-height:180px;">
+      <button class="export-btn" data-svg="lockup-h-tagline" data-name="mysurflife-lockup-with-tagline">.svg</button>
+      <div class="mark-wrap">
+        <svg width="340" height="100" viewBox="0 0 340 100" id="svg-lockup-h-tagline">
+          <g transform="translate(8 38)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+            <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.5"/>
+            <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.25"/>
+          </g>
+          <circle cx="8" cy="38" r="4.2" fill="oklch(0.82 0.16 195)"/>
+          <text x="58" y="42" font-family="Geist, sans-serif" font-weight="700" font-size="28" letter-spacing="-0.03em" fill="#f4f1ea">mysurflife</text>
+          <text x="58" y="62" font-family="Geist Mono, monospace" font-size="10" letter-spacing="0.24em" fill="oklch(0.58 0.014 230)">AI SURF FORECAST</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">with tagline</span><span>secondary lockup</span></div>
+    </div>
+  </div>
+
+  <!-- 3. Stacked & icon-only -->
+  <div class="section-head">
+    <span>03 · STACKED & ICON-ONLY</span>
+    <span class="rationale">for square surfaces, social avatars, app icons</span>
+  </div>
+  <div class="grid g4">
+
+    <div class="cell" style="min-height:220px;">
+      <button class="export-btn" data-svg="lockup-stacked" data-name="mysurflife-lockup-stacked">.svg</button>
+      <div class="mark-wrap">
+        <svg width="160" height="160" viewBox="0 0 160 160" id="svg-lockup-stacked">
+          <g transform="translate(80 70)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-20 0 A20 20 0 0 1 20 0" stroke-width="2.4"/>
+            <path d="M-30 0 A30 30 0 0 1 30 0" stroke-width="1.8" opacity="0.5"/>
+            <path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="1.4" opacity="0.25"/>
+          </g>
+          <circle cx="80" cy="70" r="6" fill="oklch(0.82 0.16 195)"/>
+          <text x="80" y="124" text-anchor="middle" font-family="Geist, sans-serif" font-weight="700" font-size="20" letter-spacing="-0.02em" fill="#f4f1ea">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">stacked</span><span>160×160</span></div>
+    </div>
+
+    <div class="cell" style="min-height:220px;">
+      <button class="export-btn" data-svg="app-icon-dark" data-name="mysurflife-app-icon-dark">.svg</button>
+      <div class="mark-wrap">
+        <svg width="160" height="160" viewBox="0 0 160 160" id="svg-app-icon-dark">
+          <rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/>
+          <g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3"/>
+            <path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.4" opacity="0.5"/>
+            <path d="M-54 0 A54 54 0 0 1 54 0" stroke-width="1.8" opacity="0.25"/>
+          </g>
+          <circle cx="80" cy="92" r="8" fill="oklch(0.82 0.16 195)"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">app icon · dark</span><span>rounded container</span></div>
+    </div>
+
+    <div class="cell" style="min-height:220px;">
+      <button class="export-btn" data-svg="app-icon-ink" data-name="mysurflife-app-icon-ink">.svg</button>
+      <div class="mark-wrap">
+        <svg width="160" height="160" viewBox="0 0 160 160" id="svg-app-icon-ink">
+          <rect width="160" height="160" rx="36" fill="#0a1218"/>
+          <g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3"/>
+            <path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.4" opacity="0.5"/>
+            <path d="M-54 0 A54 54 0 0 1 54 0" stroke-width="1.8" opacity="0.25"/>
+          </g>
+          <circle cx="80" cy="92" r="8" fill="oklch(0.82 0.16 195)"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">app icon · ink</span><span>maximum contrast</span></div>
+    </div>
+
+    <div class="cell" style="min-height:220px;">
+      <button class="export-btn" data-svg="app-icon-aqua" data-name="mysurflife-app-icon-aqua">.svg</button>
+      <div class="mark-wrap">
+        <svg width="160" height="160" viewBox="0 0 160 160" id="svg-app-icon-aqua">
+          <rect width="160" height="160" rx="36" fill="oklch(0.82 0.16 195)"/>
+          <g transform="translate(80 92)" stroke="#0a1218" fill="none" stroke-linecap="round">
+            <path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3"/>
+            <path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.4" opacity="0.5"/>
+            <path d="M-54 0 A54 54 0 0 1 54 0" stroke-width="1.8" opacity="0.25"/>
+          </g>
+          <circle cx="80" cy="92" r="8" fill="oklch(0.75 0.19 45)"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">app icon · aqua</span><span>inverted / brand-led</span></div>
+    </div>
+  </div>
+
+  <!-- 4. In context -->
+  <div class="section-head">
+    <span>04 · IN CONTEXT</span>
+    <span class="rationale">how it actually lives in product and marketing</span>
+  </div>
+
+  <div class="hero">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: var(--muted);">MARKETING HERO</div>
+      <div style="font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);">1440×720 CROP</div>
+    </div>
+    <div>
+      <svg width="520" height="120" viewBox="0 0 520 120">
+        <g transform="translate(12 50)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+          <path d="M-22 0 A22 22 0 0 1 22 0" stroke-width="2.6"/>
+          <path d="M-34 0 A34 34 0 0 1 34 0" stroke-width="2" opacity="0.5"/>
+          <path d="M-46 0 A46 46 0 0 1 46 0" stroke-width="1.5" opacity="0.25"/>
+        </g>
+        <circle cx="12" cy="50" r="6.5" fill="oklch(0.82 0.16 195)"/>
+        <text x="84" y="66" font-family="Geist, sans-serif" font-weight="800" font-size="58" letter-spacing="-0.04em" fill="#f4f1ea">mysurflife</text>
+      </svg>
+      <div style="margin-top: 18px; font-family: 'Instrument Serif', serif; font-style: italic; font-size: 26px; color: var(--fg-2); max-width: 640px; line-height: 1.25;">An AI that learns how <em>you</em> read a forecast, then wakes you up when your spot is firing.</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px;">
+    <div class="favicons">
+      <div class="fav-block">
+        <svg width="96" height="96" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/><g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3"/><path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.4" opacity="0.5"/><path d="M-54 0 A54 54 0 0 1 54 0" stroke-width="1.8" opacity="0.25"/></g><circle cx="80" cy="92" r="8" fill="oklch(0.82 0.16 195)"/></svg>
+        <span class="sz">96 · LAUNCH</span>
+      </div>
+      <div class="fav-block">
+        <svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/><g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3"/><path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.4" opacity="0.5"/><path d="M-54 0 A54 54 0 0 1 54 0" stroke-width="1.8" opacity="0.25"/></g><circle cx="80" cy="92" r="8" fill="oklch(0.82 0.16 195)"/></svg>
+        <span class="sz">64</span>
+      </div>
+      <div class="fav-block">
+        <svg width="32" height="32" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/><g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3.5"/><path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.8" opacity="0.5"/></g><circle cx="80" cy="92" r="10" fill="oklch(0.82 0.16 195)"/></svg>
+        <span class="sz">32 · TAB</span>
+      </div>
+      <div class="fav-block">
+        <svg width="16" height="16" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/><g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="4.5"/></g><circle cx="80" cy="92" r="14" fill="oklch(0.82 0.16 195)"/></svg>
+        <span class="sz">16 · FAVICON</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="app-header-preview">
+        <svg width="22" height="22" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/><g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="3.5"/><path d="M-40 0 A40 40 0 0 1 40 0" stroke-width="2.8" opacity="0.5"/></g><circle cx="80" cy="92" r="10" fill="oklch(0.82 0.16 195)"/></svg>
+        <span style="font-weight: 700; font-size: 14px; letter-spacing: -0.02em;">mysurflife</span>
+        <span style="margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted);">IN-APP HEADER</span>
+      </div>
+
+      <div style="margin-top: 16px;" class="browser-chrome">
+        <div class="dots">
+          <div class="dot" style="background:#ff5f57;"></div>
+          <div class="dot" style="background:#febc2e;"></div>
+          <div class="dot" style="background:#28c840;"></div>
+        </div>
+        <div class="url">
+          <svg width="12" height="12" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="oklch(0.22 0.03 200)"/><g transform="translate(80 92)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round"><path d="M-26 0 A26 26 0 0 1 26 0" stroke-width="5"/></g><circle cx="80" cy="92" r="16" fill="oklch(0.82 0.16 195)"/></svg>
+          mysurf.life
+        </div>
+        <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted);">BROWSER TAB</span>
+      </div>
+
+      <div class="anim-demo" style="margin-top:16px;">
+        <svg width="140" height="140" viewBox="0 0 80 80">
+          <g fill="none" stroke="oklch(0.75 0.19 45)" stroke-linecap="round" stroke-width="2">
+            <circle class="anim-ring" cx="40" cy="40" r="5"/>
+            <circle class="anim-ring d2" cx="40" cy="40" r="5"/>
+            <circle class="anim-ring d3" cx="40" cy="40" r="5"/>
+          </g>
+          <circle cx="40" cy="40" r="4" fill="oklch(0.82 0.16 195)"/>
+        </svg>
+      </div>
+      <div style="font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); text-align:right; margin-top:6px; letter-spacing:0.1em;">ANIMATED · LOADING STATE</div>
+    </div>
+  </div>
+
+  <!-- 5. Apparel / sticker -->
+  <div class="section-head">
+    <span>05 · APPAREL & STICKER</span>
+    <span class="rationale">single-color forms, durable at small print sizes</span>
+  </div>
+  <div class="grid g3">
+    <div class="cell">
+      <div class="tee">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <g transform="translate(80 80)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-24 0 A24 24 0 0 1 24 0" stroke-width="3"/>
+            <path d="M-36 0 A36 36 0 0 1 36 0" stroke-width="2.2" opacity="0.5"/>
+            <path d="M-48 0 A48 48 0 0 1 48 0" stroke-width="1.8" opacity="0.25"/>
+          </g>
+          <circle cx="80" cy="80" r="7" fill="oklch(0.82 0.16 195)"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">tee · ink</span><span>chest center · 4 in wide</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="tee paper">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <g transform="translate(80 80)" stroke="#0a1218" fill="none" stroke-linecap="round">
+            <path d="M-24 0 A24 24 0 0 1 24 0" stroke-width="3"/>
+            <path d="M-36 0 A36 36 0 0 1 36 0" stroke-width="2.2" opacity="0.5"/>
+            <path d="M-48 0 A48 48 0 0 1 48 0" stroke-width="1.8" opacity="0.25"/>
+          </g>
+          <circle cx="80" cy="80" r="7" fill="#0a1218"/>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">tee · paper · mono</span><span>embroidery-ready</span></div>
+    </div>
+
+    <div class="cell">
+      <div class="mark-wrap" style="flex-direction:column; gap:20px;">
+        <svg width="180" height="90" viewBox="0 0 240 120" style="filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
+          <rect x="0" y="0" width="240" height="120" rx="60" fill="#f4f1ea"/>
+          <g transform="translate(48 60)" stroke="oklch(0.75 0.19 45)" fill="none" stroke-linecap="round">
+            <path d="M-16 0 A16 16 0 0 1 16 0" stroke-width="2.4"/>
+            <path d="M-24 0 A24 24 0 0 1 24 0" stroke-width="1.8" opacity="0.5"/>
+            <path d="M-32 0 A32 32 0 0 1 32 0" stroke-width="1.4" opacity="0.25"/>
+          </g>
+          <circle cx="48" cy="60" r="5" fill="#0a8a9e"/>
+          <text x="92" y="74" font-family="Geist, sans-serif" font-weight="800" font-size="40" letter-spacing="-0.04em" fill="#0a1218">mysurflife</text>
+        </svg>
+      </div>
+      <div class="cell-label"><span class="name">bumper sticker</span><span>rounded pill · 3×1.5 in</span></div>
+    </div>
+  </div>
+
+  <!-- 6. Spec sheet -->
+  <div class="section-head">
+    <span>06 · BRAND SPECS</span>
+    <span class="rationale">everything an engineer or printer needs</span>
+  </div>
+  <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+    <table class="spec-table">
+      <tr><td>Wordmark</td><td>Geist · weight 800 · tracking −4%</td></tr>
+      <tr><td>Tagline type</td><td>Geist Mono · 10px · tracking +24%</td></tr>
+      <tr><td>Orange (swell)</td><td><span class="swatch" style="background:oklch(0.75 0.19 45);"></span>oklch(0.75 0.19 45) · approx #E5743D</td></tr>
+      <tr><td>Aqua (origin)</td><td><span class="swatch" style="background:oklch(0.82 0.16 195);"></span>oklch(0.82 0.16 195) · approx #3EC9D4</td></tr>
+      <tr><td>Aqua (on light)</td><td><span class="swatch" style="background:#0a8a9e;"></span>#0a8a9e · darkened for AA contrast on paper</td></tr>
+      <tr><td>Ink</td><td><span class="swatch" style="background:#0a1218;"></span>#0a1218</td></tr>
+      <tr><td>Paper</td><td><span class="swatch" style="background:#f4f1ea;"></span>#f4f1ea</td></tr>
+      <tr><td>Ring weights</td><td>stroke 2 / 1.6 / 1.2 (at 64vb) · opacity 1 / 0.5 / 0.25</td></tr>
+      <tr><td>Ring radii</td><td>14 / 21 / 28 (at 64vb) · 7px spacing</td></tr>
+      <tr><td>Minimum size</td><td>16px favicon · drop outer 2 rings below 24px</td></tr>
+      <tr><td>Clear space</td><td>equal to the dot's radius on all sides</td></tr>
+    </table>
+  </div>
+
+  <div style="margin-top: 40px; padding: 24px 28px; border: 1px dashed var(--border); border-radius: 10px; font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: var(--muted); text-align:center;">
+    HOVER ANY MARK · CLICK .SVG TO DOWNLOAD THAT ARTWORK AS A CLEAN FILE
+  </div>
+
+</div>
+
+<div class="toast" id="toast">DOWNLOADED</div>
+
+<script>
+  // Serialize an inline SVG element to a clean, standalone .svg file and trigger download.
+  function downloadSvg(svgEl, filename) {
+    const clone = svgEl.cloneNode(true);
+    // Inline style → nothing; but oklch() colors may not render in all contexts; keep them.
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    if (!clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    // Compute a sensible width/height if it only has a viewBox
+    if (!clone.getAttribute('width') && clone.getAttribute('viewBox')) {
+      const [,,w,h] = clone.getAttribute('viewBox').split(/\s+/).map(Number);
+      clone.setAttribute('width', w);
+      clone.setAttribute('height', h);
+    }
+
+    const source = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename + '.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+    const t = document.getElementById('toast');
+    t.textContent = 'DOWNLOADED · ' + filename + '.svg';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  document.querySelectorAll('.export-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-svg');
+      const name = btn.getAttribute('data-name');
+      const svg = document.getElementById('svg-' + id);
+      if (svg) downloadSvg(svg, name);
+    });
+  });
+
+  async function downloadAll() {
+    const btns = document.querySelectorAll('.export-btn');
+    const t = document.getElementById('toast');
+    t.textContent = 'DOWNLOADING ' + btns.length + ' FILES...';
+    t.classList.add('show');
+    for (let i = 0; i < btns.length; i++) {
+      btns[i].click();
+      await new Promise(r => setTimeout(r, 180));
+    }
+    t.textContent = 'DONE · ' + btns.length + ' .SVG FILES';
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+</script>
+
+</body>
+</html>

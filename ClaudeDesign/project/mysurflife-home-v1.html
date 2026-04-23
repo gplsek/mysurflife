@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mysurflife — your personal surf decision engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a1218;
+    --paper: #f4f1ea;
+    --bg: oklch(0.16 0.018 230);
+    --bg-2: oklch(0.20 0.020 230);
+    --bg-3: oklch(0.24 0.022 230);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --border: oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --lime: oklch(0.82 0.16 140);
+    --coral: oklch(0.72 0.16 20);
+    --gold: oklch(0.82 0.14 85);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; }
+
+  /* Ambient background — soft gradient swell, slowly drifting */
+  body::before {
+    content: ''; position: fixed; inset: -10%; z-index: -2;
+    background:
+      radial-gradient(900px 500px at 80% 0%, oklch(0.82 0.16 195 / 0.12), transparent 60%),
+      radial-gradient(700px 400px at 10% 100%, oklch(0.75 0.19 45 / 0.10), transparent 55%),
+      linear-gradient(180deg, oklch(0.14 0.02 230) 0%, oklch(0.17 0.02 230) 100%);
+    pointer-events: none;
+    animation: drift 22s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from { transform: translate3d(-2%, -1%, 0) scale(1.02); }
+    to   { transform: translate3d(2%, 1%, 0) scale(1.06); }
+  }
+
+  /* Animated wave lines, full-bleed behind hero */
+  .waves-bg {
+    position: absolute; inset: 0; pointer-events: none; z-index: -1;
+    overflow: hidden; opacity: 0.45;
+    mask-image: linear-gradient(180deg, transparent 0%, black 30%, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 30%, black 70%, transparent 100%);
+  }
+  .waves-bg svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .wave-path { fill: none; stroke: var(--aqua); stroke-width: 1; opacity: 0.25; }
+  .wave-path.p2 { stroke: var(--fire); opacity: 0.18; }
+  .wave-path.p3 { stroke: var(--aqua); opacity: 0.12; }
+
+  /* ---------- Nav ---------- */
+  nav.top {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 20px;
+    padding: 18px 40px;
+    background: oklch(0.14 0.02 230 / 0.6);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; font-size: 16px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .nav-links { margin-left: auto; display: flex; gap: 28px; align-items: center; font-size: 14px; color: var(--fg-2); }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-links .sep { color: var(--border-2); }
+  .nav-signin {
+    padding: 8px 16px; border-radius: 8px;
+    border: 1px solid var(--border-2); color: var(--fg); font-weight: 500;
+    font-size: 13px; cursor: pointer; background: transparent;
+  }
+  .nav-signin:hover { background: var(--bg-2); }
+
+  /* ---------- Hero ---------- */
+  main {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 72px 40px 120px;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    min-height: calc(100vh - 200px);
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--aqua); margin-bottom: 24px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--aqua); box-shadow: 0 0 10px var(--aqua); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 10px var(--aqua); opacity: 1; }
+    50% { box-shadow: 0 0 22px var(--aqua); opacity: 0.7; }
+  }
+
+  /* Entrance animations */
+  .fade-up { opacity: 0; transform: translateY(14px); animation: fadeUp 0.9s cubic-bezier(.2,.7,.2,1) forwards; }
+  .d1 { animation-delay: 0.05s; }
+  .d2 { animation-delay: 0.18s; }
+  .d3 { animation-delay: 0.32s; }
+  .d4 { animation-delay: 0.46s; }
+  .d5 { animation-delay: 0.60s; }
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Reveal-on-scroll */
+  .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.8s cubic-bezier(.2,.7,.2,1), transform 0.8s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+  h1 {
+    font-size: clamp(42px, 6vw, 76px);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 0.98;
+    margin: 0 0 24px;
+  }
+  h1 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--aqua);
+    letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--aqua) 0%, oklch(0.88 0.18 200) 50%, var(--aqua) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 6s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .subhead {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--fg-2);
+    max-width: 520px;
+    margin: 0 0 36px;
+  }
+  .subhead b { color: var(--fg); font-weight: 500; }
+
+  /* Metrics strip */
+  .metrics {
+    display: flex; gap: 36px;
+    margin-top: 40px; padding-top: 28px;
+    border-top: 1px solid var(--border);
+  }
+  .metric-item { display: flex; flex-direction: column; gap: 4px; }
+  .metric-item { transition: transform 0.3s cubic-bezier(.2,.7,.2,1); }
+  .metric-item:hover { transform: translateY(-3px); }
+  .metric-item .n { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .metric-item .n .unit { color: var(--muted); font-weight: 400; font-size: 14px; }
+  .metric-item .l { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- Auth card ---------- */
+  .auth-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    padding: 36px 34px;
+    box-shadow: 0 20px 60px oklch(0 0 0 / 0.35);
+    position: relative;
+    transition: transform 0.4s cubic-bezier(.2,.7,.2,1), box-shadow 0.4s;
+  }
+  .auth-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 28px 72px oklch(0 0 0 / 0.45), 0 0 0 1px oklch(0.82 0.16 195 / 0.25);
+  }
+  .auth-card::before {
+    content: ''; position: absolute; inset: -1px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, oklch(0.82 0.16 195 / 0.22), transparent 30%);
+    z-index: -1; pointer-events: none;
+  }
+  /* Soft aqua glow that orbits the card */
+  .auth-card::after {
+    content: ''; position: absolute; inset: -40px;
+    border-radius: 28px;
+    background: radial-gradient(200px 140px at 80% 0%, oklch(0.82 0.16 195 / 0.18), transparent 70%),
+                radial-gradient(180px 140px at 10% 100%, oklch(0.75 0.19 45 / 0.14), transparent 70%);
+    z-index: -2; pointer-events: none; opacity: 0.8;
+    animation: orbGlow 9s ease-in-out infinite alternate;
+  }
+  @keyframes orbGlow {
+    from { transform: translate3d(-10px, 0, 0); opacity: 0.7; }
+    to { transform: translate3d(10px, 6px, 0); opacity: 1; }
+  }
+  .auth-tabs {
+    display: flex; gap: 4px;
+    background: var(--bg); padding: 4px; border-radius: 10px;
+    margin-bottom: 26px;
+    border: 1px solid var(--border);
+  }
+  .auth-tab {
+    flex: 1; padding: 10px 12px;
+    background: transparent; border: none;
+    font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer;
+    border-radius: 7px; transition: all 0.15s;
+  }
+  .auth-tab.on { background: var(--bg-3); color: var(--fg); }
+  .auth-tab { transition: background 0.2s, color 0.2s; }
+
+  .field-group { margin-bottom: 16px; }
+  .field-group label {
+    display: block;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .field-group input {
+    width: 100%;
+    padding: 13px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--fg);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .field-group input:focus {
+    border-color: var(--aqua);
+    background: oklch(0.18 0.02 230);
+  }
+  .field-group input::placeholder { color: var(--muted); }
+
+  .inline-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 6px 0 20px;
+    font-size: 12px;
+  }
+  .check-label { display: flex; align-items: center; gap: 8px; color: var(--fg-2); cursor: pointer; }
+  .check-label input { accent-color: var(--aqua); }
+  .forgot { color: var(--aqua); font-size: 12px; }
+  .forgot:hover { text-decoration: underline; }
+
+  .submit {
+    width: 100%;
+    padding: 14px;
+    background: var(--aqua);
+    color: var(--ink);
+    border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 0.15s, transform 0.15s, box-shadow 0.25s;
+    position: relative; overflow: hidden;
+  }
+  .submit::before {
+    content: ''; position: absolute; top: 0; left: -60%;
+    width: 40%; height: 100%;
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.35), transparent);
+    transform: skewX(-20deg);
+    animation: sheen 3.8s ease-in-out infinite;
+  }
+  @keyframes sheen {
+    0%, 70% { left: -60%; }
+    100% { left: 120%; }
+  }
+  .submit:hover { background: oklch(0.88 0.16 195); transform: translateY(-1px); box-shadow: 0 8px 22px oklch(0.82 0.16 195 / 0.35); }
+  .submit:active { transform: translateY(0); }
+  .submit .arr { transition: transform 0.2s; position: relative; z-index: 1; }
+  .submit:hover .arr { transform: translateX(4px); }
+
+  .swap-line {
+    text-align: center;
+    font-size: 13px;
+    color: var(--fg-2);
+    margin-top: 20px;
+  }
+  .swap-line a { color: var(--aqua); font-weight: 500; cursor: pointer; }
+  .swap-line a:hover { text-decoration: underline; }
+
+  .legal {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 18px;
+    line-height: 1.55;
+  }
+  .legal a { color: var(--fg-2); text-decoration: underline; text-decoration-color: var(--border-2); }
+
+  /* ---------- Below fold: "How it works" ---------- */
+  .section-head {
+    display: flex; flex-direction: column; gap: 16px;
+    margin-bottom: 56px;
+    max-width: 640px;
+  }
+  .section-head .eyebrow { margin-bottom: 0; }
+  .section-head h2 {
+    font-size: 40px; font-weight: 700;
+    letter-spacing: -0.03em; line-height: 1.05;
+    margin: 0;
+  }
+  .section-head h2 em {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic; font-weight: 400;
+    color: var(--aqua);
+  }
+  .section-head p {
+    font-size: 16px; color: var(--fg-2); line-height: 1.6;
+    margin: 0;
+  }
+
+  .how {
+    margin-top: 140px;
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .step {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 26px 30px;
+    position: relative;
+    transition: transform 0.4s cubic-bezier(.2,.7,.2,1), border-color 0.3s, box-shadow 0.3s;
+  }
+  .step:hover { transform: translateY(-6px); border-color: var(--border-2); box-shadow: 0 16px 40px oklch(0 0 0 / 0.3); }
+  .step .num {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--aqua);
+    margin-bottom: 40px;
+    display: block;
+  }
+  .step h3 {
+    font-size: 19px; font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 10px;
+  }
+  .step p {
+    font-size: 14px; color: var(--fg-2); line-height: 1.55; margin: 0;
+  }
+  .step-illo {
+    height: 140px;
+    margin: -10px -8px 24px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 40px 28px;
+    margin-top: 120px;
+  }
+  .foot-inner {
+    max-width: 1240px; margin: 0 auto;
+    display: flex; gap: 40px; align-items: center; flex-wrap: wrap;
+  }
+  .foot-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .foot-links { display: flex; gap: 24px; font-size: 13px; color: var(--fg-2); }
+  .foot-links a:hover { color: var(--fg); }
+  .foot-right { margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+
+  /* ---------- Copilot preview illustration ---------- */
+  .illo-copilot {
+    padding: 14px; font-size: 11px;
+    font-family: 'Geist', sans-serif; color: var(--fg-2);
+  }
+  .illo-copilot .q { background: var(--bg-3); border-radius: 8px; padding: 8px 10px; font-size: 11px; color: var(--fg); display: inline-block; max-width: 85%; }
+  .illo-copilot .a { margin-top: 10px; background: oklch(0.82 0.16 195 / 0.08); border-left: 2px solid var(--aqua); padding: 8px 10px; border-radius: 0 8px 8px 0; font-size: 11px; color: var(--fg-2); }
+  .illo-copilot .a b { color: var(--aqua); font-weight: 600; }
+
+  /* Score ring illo */
+  .illo-score { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .illo-score svg { width: 90px; height: 90px; }
+  .score-ring { stroke-dasharray: 251.3; stroke-dashoffset: 251.3; animation: ringDraw 2.2s cubic-bezier(.2,.7,.2,1) 0.4s forwards; }
+  @keyframes ringDraw {
+    to { stroke-dashoffset: 75; }
+  }
+
+  /* Typing cursor in copilot illo */
+  .caret { display: inline-block; width: 2px; height: 0.95em; background: var(--aqua); vertical-align: -2px; margin-left: 2px; animation: caret 1s steps(2) infinite; }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  /* Session log row entries stagger in on hover */
+  .step:hover .illo-log .row { animation: logPop 0.4s ease forwards; }
+  .illo-log .row { animation: none; }
+  @keyframes logPop {
+    from { transform: translateX(-6px); opacity: 0.4; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Session log illo */
+  .illo-log { padding: 16px; }
+  .illo-log .row { display: flex; justify-content: space-between; font-size: 10px; font-family: 'Geist Mono', monospace; color: var(--muted); padding: 5px 0; border-bottom: 1px dashed var(--border); letter-spacing: 0.08em; }
+  .illo-log .row:last-child { border-bottom: none; }
+  .illo-log .row span:last-child { color: var(--fg); }
+  .illo-log .row.r span:last-child { color: var(--lime); }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    .fade-up, .reveal { opacity: 1 !important; transform: none !important; }
+  }
+
+  @media (max-width: 980px) {
+    .hero { grid-template-columns: 1fr; gap: 48px; min-height: auto; }
+    .metrics { flex-wrap: wrap; gap: 24px; }
+    .steps { grid-template-columns: 1fr; }
+    main { padding: 40px 24px 80px; }
+    nav.top { padding: 14px 24px; }
+    .nav-links a:not(.nav-signin) { display: none; }
+    footer { padding: 30px 24px 20px; margin-top: 60px; }
+    .foot-links { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Inline brand mark (D1 style) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.55"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.28"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--mark-dot, currentColor)"/>
+  </symbol>
+</svg>
+
+<nav class="top">
+  <a href="#" class="brand">
+    <svg class="brand-mark" viewBox="0 0 64 64" style="color: var(--fire); --mark-dot: var(--aqua);"><use href="#mark"/></svg>
+    mysurflife
+  </a>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#">Forecast</a>
+    <a href="#">About</a>
+    <span class="sep">·</span>
+    <button class="nav-signin" onclick="setTab('signin')">Sign in</button>
+  </div>
+</nav>
+
+<main style="position:relative;">
+  <!-- Animated wave background -->
+  <div class="waves-bg" aria-hidden="true">
+    <svg viewBox="0 0 1200 600" preserveAspectRatio="none">
+      <path class="wave-path" d="M0 320 Q 150 280 300 320 T 600 320 T 900 320 T 1200 320">
+        <animate attributeName="d" dur="12s" repeatCount="indefinite"
+          values="M0 320 Q 150 280 300 320 T 600 320 T 900 320 T 1200 320;
+                  M0 320 Q 150 360 300 320 T 600 320 T 900 320 T 1200 320;
+                  M0 320 Q 150 280 300 320 T 600 320 T 900 320 T 1200 320"/>
+      </path>
+      <path class="wave-path p2" d="M0 380 Q 200 340 400 380 T 800 380 T 1200 380">
+        <animate attributeName="d" dur="16s" repeatCount="indefinite"
+          values="M0 380 Q 200 340 400 380 T 800 380 T 1200 380;
+                  M0 380 Q 200 420 400 380 T 800 380 T 1200 380;
+                  M0 380 Q 200 340 400 380 T 800 380 T 1200 380"/>
+      </path>
+      <path class="wave-path p3" d="M0 260 Q 180 220 360 260 T 720 260 T 1200 260">
+        <animate attributeName="d" dur="20s" repeatCount="indefinite"
+          values="M0 260 Q 180 220 360 260 T 720 260 T 1200 260;
+                  M0 260 Q 180 300 360 260 T 720 260 T 1200 260;
+                  M0 260 Q 180 220 360 260 T 720 260 T 1200 260"/>
+      </path>
+    </svg>
+  </div>
+
+  <section class="hero">
+    <!-- Left: pitch -->
+    <div>
+      <div class="eyebrow fade-up d1">
+        <span class="dot"></span>
+        Personalized surf intelligence
+      </div>
+      <h1 class="fade-up d2">
+        Stop reading<br>
+        forecasts. <em>Ask&nbsp;your<br>surf copilot.</em>
+      </h1>
+      <p class="subhead fade-up d3">
+        <b>mysurflife</b> answers the question every surfer actually has — <em style="font-family:'Instrument Serif',serif; font-style:italic; color: var(--fg);">should I go, and what should I bring?</em> — by combining live buoy, wind, and tide data with what we've learned from your sessions.
+      </p>
+
+      <div class="metrics fade-up d4">
+        <div class="metric-item">
+          <span class="n">412<span class="unit">+</span></span>
+          <span class="l">Spots covered</span>
+        </div>
+        <div class="metric-item">
+          <span class="n">0.87<span class="unit"> avg</span></span>
+          <span class="l">Forecast confidence</span>
+        </div>
+        <div class="metric-item">
+          <span class="n">±0.8<span class="unit"> pts</span></span>
+          <span class="l">Score accuracy</span>
+        </div>
+        <div class="metric-item">
+          <span class="n">8<span class="unit">s</span></span>
+          <span class="l">Avg answer time</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: auth card -->
+    <div class="auth-card fade-up d5">
+      <div class="auth-tabs">
+        <button class="auth-tab on" id="tab-signup" onclick="setTab('signup')">Create account</button>
+        <button class="auth-tab" id="tab-signin" onclick="setTab('signin')">Sign in</button>
+      </div>
+
+      <!-- Sign up form (default) -->
+      <form id="form-signup" onsubmit="event.preventDefault()">
+        <div class="field-group">
+          <label for="name">Name</label>
+          <input id="name" type="text" placeholder="Jordan Pike" autocomplete="name" />
+        </div>
+        <div class="field-group">
+          <label for="email-up">Email</label>
+          <input id="email-up" type="email" placeholder="you@email.com" autocomplete="email" />
+        </div>
+        <div class="field-group">
+          <label for="pw-up">Password</label>
+          <input id="pw-up" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+        </div>
+
+        <div class="inline-row">
+          <label class="check-label">
+            <input type="checkbox" checked />
+            Remember me
+          </label>
+        </div>
+
+        <button type="submit" class="submit">
+          Create account
+          <svg class="arr" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+
+        <div class="legal">
+          By creating an account, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
+        </div>
+
+        <div class="swap-line">
+          Already surfing with us? <a onclick="setTab('signin')">Sign in</a>
+        </div>
+      </form>
+
+      <!-- Sign in form (hidden by default) -->
+      <form id="form-signin" onsubmit="event.preventDefault()" style="display:none;">
+        <div class="field-group">
+          <label for="email-in">Email</label>
+          <input id="email-in" type="email" placeholder="you@email.com" autocomplete="email" />
+        </div>
+        <div class="field-group">
+          <label for="pw-in">Password</label>
+          <input id="pw-in" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <div class="inline-row">
+          <label class="check-label">
+            <input type="checkbox" checked />
+            Remember me
+          </label>
+          <a href="#" class="forgot">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="submit">
+          Sign in
+          <svg class="arr" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+
+        <div class="swap-line">
+          New to mysurflife? <a onclick="setTab('signup')">Create an account</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how reveal" id="how">
+    <div class="section-head">
+      <div class="eyebrow"><span class="dot"></span>How it works</div>
+      <h2>A surf-savvy assistant that <em>learns how you surf.</em></h2>
+      <p>No more tab-switching between three forecast sites. Ask a question, log your sessions, and mysurflife gets sharper for you every time you paddle out.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-illo">
+          <div class="illo-copilot">
+            <div class="q">Should I surf Cardiff at 6pm?</div>
+            <div class="a"><b>Yes — 7.4 for you.</b> Wind drops to 4mph SW, fish-range swell.<span class="caret"></span></div>
+          </div>
+        </div>
+        <span class="num">01 — ASK</span>
+        <h3>Just ask, in plain English.</h3>
+        <p>Compare spots, check wind, pick a board, or scan the week — in one conversation instead of ten dashboards.</p>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-illo">
+          <div class="illo-score">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="oklch(1 0 0 / 0.08)" stroke-width="6"/>
+              <circle class="score-ring" cx="50" cy="50" r="40" fill="none" stroke="var(--aqua)" stroke-width="6" stroke-linecap="round" transform="rotate(-90 50 50)"/>
+              <text x="50" y="56" text-anchor="middle" fill="var(--fg)" font-family="Geist" font-size="22" font-weight="700" letter-spacing="-1">7.4</text>
+              <text x="50" y="72" text-anchor="middle" fill="var(--muted)" font-family="Geist Mono" font-size="7" letter-spacing="2">FOR YOU</text>
+            </svg>
+          </div>
+        </div>
+        <span class="num">02 — SCORE</span>
+        <h3>Personalized — not one-size-fits-all.</h3>
+        <p>Your skill, boards, tide preferences and drive radius reshape every spot's score. A 6.0 for the crowd is an 8.0 for you.</p>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-illo">
+          <div class="illo-log">
+            <div class="row"><span>SPOT</span><span>Cardiff</span></div>
+            <div class="row"><span>BOARD</span><span>5'10" Fish</span></div>
+            <div class="row"><span>WIND</span><span>4 SW</span></div>
+            <div class="row"><span>WAVES</span><span>12</span></div>
+            <div class="row r"><span>RATING</span><span>8 / 10</span></div>
+          </div>
+        </div>
+        <span class="num">03 — LOG</span>
+        <h3>Log sessions. Get sharper.</h3>
+        <p>A 20-second session report closes the loop — we compare predicted vs. actual and quietly retune your model.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot-inner">
+    <div class="foot-brand">
+      <svg width="22" height="22" viewBox="0 0 64 64" style="color: var(--fire); --mark-dot: var(--aqua);"><use href="#mark"/></svg>
+      mysurflife
+    </div>
+    <div class="foot-links">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="#">Contact</a>
+      <a href="#">Status</a>
+    </div>
+    <div class="foot-right">
+      © 2026 · MADE ON THE COAST
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -60px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Subtle parallax on the auth card relative to pointer
+  const card = document.querySelector('.auth-card');
+  if (card && window.matchMedia('(pointer: fine)').matches) {
+    document.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5);
+      const y = (e.clientY / window.innerHeight - 0.5);
+      card.style.transform = `translateY(0) rotateX(${-y*2}deg) rotateY(${x*2}deg)`;
+    });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+  }
+
+  function setTab(which) {
+    const up = document.getElementById('form-signup');
+    const inn = document.getElementById('form-signin');
+    const tUp = document.getElementById('tab-signup');
+    const tIn = document.getElementById('tab-signin');
+    if (which === 'signin') {
+      up.style.display = 'none'; inn.style.display = '';
+      tUp.classList.remove('on'); tIn.classList.add('on');
+    } else {
+      up.style.display = ''; inn.style.display = 'none';
+      tUp.classList.add('on'); tIn.classList.remove('on');
+    }
+  }
+</script>
+
+</body>
+</html>
