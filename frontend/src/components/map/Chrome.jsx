@@ -26,6 +26,8 @@ export default function Chrome({
   stormPreview,
   onStormPreviewClose,
   onStormOpenDetail,
+  addSpotMode,
+  onAddSpotToggle,
 }) {
   const tierCounts = TIER_LEGEND.reduce((acc, { tier }) => {
     acc[tier] = spots.filter(sp => ratingTier(sp.current_conditions?.overall_score) === tier).length;
@@ -43,7 +45,7 @@ export default function Chrome({
         onToggle={onToggle}
         loading={loading}
       />
-      <ZoomControls mapRef={mapRef} />
+      <ZoomControls mapRef={mapRef} addSpotMode={addSpotMode} onAddSpotToggle={onAddSpotToggle} />
       <PreviewCard preview={preview} isFav={isFav} onToggleFav={onToggleFav} onClose={onPreviewClose} />
       {stormPreview && (
         <StormPreviewCard

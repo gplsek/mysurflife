@@ -46,6 +46,14 @@ export function buoyMarkerHtml() {
   </div>`;
 }
 
+export function userSpotMarkerHtml(name) {
+  const initial = (name || '?')[0].toUpperCase();
+  return `<div class="mv-user-spot">
+    <div class="mv-us-ring"></div>
+    <div class="mv-us-inner">${initial}</div>
+  </div>`;
+}
+
 export function clusterMarkerHtml(count, avgRating) {
   const color = ratingColor(avgRating);
   return `<div class="mv-cluster" style="--tier-color: ${color}">

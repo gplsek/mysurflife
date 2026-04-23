@@ -32,13 +32,15 @@ from routes.admin import router as admin_router
 from routes.sessions import router as sessions_router
 from routes.storms import router as storms_router
 from routes.map       import router as map_router
-from routes.favorites import router as favorites_router
+from routes.favorites  import router as favorites_router
+from routes.user_spots import router as user_spots_router
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(sessions_router)
 app.include_router(storms_router)
 app.include_router(map_router)
 app.include_router(favorites_router)
+app.include_router(user_spots_router)
 
 from high_seas import register_routes as register_high_seas_routes
 register_high_seas_routes(app)

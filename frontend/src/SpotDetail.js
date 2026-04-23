@@ -95,6 +95,8 @@ const SpotDetail = () => {
   const [saveError, setSaveError] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [isFav, setIsFav] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
 
   useEffect(() => {
     const h = (e) => { if (menuOpen && !e.target.closest('.sd-menu-container')) setMenuOpen(false); };
@@ -126,6 +128,37 @@ const SpotDetail = () => {
     };
     fetch_();
   }, [slug]);
+
+  // Favorites
+  useEffect(() => {
+    if (!user || !slug) return;
+    import('./supabaseClient').then(({ getAuthHeaders }) =>
+      getAuthHeaders().then(headers => {
+        if (!headers['Authorization']) return;
+        fetch('/api/user/favorites', { headers })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.favorites) setIsFav(d.favorites.includes(slug)); })
+          .catch(() => {});
+      })
+    );
+  }, [user, slug]);
+
+  const handleToggleFav = async () => {
+    if (!user || favLoading) return;
+    setFavLoading(true);
+    const next = !isFav;
+    setIsFav(next);
+    try {
+      const { getAuthHeaders } = await import('./supabaseClient');
+      const headers = await getAuthHeaders();
+      if (!headers['Authorization']) { setIsFav(!next); return; }
+      const res = next
+        ? await fetch('/api/user/favorites', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) })
+        : await fetch(`/api/user/favorites/${slug}`, { method: 'DELETE', headers });
+      if (!res.ok) setIsFav(!next);
+    } catch { setIsFav(!next); }
+    finally { setFavLoading(false); }
+  };
 
   // Phase 2: buoys
   useEffect(() => {
@@ -475,6 +508,19 @@ const SpotDetail = () => {
             <Logo variant="mark" size={22} />
             <span style={{ fontFamily: 'var(--font-ui)', fontWeight: 800, letterSpacing: '-0.04em' }}>mysurf<span style={{ opacity: 0.6 }}>life</span></span>
           </span>
+          {user && (
+            <button
+              className={`sd-chip sd-chip--fav${isFav ? ' active' : ''}`}
+              onClick={handleToggleFav}
+              disabled={favLoading}
+              aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+                <path d="M7 12S1 8.5 1 4.5A3 3 0 017 2.4 3 3 0 0113 4.5C13 8.5 7 12 7 12z"/>
+              </svg>
+              {isFav ? 'Saved' : 'Save'}
+            </button>
+          )}
           {isAdmin && !isEditMode && (
             <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>

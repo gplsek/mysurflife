@@ -171,6 +171,41 @@ async def _get_favorites(user: Optional[Dict]) -> List[str]:
         return []
 
 
+async def _fetch_user_spots(user: Optional[Dict]) -> List[Dict]:
+    """Returns the authenticated user's private spots, shaped for the map bundle."""
+    if not user:
+        return []
+    try:
+        user_id = user.get("user_id")
+        client = get_supabase_admin_client() or supabase
+        if not client or not user_id:
+            return []
+        resp = (
+            client.table("user_spots")
+            .select("id, name, latitude, longitude, break_type, description, is_shared, created_at")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return [
+            {
+                "slug":        f"usr_{r['id']}",
+                "name":        r["name"],
+                "latitude":    r["latitude"],
+                "longitude":   r["longitude"],
+                "break_type":  r.get("break_type"),
+                "description": r.get("description"),
+                "is_shared":   r.get("is_shared", False),
+                "is_user_spot": True,
+                "region":      "My Spots",
+                "rating":      None,
+            }
+            for r in (resp.data or [])
+        ]
+    except Exception as e:
+        print(f"⚠️  map/bundle: user_spots fetch failed: {e}")
+        return []
+
+
 # ── Bundle endpoint ───────────────────────────────────────────────────────────
 
 @router.get("/api/map/bundle")
@@ -185,19 +220,22 @@ async def get_map_bundle(
     """
     now = time.time()
 
-    # Serve cached shared data (sans favorites) if fresh
+    # Serve cached shared data (sans per-user data) if fresh
     cached = _bundle_cache.get("data")
     if cached and (now - _bundle_cache.get("ts", 0)) < _BUNDLE_TTL:
-        favorites = await _get_favorites(user)
+        favorites, user_spots = await asyncio.gather(
+            _get_favorites(user), _fetch_user_spots(user)
+        )
         spots = [
             {**s, "fav": s["slug"] in favorites}
             for s in cached["spots"]
         ]
         return {
             **cached,
-            "spots": spots,
-            "user":   {"favorites": favorites},
-            "cached": True,
+            "spots":      spots,
+            "user_spots": user_spots,
+            "user":       {"favorites": favorites},
+            "cached":     True,
         }
 
     async def _empty():
@@ -236,11 +274,14 @@ async def get_map_bundle(
     _bundle_cache["data"] = shared
     _bundle_cache["ts"]   = now
 
-    favorites = await _get_favorites(user)
+    favorites, user_spots = await asyncio.gather(
+        _get_favorites(user), _fetch_user_spots(user)
+    )
     spots_with_favs = [{**s, "fav": s["slug"] in favorites} for s in spots]
 
     return {
         **shared,
-        "spots": spots_with_favs,
-        "user":  {"favorites": favorites},
+        "spots":      spots_with_favs,
+        "user_spots": user_spots,
+        "user":       {"favorites": favorites},
     }

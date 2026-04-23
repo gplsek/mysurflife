@@ -3,13 +3,64 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { CARTO_DARK, CARTO_LABELS, CARTO_ATTR, REGIONS } from '../components/map/constants';
 import { buildClusters }                                  from '../components/map/clusterGrid';
-import { spotMarkerHtml, buoyMarkerHtml, clusterMarkerHtml } from '../components/map/markers';
+import { spotMarkerHtml, buoyMarkerHtml, clusterMarkerHtml, userSpotMarkerHtml } from '../components/map/markers';
 import { stormMarkerHtml }                                from '../components/map/StormMarker';
 import { useMapBundle }                                   from '../components/map/useMapBundle';
 import Chrome                                             from '../components/map/Chrome';
 import { StormCard }                                      from '../components/map/StormCard';
 import '../styles/map-v2.css';
 import '../styles/storm-card.css';
+
+const BREAK_TYPES = ['beach', 'reef', 'point', 'river_mouth', 'jetty', 'mixed'];
+
+function AddSpotForm({ lat, lng, onSave, onCancel }) {
+  const [name, setName]           = useState('');
+  const [breakType, setBreakType] = useState('');
+  const [saving, setSaving]       = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    await onSave({ name: name.trim(), breakType });
+    setSaving(false);
+  };
+
+  return (
+    <div className="mv-add-spot-form">
+      <div className="mv-asf-head">
+        <span className="mv-asf-title">New Spot</span>
+        <span className="mv-asf-coords">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
+      </div>
+      <form onSubmit={handleSubmit}>
+        <input
+          className="mv-asf-input"
+          placeholder="Spot name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          autoFocus
+          maxLength={120}
+        />
+        <select
+          className="mv-asf-select"
+          value={breakType}
+          onChange={e => setBreakType(e.target.value)}
+        >
+          <option value="">Break type (optional)</option>
+          {BREAK_TYPES.map(t => (
+            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).replace('_', ' ')}</option>
+          ))}
+        </select>
+        <div className="mv-asf-actions">
+          <button type="button" className="mv-asf-cancel" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="mv-asf-save" disabled={!name.trim() || saving}>
+            {saving ? 'Saving…' : 'Save spot'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 function inBbox(spot, bbox) {
   const [[s, w], [n, e]] = bbox;
@@ -33,7 +84,15 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
   const [stormPreview,  setStormPreview]  = useState(null);
   const [detailStorm,   setDetailStorm]   = useState(null);
 
-  const { spots, buoys, storms, loading, updatedAt, spotsRef, buoysRef, stormsRef, toggleFavorite } = useMapBundle();
+  const {
+    spots, userSpots, buoys, storms, loading, updatedAt,
+    spotsRef, userSpotsRef, buoysRef, stormsRef,
+    toggleFavorite, addUserSpot, removeUserSpot,
+  } = useMapBundle();
+
+  const [addSpotMode,  setAddSpotMode]  = useState(false);
+  const [addSpotForm,  setAddSpotForm]  = useState(null);  // {lat, lng} when pin dropped
+  const pendingPinRef = useRef(null);   // temporary pin marker
 
   // ─── Marker management ───────────────────────────────────────────
   const clearAllMarkers = useCallback(() => {
@@ -136,6 +195,31 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     markersRef.current.push(marker);
   }, []);
 
+  const addUserSpotMarker = useCallback((spot) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const icon = L.divIcon({
+      html: userSpotMarkerHtml(spot.name),
+      className: '',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+    const marker = L.marker([spot.latitude, spot.longitude], { icon });
+    marker.on('click', () => {
+      setStormPreview(null);
+      setPreview({
+        id:     spot.slug,
+        name:   spot.name,
+        slug:   spot.slug,
+        region: 'My Spot',
+        rating: null,
+        is_user_spot: true,
+      });
+    });
+    marker.addTo(map);
+    markersRef.current.push(marker);
+  }, []);
+
   // ─── Render pass ─────────────────────────────────────────────────
   const renderMarkers = useCallback(() => {
     const map = mapRef.current;
@@ -149,6 +233,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       bounds.toBBoxString(), zoom,
       s.region, s.showSpots, s.showBuoys, s.showStorms, s.favsOnly, s.query,
       spotsRef.current.length, buoysRef.current.length, stormsRef.current.length,
+      userSpotsRef.current.length,
     ].join('_');
     if (renderKey === lastRenderKeyRef.current) return;
     lastRenderKeyRef.current = renderKey;
@@ -210,9 +295,16 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     } else {
       setInViewCount(0);
     }
+
+    // Always render user spots (not subject to favsOnly / region filter)
+    for (const us of userSpotsRef.current) {
+      if (us.latitude != null && us.longitude != null) {
+        addUserSpotMarker(us);
+      }
+    }
   }, [
     clearAllMarkers, addSpotMarker, addBuoyMarker, addClusterMarker, addStormMarker,
-    stateRef, spotsRef, buoysRef, stormsRef,
+    addUserSpotMarker, stateRef, spotsRef, userSpotsRef, buoysRef, stormsRef,
   ]);
 
   const scheduleRender = useCallback(() => {
@@ -262,7 +354,41 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
   }, [scheduleRender]);
 
   // Re-render when data or filter state changes
-  useEffect(() => { scheduleRender(); }, [spots, buoys, storms, state, scheduleRender]);
+  useEffect(() => { scheduleRender(); }, [spots, userSpots, buoys, storms, state, scheduleRender]);
+
+  // Add-spot mode: map click drops a pin
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!addSpotMode) return;
+
+    map.getContainer().style.cursor = 'crosshair';
+
+    const onClick = (e) => {
+      const { lat, lng } = e.latlng;
+      if (pendingPinRef.current) map.removeLayer(pendingPinRef.current);
+      const pin = L.marker([lat, lng], {
+        icon: L.divIcon({
+          html: '<div class="mv-add-spot-pin"></div>',
+          className: '',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+      }).addTo(map);
+      pendingPinRef.current = pin;
+      setAddSpotForm({ lat, lng });
+    };
+
+    map.on('click', onClick);
+    return () => {
+      map.off('click', onClick);
+      map.getContainer().style.cursor = '';
+      if (pendingPinRef.current) {
+        map.removeLayer(pendingPinRef.current);
+        pendingPinRef.current = null;
+      }
+    };
+  }, [addSpotMode]);
 
   // Esc closes open cards
   useEffect(() => {
@@ -287,10 +413,45 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     }
   };
 
+  const handleSaveUserSpot = async ({ name, breakType }) => {
+    const { lat, lng } = addSpotForm;
+    try {
+      const { getAuthHeaders } = await import('../supabaseClient');
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/user/spots', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, latitude: lat, longitude: lng, break_type: breakType || null }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { spot } = await res.json();
+      addUserSpot(spot);
+    } catch (err) {
+      console.warn('addUserSpot failed:', err);
+    } finally {
+      setAddSpotMode(false);
+      setAddSpotForm(null);
+    }
+  };
+
   return (
     <div className="mv-root">
       <div id="mv-map" ref={mapContainerRef} className="mv-map" />
       <div id="dim-layer" />
+      {addSpotMode && (
+        <div className="mv-add-spot-hint">
+          {addSpotForm ? 'Spot pinned — fill in details below' : 'Click the map to drop a pin'}
+          <button onClick={() => { setAddSpotMode(false); setAddSpotForm(null); }}>Cancel</button>
+        </div>
+      )}
+      {addSpotForm && (
+        <AddSpotForm
+          lat={addSpotForm.lat}
+          lng={addSpotForm.lng}
+          onSave={handleSaveUserSpot}
+          onCancel={() => { setAddSpotMode(false); setAddSpotForm(null); }}
+        />
+      )}
       <Chrome
         mapRef={mapRef}
         state={state}
@@ -312,6 +473,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
           setDetailStorm(stormPreview);
           setStormPreview(null);
         }}
+        addSpotMode={addSpotMode}
+        onAddSpotToggle={() => { setAddSpotMode(m => !m); setAddSpotForm(null); }}
       />
       {detailStorm && (
         <StormCard

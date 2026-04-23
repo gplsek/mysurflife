@@ -12,27 +12,31 @@ async function _authHeaders() {
 }
 
 export function useMapBundle() {
-  const [spots,     setSpots]     = useState([]);
-  const [buoys,     setBuoys]     = useState([]);
-  const [storms,    setStorms]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [updatedAt, setUpdatedAt] = useState(null);
+  const [spots,      setSpots]      = useState([]);
+  const [userSpots,  setUserSpots]  = useState([]);
+  const [buoys,      setBuoys]      = useState([]);
+  const [storms,     setStorms]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [updatedAt,  setUpdatedAt]  = useState(null);
 
-  const spotsRef  = useRef(spots);
-  const buoysRef  = useRef(buoys);
-  const stormsRef = useRef(storms);
-  useEffect(() => { spotsRef.current  = spots;  }, [spots]);
-  useEffect(() => { buoysRef.current  = buoys;  }, [buoys]);
-  useEffect(() => { stormsRef.current = storms; }, [storms]);
+  const spotsRef      = useRef(spots);
+  const userSpotsRef  = useRef(userSpots);
+  const buoysRef      = useRef(buoys);
+  const stormsRef     = useRef(storms);
+  useEffect(() => { spotsRef.current     = spots;      }, [spots]);
+  useEffect(() => { userSpotsRef.current = userSpots;  }, [userSpots]);
+  useEffect(() => { buoysRef.current     = buoys;      }, [buoys]);
+  useEffect(() => { stormsRef.current    = storms;     }, [storms]);
 
   const fetchBundle = useCallback(async (signal) => {
     try {
       const res = await fetch('/api/map/bundle?include_storms=true&include_buoys=true', { signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSpots(data.spots  || []);
-      setBuoys(data.buoys  || []);
-      setStorms(data.storms || []);
+      setSpots(data.spots       || []);
+      setUserSpots(data.user_spots || []);
+      setBuoys(data.buoys       || []);
+      setStorms(data.storms     || []);
       setUpdatedAt(data.updated_at || new Date().toISOString());
     } catch (err) {
       if (err.name !== 'AbortError') console.warn('map/bundle fetch failed:', err);
@@ -89,5 +93,17 @@ export function useMapBundle() {
     }
   }, []);
 
-  return { spots, buoys, storms, loading, updatedAt, spotsRef, buoysRef, stormsRef, toggleFavorite };
+  const addUserSpot = useCallback((spot) => {
+    setUserSpots(prev => [spot, ...prev]);
+  }, []);
+
+  const removeUserSpot = useCallback((slug) => {
+    setUserSpots(prev => prev.filter(s => s.slug !== slug));
+  }, []);
+
+  return {
+    spots, userSpots, buoys, storms, loading, updatedAt,
+    spotsRef, userSpotsRef, buoysRef, stormsRef,
+    toggleFavorite, addUserSpot, removeUserSpot,
+  };
 }

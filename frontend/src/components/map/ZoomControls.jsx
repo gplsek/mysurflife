@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import L from 'leaflet';
 
-export function ZoomControls({ mapRef }) {
+export function ZoomControls({ mapRef, addSpotMode, onAddSpotToggle }) {
   const [locating, setLocating]   = useState(false);
   const youAreHereRef             = useRef(null);
 
@@ -54,6 +54,24 @@ export function ZoomControls({ mapRef }) {
           <path d="M7 1v2M7 11v2M1 7h2M11 7h2"/>
         </svg>
       </button>
+      {onAddSpotToggle && (
+        <>
+          <div className="mv-zoom-sep" />
+          <button
+            className={addSpotMode ? 'active' : ''}
+            aria-label="Add my spot"
+            onClick={onAddSpotToggle}
+            title="Pin your own spot"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="7" cy="6" r="3.5"/>
+              <path d="M7 9.5v3M5 12h4"/>
+              <path d="M10.5 3.5 L12 2" strokeWidth="1.2"/>
+              <circle cx="12.5" cy="1.5" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+        </>
+      )}
     </div>
   );
 }

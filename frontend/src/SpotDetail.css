@@ -41,6 +41,9 @@
 .sd-chip--accent { color: var(--accent); }
 .sd-chip--ghost { background: transparent; }
 .sd-chip--ml { margin-left: auto; }
+.sd-chip--fav { color: var(--muted); transition: color 150ms, border-color 150ms; }
+.sd-chip--fav:hover { color: var(--fire); }
+.sd-chip--fav.active { color: var(--fire); border-color: var(--fire); }
 .sd-brand {
   display: inline-flex; align-items: center; gap: 10px;
   padding: 9px 14px; border-radius: 10px;
