@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 import LogoPulse from './design/LogoPulse';
 import Logo from './design/Logo';
 import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
+import AISpotAnalysis from './AISpotAnalysis';
 import './SpotDetail.css';
 
 // ─── Map controller ───────────────────────────────────────────────
@@ -97,6 +98,8 @@ const SpotDetail = () => {
   const [showSources, setShowSources] = useState(false);
   const [isFav, setIsFav] = useState(false);
   const [favLoading, setFavLoading] = useState(false);
+  const [rerunAI, setRerunAI] = useState(false);
+  const [rerunStatus, setRerunStatus] = useState(null); // null | 'running' | 'done' | 'error'
 
   useEffect(() => {
     const h = (e) => { if (menuOpen && !e.target.closest('.sd-menu-container')) setMenuOpen(false); };
@@ -158,6 +161,26 @@ const SpotDetail = () => {
       if (!res.ok) setIsFav(!next);
     } catch { setIsFav(!next); }
     finally { setFavLoading(false); }
+  };
+
+  const handleRerunAI = async () => {
+    if (rerunStatus === 'running') return;
+    setRerunStatus('running');
+    try {
+      const { getAuthHeaders } = await import('./supabaseClient');
+      const headers = await getAuthHeaders();
+      if (!headers['Authorization']) { setRerunStatus('error'); return; }
+      const res = await fetch(`/api/spots/${slug}/ai-analysis/generate?force=true`, {
+        method: 'POST',
+        headers,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRerunStatus('done');
+      setTimeout(() => setRerunStatus(null), 3000);
+    } catch {
+      setRerunStatus('error');
+      setTimeout(() => setRerunStatus(null), 3000);
+    }
   };
 
   // Phase 2: buoys
@@ -425,8 +448,9 @@ const SpotDetail = () => {
   );
 
   const ch = spot.spot_characteristics || {};
-  const lat = isEditMode && editedSpot ? editedSpot.latitude : spot.latitude;
-  const lng = isEditMode && editedSpot ? editedSpot.longitude : spot.longitude;
+  const lat = (isEditMode && editedSpot ? editedSpot.latitude : spot.latitude) ?? null;
+  const lng = (isEditMode && editedSpot ? editedSpot.longitude : spot.longitude) ?? null;
+  const hasCoords = lat != null && lng != null;
   const swells = getSwellsForHour();
   const wind = getWindForHour();
   const condGrid = getConditionsForGrid();
@@ -465,30 +489,34 @@ const SpotDetail = () => {
       {/* ── Map hero ── */}
       <section className="sd-hero">
         <div className="sd-map-bg">
-          <MapContainer
-            center={[lat, lng]} zoom={15}
-            dragging={false} touchZoom={false} doubleClickZoom={false}
-            scrollWheelZoom={false} boxZoom={false} keyboard={false}
-            zoomControl={false} attributionControl={true}
-            className="hero-map"
-          >
-            <MapInteractionController isEditMode={isEditMode} />
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution="&copy; Esri"
-            />
-            <Marker
-              position={[lat, lng]}
-              icon={spotIcon}
-              draggable={isEditMode}
-              eventHandlers={isEditMode ? {
-                dragend: (e) => {
-                  const { lat: la, lng: lo } = e.target.getLatLng();
-                  setEditedSpot({ ...editedSpot, latitude: parseFloat(la.toFixed(6)), longitude: parseFloat(lo.toFixed(6)) });
-                }
-              } : {}}
-            />
-          </MapContainer>
+          {hasCoords ? (
+            <MapContainer
+              center={[lat, lng]} zoom={15}
+              dragging={false} touchZoom={false} doubleClickZoom={false}
+              scrollWheelZoom={false} boxZoom={false} keyboard={false}
+              zoomControl={false} attributionControl={true}
+              className="hero-map"
+            >
+              <MapInteractionController isEditMode={isEditMode} />
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attribution="&copy; Esri"
+              />
+              <Marker
+                position={[lat, lng]}
+                icon={spotIcon}
+                draggable={isEditMode}
+                eventHandlers={isEditMode ? {
+                  dragend: (e) => {
+                    const { lat: la, lng: lo } = e.target.getLatLng();
+                    setEditedSpot({ ...editedSpot, latitude: parseFloat(la.toFixed(6)), longitude: parseFloat(lo.toFixed(6)) });
+                  }
+                } : {}}
+              />
+            </MapContainer>
+          ) : (
+            <div className="hero-map" style={{ background: 'var(--bg-2)' }} />
+          )}
           {isEditMode && editedSpot && (
             <div className="sd-coord-display">{editedSpot.latitude.toFixed(6)}, {editedSpot.longitude.toFixed(6)}</div>
           )}
@@ -502,11 +530,12 @@ const SpotDetail = () => {
         {/* Topbar */}
         <nav className="sd-topbar">
           <button className="sd-chip sd-chip--ghost" onClick={() => navigate('/')}>
-            <span style={{ display: 'inline-block', transition: 'transform 0.15s' }}>←</span> Back
+            <span style={{ display: 'inline-block', transition: 'transform 0.15s' }}>←</span>
+            <span className="sd-chip-label"> Back</span>
           </button>
           <span className="sd-brand">
             <Logo variant="mark" size={22} />
-            <span style={{ fontFamily: 'var(--font-ui)', fontWeight: 800, letterSpacing: '-0.04em' }}>mysurf<span style={{ opacity: 0.6 }}>life</span></span>
+            <span className="sd-brand-text" style={{ fontFamily: 'var(--font-ui)', fontWeight: 800, letterSpacing: '-0.04em' }}>mysurf<span style={{ opacity: 0.6 }}>life</span></span>
           </span>
           {user && (
             <button
@@ -518,14 +547,29 @@ const SpotDetail = () => {
               <svg width="13" height="13" viewBox="0 0 14 14" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
                 <path d="M7 12S1 8.5 1 4.5A3 3 0 017 2.4 3 3 0 0113 4.5C13 8.5 7 12 7 12z"/>
               </svg>
-              {isFav ? 'Saved' : 'Save'}
+              <span className="sd-chip-label">{isFav ? 'Saved' : 'Save'}</span>
             </button>
           )}
           {isAdmin && !isEditMode && (
-            <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
-              Edit
-            </button>
+            <>
+              <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+                <span className="sd-chip-label">Edit</span>
+              </button>
+              <button
+                className={`sd-chip${rerunStatus === 'running' ? ' sd-chip--muted' : ''}`}
+                disabled={rerunStatus === 'running'}
+                onClick={handleRerunAI}
+                title="Regenerate AI insight for this spot"
+              >
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
+                  style={rerunStatus === 'running' ? { animation: 'sd-spin 1s linear infinite' } : {}}>
+                  <path d="M1 7A6 6 0 0112.5 4M13 1v3h-3"/>
+                  <path d="M13 7A6 6 0 011.5 10M1 13v-3h3"/>
+                </svg>
+                <span className="sd-chip-label">{rerunStatus === 'running' ? 'Running…' : rerunStatus === 'done' ? 'Done ✓' : 'Re-run AI'}</span>
+              </button>
+            </>
           )}
           {isAdmin && isEditMode && (
             <>
@@ -650,14 +694,7 @@ const SpotDetail = () => {
               wind={enrichedWind}
               detectedCount={enrichedSwells.length}
             />
-            <div className="sd-ai-note">
-              <div className="sd-ai-dot" />
-              <div className="sd-ai-content">
-                <div className="sd-ai-eyebrow">AI Insight</div>
-                <h3 className="sd-ai-h3">Log sessions to unlock personalized insights</h3>
-                <p className="sd-ai-p">Track your surf sessions at this spot to see preferred conditions, best time windows, and performance patterns over time.</p>
-              </div>
-            </div>
+            <AISpotAnalysis spotSlug={slug} spotName={spot.name} />
           </div>
 
           {/* Right: 7-day strip charts */}

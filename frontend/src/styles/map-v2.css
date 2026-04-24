@@ -919,6 +919,11 @@
 }
 .mv-storm-preview-open:hover { filter: brightness(1.1); }
 
+@keyframes sp-entry-mobile {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
 @media (max-width: 640px) {
   .mv-storm-preview {
     left: 14px;
@@ -926,6 +931,7 @@
     width: auto;
     transform: none;
     bottom: 80px;
+    animation-name: sp-entry-mobile;
   }
 }
 
@@ -1041,6 +1047,7 @@
     transform: translateY(16px) !important;
     width: auto !important; max-width: none !important;
     border-radius: var(--radius-l) var(--radius-l) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .mv-preview.show {
     transform: translateY(0) !important;
@@ -1051,6 +1058,7 @@
     bottom: 0; left: 0 !important; right: 0;
     max-width: none !important;
     border-radius: var(--radius-l) var(--radius-l) 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }
 

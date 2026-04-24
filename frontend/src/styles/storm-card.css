@@ -879,6 +879,11 @@ body.dimmed #dim-layer {
   .track-rows { grid-template-columns: repeat(2, 1fr); }
 }
 
+@keyframes sc-entry-mobile {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
+}
+
 @media (max-width: 640px) {
   .storm-card {
     left: 50%;
@@ -889,6 +894,7 @@ body.dimmed #dim-layer {
     width: min(380px, calc(100% - 24px));
     max-height: 75vh;
     border-radius: 18px 18px 10px 10px;
+    animation-name: sc-entry-mobile;
   }
   .l1-primary .cell { padding: 12px; }
   .l1-primary .v    { font-size: 18px; }
