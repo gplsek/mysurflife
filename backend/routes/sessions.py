@@ -45,8 +45,12 @@ def _session_to_row(session: Dict) -> Dict:
         "perceived_quality": quality,
         "duration":          session.get("duration_min"),
         "waves":             session.get("waves_caught"),
+        # actual conditions (populated by background job after logging)
+        "swell":             session.get("actual_wvht_ft"),
+        "wind":              session.get("actual_wspd_mph"),
+        # perceived / subjective labels
         "size":              session.get("perceived_size"),
-        "wind":              session.get("perceived_wind"),
+        "wind_label":        session.get("perceived_wind"),
         "note":              session.get("perceived_note"),
         "board":             session.get("board_display"),
         "start_time":        session.get("start_time"),
@@ -115,8 +119,12 @@ async def list_sessions(
         return {"error": "Database not configured"}
 
     try:
+        client = get_supabase_admin_client() or supabase
+        if not client:
+            return {"sessions": [], "total": 0, "limit": limit, "offset": offset}
+
         query = (
-            supabase.table("sessions")
+            client.table("sessions")
             .select("*")
             .eq("user_id", user["user_id"])
             .order("session_date", desc=True)

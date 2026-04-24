@@ -138,9 +138,11 @@ export default function SessionJournal() {
               <div className="session-meta">
                 {s.duration && <><span className="mono-tiny">{s.duration}min</span><span className="sep">·</span></>}
                 {s.waves && <><span className="mono-tiny">{s.waves} waves</span><span className="sep">·</span></>}
-                {(s.swell || s.wind) && (
+                {(s.swell || s.size || s.wind_label) && (
                   <span className="mono-tiny">
-                    {s.swell && `${s.swell}ft`}{s.swell && s.wind && ' / '}{s.wind && `${s.wind}mph`}
+                    {s.swell ? `${s.swell}ft` : s.size}
+                    {(s.swell || s.size) && s.wind_label ? ' · ' : ''}
+                    {s.wind_label}
                   </span>
                 )}
               </div>
