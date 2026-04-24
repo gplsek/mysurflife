@@ -8,6 +8,7 @@ import { stormMarkerHtml }                                from '../components/ma
 import { useMapBundle }                                   from '../components/map/useMapBundle';
 import Chrome                                             from '../components/map/Chrome';
 import { StormCard }                                      from '../components/map/StormCard';
+import SpotDetailPanel                                    from '../panels/SpotDetailPanel';
 import '../styles/map-v2.css';
 import '../styles/storm-card.css';
 
@@ -79,7 +80,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
   const renderTimerRef   = useRef(null);
   const lastRenderKeyRef = useRef('');
 
-  const [preview,       setPreview]       = useState(null);
+  const [preview,       setPreview]       = useState(null);  // user spot quick preview
+  const [detailSpot,    setDetailSpot]    = useState(null);  // public spot side panel
   const [inViewCount,   setInViewCount]   = useState(0);
   const [stormPreview,  setStormPreview]  = useState(null);
   const [detailStorm,   setDetailStorm]   = useState(null);
@@ -116,19 +118,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     const marker = L.marker([spot.latitude, spot.longitude], { icon });
     marker.on('click', () => {
       setStormPreview(null);
-      // Support both bundle shape (spot.swell/period/wind/water) and legacy shape (spot.current_conditions)
-      const cc = spot.current_conditions || {};
-      setPreview({
-        id:     spot.id   || spot.slug,
-        name:   spot.name,
-        slug:   spot.slug,
-        region: spot.region || [spot.region, spot.subregion].filter(Boolean).join(' / '),
-        rating: score,
-        swell:  spot.swell  ?? cc.surf_height_ft  ?? cc.wave_height_ft,
-        period: spot.period ?? cc.dominant_period_sec,
-        wind:   spot.wind   ?? cc.wind_speed_mph,
-        water:  spot.water  ?? celsiusToF(cc.water_temp_c),
-      });
+      setPreview(null);
+      setDetailSpot(spot);
     });
     marker.addTo(map);
     markersRef.current.push(marker);
@@ -395,6 +386,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     const handler = (e) => {
       if (e.key === 'Escape') {
         setPreview(null);
+        setDetailSpot(null);
         setStormPreview(null);
         setDetailStorm(null);
       }
@@ -476,6 +468,12 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
         addSpotMode={addSpotMode}
         onAddSpotToggle={() => { setAddSpotMode(m => !m); setAddSpotForm(null); }}
       />
+      {detailSpot && (
+        <SpotDetailPanel
+          spot={detailSpot}
+          onClose={() => setDetailSpot(null)}
+        />
+      )}
       {detailStorm && (
         <StormCard
           storm={detailStorm}
