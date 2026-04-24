@@ -2649,20 +2649,15 @@ export default function MapOverlay({ showBuoys: showBuoysProp, showSurfSpots: sh
                       click: () => handleBuoyClick(buoy)
                     }}
               >
-                <Popup>
-                    <div style={{ textAlign: 'center' }}>
-                      <strong style={{ fontSize: '14px' }}>
-                        {buoy.name || `Buoy ${buoy.station}`}
-                      </strong>
-                      {hasError && (
-                        <>
-                          <br/>
-                          <span style={{ color: 'var(--fire)', fontSize: '12px' }}>
-                            {buoy.error}
-                          </span>
-                        </>
-                      )}
+                <Popup className="mv-popup">
+                  <div style={{ padding: '12px 14px', textAlign: 'center', minWidth: 140 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: hasError ? 6 : 0 }}>
+                      {buoy.name || `Buoy ${buoy.station}`}
                     </div>
+                    {hasError && (
+                      <div style={{ color: 'var(--fire)', fontSize: 12 }}>{buoy.error}</div>
+                    )}
+                  </div>
                 </Popup>
               </Marker>
           );
@@ -2682,45 +2677,49 @@ export default function MapOverlay({ showBuoys: showBuoysProp, showSurfSpots: sh
                   click: () => handleSpotClick(spot)
                 }}
               >
-                <Popup>
-                  <div style={{ textAlign: 'center', minWidth: '200px' }}>
-                    <strong style={{ fontSize: '16px' }}>
+                <Popup className="mv-popup">
+                  <div style={{ padding: '14px 16px', minWidth: 180, textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)', letterSpacing: '-0.01em' }}>
                       {spot.name}
-                    </strong>
+                    </div>
                     {conditions && (
                       <>
                         <div style={{
-                          fontSize: '28px',
-                          margin: '8px 0',
-                          color: score >= 7 ? 'var(--good)' : score >= 5 ? 'var(--fire)' : 'var(--muted)'
+                          fontSize: 26,
+                          fontWeight: 700,
+                          margin: '8px 0 2px',
+                          color: score >= 7 ? 'var(--good)' : score >= 5 ? 'var(--fire)' : 'var(--muted)',
+                          letterSpacing: '-0.02em',
                         }}>
-                          {score}/10
+                          {score}<span style={{ fontSize: 13, fontWeight: 400, color: 'var(--muted)' }}>/10</span>
                         </div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--fg)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)' }}>
                           {conditions.rating}
                         </div>
-                        <div style={{ fontSize: '12px', marginTop: '8px', color: 'var(--muted)' }}>
-                          {conditions.adjusted_height_ft}ft @ {conditions.period_sec}s
+                        <div style={{ fontSize: 12, marginTop: 8, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                          {conditions.adjusted_height_ft}ft · {conditions.period_sec}s
                         </div>
-                        <div style={{ fontSize: '11px', marginTop: '4px', color: 'var(--muted)' }}>
-                          {spot.spot_characteristics?.break_type} · {spot.spot_characteristics?.skill_level}
-                        </div>
+                        {(spot.spot_characteristics?.break_type || spot.spot_characteristics?.skill_level) && (
+                          <div style={{ fontSize: 10, marginTop: 3, color: 'var(--muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                            {[spot.spot_characteristics?.break_type, spot.spot_characteristics?.skill_level].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
                         <a
                           href={`/spots/${spot.slug}`}
                           style={{
                             display: 'inline-block',
-                            marginTop: '12px',
+                            marginTop: 12,
                             padding: '6px 14px',
-                            background: 'var(--accent-2)',
-                            color: 'var(--bg)',
+                            background: 'var(--accent)',
+                            color: 'oklch(0.14 0.02 230)',
                             textDecoration: 'none',
-                            borderRadius: 'var(--radius)',
-                            fontSize: '12px',
+                            borderRadius: 20,
+                            fontSize: 12,
                             fontWeight: 600,
-                            letterSpacing: '0.04em',
+                            letterSpacing: '0.02em',
                           }}
                         >
-                          View Details
+                          View spot
                         </a>
                       </>
                     )}
