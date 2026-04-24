@@ -10,17 +10,17 @@ import AISpotAnalysis from './AISpotAnalysis';
 import './SpotDetail.css';
 
 // ─── Map controller ───────────────────────────────────────────────
-const MapInteractionController = ({ isEditMode }) => {
+const MapInteractionController = ({ isRelocateMode }) => {
   const map = useMap();
   useEffect(() => {
-    if (isEditMode) {
+    if (isRelocateMode) {
       map.dragging.enable(); map.touchZoom.enable(); map.doubleClickZoom.enable();
       map.scrollWheelZoom.enable(); map.boxZoom.enable(); map.keyboard.enable();
     } else {
       map.dragging.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable();
       map.scrollWheelZoom.disable(); map.boxZoom.disable(); map.keyboard.disable();
     }
-  }, [isEditMode, map]);
+  }, [isRelocateMode, map]);
   return null;
 };
 
@@ -91,6 +91,7 @@ const SpotDetail = () => {
   const [selectedHour, setSelectedHour] = useState(0);
 
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isRelocateMode, setIsRelocateMode] = useState(false);
   const [editedSpot, setEditedSpot] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -98,8 +99,6 @@ const SpotDetail = () => {
   const [showSources, setShowSources] = useState(false);
   const [isFav, setIsFav] = useState(false);
   const [favLoading, setFavLoading] = useState(false);
-  const [rerunAI, setRerunAI] = useState(false);
-  const [rerunStatus, setRerunStatus] = useState(null); // null | 'running' | 'done' | 'error'
 
   useEffect(() => {
     const h = (e) => { if (menuOpen && !e.target.closest('.sd-menu-container')) setMenuOpen(false); };
@@ -163,25 +162,6 @@ const SpotDetail = () => {
     finally { setFavLoading(false); }
   };
 
-  const handleRerunAI = async () => {
-    if (rerunStatus === 'running') return;
-    setRerunStatus('running');
-    try {
-      const { getAuthHeaders } = await import('./supabaseClient');
-      const headers = await getAuthHeaders();
-      if (!headers['Authorization']) { setRerunStatus('error'); return; }
-      const res = await fetch(`/api/spots/${slug}/ai-analysis/generate?force=true`, {
-        method: 'POST',
-        headers,
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setRerunStatus('done');
-      setTimeout(() => setRerunStatus(null), 3000);
-    } catch {
-      setRerunStatus('error');
-      setTimeout(() => setRerunStatus(null), 3000);
-    }
-  };
 
   // Phase 2: buoys
   useEffect(() => {
@@ -413,7 +393,7 @@ const SpotDetail = () => {
     setIsEditMode(true);
   };
 
-  const exitEditMode = () => { setIsEditMode(false); setEditedSpot(null); setSaveError(null); };
+  const exitEditMode = () => { setIsEditMode(false); setIsRelocateMode(false); setEditedSpot(null); setSaveError(null); };
 
   const handleSave = async () => {
     if (!editedSpot.name || !editedSpot.region || !editedSpot.skill_level) { setSaveError('Name, Region, Skill Level are required'); return; }
@@ -497,7 +477,7 @@ const SpotDetail = () => {
               zoomControl={false} attributionControl={true}
               className="hero-map"
             >
-              <MapInteractionController isEditMode={isEditMode} />
+              <MapInteractionController isRelocateMode={isRelocateMode} />
               <TileLayer
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                 attribution="&copy; Esri"
@@ -505,11 +485,11 @@ const SpotDetail = () => {
               <Marker
                 position={[lat, lng]}
                 icon={spotIcon}
-                draggable={isEditMode}
-                eventHandlers={isEditMode ? {
+                draggable={isRelocateMode}
+                eventHandlers={isRelocateMode ? {
                   dragend: (e) => {
                     const { lat: la, lng: lo } = e.target.getLatLng();
-                    setEditedSpot({ ...editedSpot, latitude: parseFloat(la.toFixed(6)), longitude: parseFloat(lo.toFixed(6)) });
+                    setEditedSpot(s => ({ ...s, latitude: parseFloat(la.toFixed(6)), longitude: parseFloat(lo.toFixed(6)) }));
                   }
                 } : {}}
               />
@@ -517,8 +497,13 @@ const SpotDetail = () => {
           ) : (
             <div className="hero-map" style={{ background: 'var(--bg-2)' }} />
           )}
-          {isEditMode && editedSpot && (
-            <div className="sd-coord-display">{editedSpot.latitude.toFixed(6)}, {editedSpot.longitude.toFixed(6)}</div>
+          {isRelocateMode && editedSpot && (
+            <div className="sd-coord-display">
+              {editedSpot.latitude != null ? editedSpot.latitude.toFixed(6) : '—'}, {editedSpot.longitude != null ? editedSpot.longitude.toFixed(6) : '—'}
+            </div>
+          )}
+          {isRelocateMode && (
+            <div className="sd-relocate-hint">Drag the pin to reposition · tap Done when finished</div>
           )}
         </div>
 
@@ -551,33 +536,27 @@ const SpotDetail = () => {
             </button>
           )}
           {isAdmin && !isEditMode && (
-            <>
-              <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
-                <span className="sd-chip-label">Edit</span>
-              </button>
-              <button
-                className={`sd-chip${rerunStatus === 'running' ? ' sd-chip--muted' : ''}`}
-                disabled={rerunStatus === 'running'}
-                onClick={handleRerunAI}
-                title="Regenerate AI insight for this spot"
-              >
-                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
-                  style={rerunStatus === 'running' ? { animation: 'sd-spin 1s linear infinite' } : {}}>
-                  <path d="M1 7A6 6 0 0112.5 4M13 1v3h-3"/>
-                  <path d="M13 7A6 6 0 011.5 10M1 13v-3h3"/>
-                </svg>
-                <span className="sd-chip-label">{rerunStatus === 'running' ? 'Running…' : rerunStatus === 'done' ? 'Done ✓' : 'Re-run AI'}</span>
-              </button>
-            </>
+            <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+              <span className="sd-chip-label">Edit</span>
+            </button>
           )}
-          {isAdmin && isEditMode && (
+          {isAdmin && isEditMode && !isRelocateMode && (
             <>
               <button className="sd-chip sd-chip--accent" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving…' : 'Save'}
               </button>
+              <button className="sd-chip" onClick={() => setIsRelocateMode(true)} disabled={isSaving}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+                <span className="sd-chip-label">Move pin</span>
+              </button>
               <button className="sd-chip" onClick={exitEditMode} disabled={isSaving}>Cancel</button>
             </>
+          )}
+          {isAdmin && isEditMode && isRelocateMode && (
+            <button className="sd-chip sd-chip--accent" onClick={() => setIsRelocateMode(false)}>
+              Done
+            </button>
           )}
           {user && (
             <div className="sd-menu-container sd-chip--ml" style={{ position: 'relative', marginLeft: 'auto' }}>
@@ -694,7 +673,7 @@ const SpotDetail = () => {
               wind={enrichedWind}
               detectedCount={enrichedSwells.length}
             />
-            <AISpotAnalysis spotSlug={slug} spotName={spot.name} />
+            <AISpotAnalysis spotSlug={slug} spotName={spot.name} isAdmin={isAdmin} isEditMode={isEditMode} />
           </div>
 
           {/* Right: 7-day strip charts */}

@@ -257,6 +257,14 @@
   padding: 4px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--fg); z-index: 20;
 }
 
+.sd-relocate-hint {
+  position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
+  background: oklch(0.14 0.03 220 / 0.92); backdrop-filter: blur(10px);
+  border: 1px solid var(--accent); border-radius: 20px;
+  padding: 6px 16px; font-size: 12px; color: var(--accent);
+  white-space: nowrap; z-index: 25; pointer-events: none;
+}
+
 /* ─── Data sources section ─── */
 .sd-sources { margin-top: 18px; }
 .sd-sources-toggle {

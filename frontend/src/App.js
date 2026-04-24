@@ -289,8 +289,8 @@ function App() {
             {/* Old map — available until Phase 5 ships */}
             <Route path="/old-map" element={<RequireAuth><MapOverlay /></RequireAuth>} />
 
-            {/* Spot detail — public */}
-            <Route path="/spots/:slug" element={<SpotDetail />} />
+            {/* Spot detail — auth required */}
+            <Route path="/spots/:slug" element={<RequireAuth><SpotDetail /></RequireAuth>} />
 
             {/* Admin — protected */}
             <Route path="/admin/users"    element={<RequireAuth><ManageUsers /></RequireAuth>} />

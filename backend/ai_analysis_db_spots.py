@@ -74,13 +74,14 @@ async def get_spot_analysis(
 ) -> Optional[Dict[str, Any]]:
     """
     Retrieve AI analysis for a surf spot by slug.
+    Uses admin client to bypass RLS (analyses are public content, no PII).
     """
-    if not supabase:
+    client = get_supabase_admin_client()
+    if not client:
         return None
 
     try:
-        # Get spot ID from slug first
-        spot_result = supabase.table("spots") \
+        spot_result = client.table("spots") \
             .select("id") \
             .eq("slug", spot_slug) \
             .single() \
@@ -91,8 +92,7 @@ async def get_spot_analysis(
 
         spot_id = spot_result.data['id']
 
-        # Get analysis
-        result = supabase.table("ai_spot_analysis") \
+        result = client.table("ai_spot_analysis") \
             .select("*") \
             .eq("spot_id", spot_id) \
             .eq("persona_type", persona_type) \
