@@ -1,4 +1,4 @@
-/* AISpotAnalysis.css — V2 design tokens, matches SpotDetail sd-* patterns */
+/* AISpotAnalysis.css — aligned to SpotDetail sd-* design tokens */
 
 .sd-ai {
   margin-top: 20px;
@@ -6,7 +6,6 @@
   border-top: 1px solid var(--border);
 }
 
-/* ─── Header ─── */
 .sd-ai-head {
   display: flex;
   align-items: flex-start;
@@ -23,56 +22,26 @@
   flex-wrap: wrap;
 }
 
-/* ─── Model tabs ─── */
-.sd-ai-tabs {
-  display: flex;
-  gap: 3px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 3px;
-}
-
-.sd-ai-tab {
-  padding: 3px 10px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--fg-2);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 100ms, color 100ms;
-}
-
-.sd-ai-tab.active {
-  background: var(--bg-3);
-  color: var(--fg);
-}
-
-/* ─── Admin buttons ─── */
 .sd-ai-admin-btns {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
 }
 
-/* ─── Empty state ─── */
 .sd-ai-empty {
-  padding: 12px 0 4px;
+  padding: 8px 0 4px;
   font-size: 13px;
   color: var(--muted);
   font-style: italic;
 }
 
-/* ─── Body ─── */
 .sd-ai-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
+/* ─── Summary ─── */
 .sd-ai-summary {
   font-size: 13px;
   line-height: 1.6;
@@ -80,106 +49,98 @@
   margin: 0;
 }
 
-/* ─── Block (optimal / windows / shadows / bathy) ─── */
+/* ─── Blocks (sections within the analysis) ─── */
 .sd-ai-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .sd-ai-block-label {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
-/* ─── 3-col grid for optimal conditions ─── */
-.sd-ai-grid-3 {
+/* ─── 3-col facts grid (optimal conditions) ─── */
+.sd-ai-facts-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  gap: 10px;
 }
 
-.sd-ai-cell {
+/* ─── Swell window / shadow zone rows ─── */
+.sd-ai-rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  background: var(--bg-2);
 }
 
-/* ─── Swell windows / shadow zones ─── */
-.sd-ai-window {
-  padding: 8px 10px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--quality-color, var(--border));
-  border-radius: 6px;
+.sd-ai-row {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.sd-ai-window-head {
+.sd-ai-row:last-child {
+  border-bottom: none;
+}
+
+.sd-ai-row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.sd-ai-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sd-ai-row-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 2px;
 }
 
-.sd-ai-window-dir {
+.sd-ai-row-dir {
   font-size: 13px;
   font-weight: 600;
   color: var(--fg);
 }
 
-.sd-ai-quality {
+.sd-ai-row-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.sd-ai-row-quality {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-left: auto;
 }
 
-/* ─── Key-value pair ─── */
-.sd-ai-kv {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
+.sd-ai-row-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  margin: 0;
 }
 
-/* ─── Shared type tokens ─── */
-.sd-ai-k {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  display: block;
-  white-space: nowrap;
-}
-
-.sd-ai-v {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--fg);
-  letter-spacing: -0.01em;
-  display: block;
-}
-
-.sd-ai-u {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 400;
-}
-
+/* ─── Note text (bathy, season notes) ─── */
 .sd-ai-note {
   font-size: 12px;
   line-height: 1.5;
@@ -191,9 +152,10 @@
 .sd-ai-meta {
   font-family: var(--font-mono);
   font-size: 10px;
+  letter-spacing: 0.06em;
   color: var(--muted);
   margin: 0;
-  padding-top: 4px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 
@@ -206,11 +168,10 @@
 
 /* ─── Responsive ─── */
 @media (max-width: 640px) {
-  .sd-ai-grid-3 {
+  .sd-ai-facts-3 {
     grid-template-columns: 1fr 1fr;
   }
-  .sd-ai-grid-3 .sd-ai-cell:last-child {
+  .sd-ai-facts-3 > .sd-fact:last-child {
     grid-column: 1 / -1;
-    border-top: 1px solid var(--border);
   }
 }

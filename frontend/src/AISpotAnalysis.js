@@ -69,11 +69,11 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
         <span className="sd-card-title" style={{ fontSize: 14 }}>Sione's Analysis</span>
         <div className="sd-ai-head-actions">
           {hasAnalyses && Object.keys(analyses).length > 1 && (
-            <div className="sd-ai-tabs">
+            <div className="sd-tabs" style={{ padding: '3px' }}>
               {Object.entries(analyses).map(([key, a]) => (
                 <button
                   key={key}
-                  className={`sd-ai-tab${activeTab === key ? ' active' : ''}`}
+                  className={`sd-tab${activeTab === key ? ' on' : ''}`}
                   onClick={() => setActiveTab(key)}
                 >
                   {a.provider}
@@ -90,9 +90,7 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
                   onClick={() => runGenerate(activeTab, true)}
                   disabled={generating}
                 >
-                  {generating
-                    ? <LogoPulse size={12} compact continuous />
-                    : 'Regenerate'}
+                  {generating ? <LogoPulse size={12} compact continuous /> : 'Regenerate'}
                 </button>
               )}
               {!analyses.claude && (
@@ -128,8 +126,8 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
       ) : !hasAnalyses ? (
         <div className="sd-ai-empty">
           {isAdmin && isEditMode
-            ? <span>No analysis yet — use the buttons above to generate.</span>
-            : <span>Analysis not yet available for this spot.</span>}
+            ? 'No analysis yet — use the buttons above to generate.'
+            : 'Analysis not yet available for this spot.'}
         </div>
       ) : (
         <div className="sd-ai-body">
@@ -143,23 +141,23 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
           {d.optimal_swell && (
             <div className="sd-ai-block">
               <div className="sd-ai-block-label">Optimal Conditions</div>
-              <div className="sd-ai-grid-3">
-                <div className="sd-ai-cell">
-                  <span className="sd-ai-k">Direction</span>
-                  <span className="sd-ai-v">
+              <div className="sd-ai-facts-3">
+                <div className="sd-fact">
+                  <div className="sd-fact-k">Direction</div>
+                  <div className="sd-fact-v">
                     {d.optimal_swell.direction_name}
                     {d.optimal_swell.direction_deg != null && (
-                      <span className="sd-ai-u"> {d.optimal_swell.direction_deg}°</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}> {d.optimal_swell.direction_deg}°</span>
                     )}
-                  </span>
+                  </div>
                 </div>
-                <div className="sd-ai-cell">
-                  <span className="sd-ai-k">Period</span>
-                  <span className="sd-ai-v">{d.optimal_swell.period_range}</span>
+                <div className="sd-fact">
+                  <div className="sd-fact-k">Period</div>
+                  <div className="sd-fact-v">{d.optimal_swell.period_range}</div>
                 </div>
-                <div className="sd-ai-cell">
-                  <span className="sd-ai-k">Size</span>
-                  <span className="sd-ai-v">{d.optimal_swell.size_range}</span>
+                <div className="sd-fact">
+                  <div className="sd-fact-k">Size</div>
+                  <div className="sd-fact-v">{d.optimal_swell.size_range}</div>
                 </div>
               </div>
               {d.optimal_swell.season_notes && (
@@ -172,16 +170,25 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
           {d.primary_windows?.length > 0 && (
             <div className="sd-ai-block">
               <div className="sd-ai-block-label">Swell Windows</div>
-              {d.primary_windows.map((w, i) => (
-                <div key={i} className="sd-ai-window" style={{ '--quality-color': qualityColor(w.quality) }}>
-                  <div className="sd-ai-window-head">
-                    <span className="sd-ai-window-dir">{w.direction}</span>
-                    {w.degrees && <span className="sd-ai-u">{w.degrees}</span>}
-                    <span className="sd-ai-quality" style={{ color: qualityColor(w.quality) }}>{w.quality}</span>
+              <div className="sd-ai-rows">
+                {d.primary_windows.map((w, i) => (
+                  <div key={i} className="sd-ai-row">
+                    <div className="sd-ai-row-dot" style={{ background: qualityColor(w.quality) }} />
+                    <div className="sd-ai-row-body">
+                      <div className="sd-ai-row-head">
+                        <span className="sd-ai-row-dir">{w.direction}</span>
+                        {w.degrees && <span className="sd-ai-row-tag">{w.degrees}</span>}
+                        {w.quality && (
+                          <span className="sd-ai-row-quality" style={{ color: qualityColor(w.quality) }}>
+                            {w.quality}
+                          </span>
+                        )}
+                      </div>
+                      {w.notes && <p className="sd-ai-row-note">{w.notes}</p>}
+                    </div>
                   </div>
-                  {w.notes && <p className="sd-ai-note">{w.notes}</p>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
@@ -189,17 +196,22 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
           {d.shadow_zones?.length > 0 && (
             <div className="sd-ai-block">
               <div className="sd-ai-block-label">Shadow Zones</div>
-              {d.shadow_zones.map((z, i) => (
-                <div key={i} className="sd-ai-window">
-                  <div className="sd-ai-window-head">
-                    <span className="sd-ai-window-dir">{z.direction}</span>
-                    {z.degrees && <span className="sd-ai-u">{z.degrees}</span>}
-                    <span className="sd-ai-u">{z.blockage} blocked</span>
+              <div className="sd-ai-rows">
+                {d.shadow_zones.map((z, i) => (
+                  <div key={i} className="sd-ai-row">
+                    <div className="sd-ai-row-dot" style={{ background: 'var(--muted)', opacity: 0.5 }} />
+                    <div className="sd-ai-row-body">
+                      <div className="sd-ai-row-head">
+                        <span className="sd-ai-row-dir">{z.direction}</span>
+                        {z.degrees   && <span className="sd-ai-row-tag">{z.degrees}</span>}
+                        {z.blockage  && <span className="sd-ai-row-tag">{z.blockage} blocked</span>}
+                      </div>
+                      {z.blocker && <p className="sd-ai-row-note">{z.blocker}</p>}
+                      {z.notes   && <p className="sd-ai-row-note">{z.notes}</p>}
+                    </div>
                   </div>
-                  {z.blocker && <p className="sd-ai-note">{z.blocker}</p>}
-                  {z.notes   && <p className="sd-ai-note">{z.notes}</p>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
@@ -208,24 +220,26 @@ const AISpotAnalysis = ({ spotSlug, spotName, isAdmin = false, isEditMode = fals
             <div className="sd-ai-block">
               <div className="sd-ai-block-label">Bathymetry</div>
               {d.bathymetry.notes && <p className="sd-ai-note">{d.bathymetry.notes}</p>}
-              {d.bathymetry.depth_characteristics && (
-                <div className="sd-ai-kv">
-                  <span className="sd-ai-k">Depth</span>
-                  <span className="sd-ai-v">{d.bathymetry.depth_characteristics}</span>
-                </div>
-              )}
-              {d.bathymetry.refraction_effects && (
-                <div className="sd-ai-kv">
-                  <span className="sd-ai-k">Refraction</span>
-                  <span className="sd-ai-v">{d.bathymetry.refraction_effects}</span>
-                </div>
-              )}
+              <div className="sd-ai-facts-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                {d.bathymetry.depth_characteristics && (
+                  <div className="sd-fact">
+                    <div className="sd-fact-k">Depth</div>
+                    <div className="sd-fact-v" style={{ fontSize: 12, fontWeight: 500 }}>{d.bathymetry.depth_characteristics}</div>
+                  </div>
+                )}
+                {d.bathymetry.refraction_effects && (
+                  <div className="sd-fact">
+                    <div className="sd-fact-k">Refraction</div>
+                    <div className="sd-fact-v" style={{ fontSize: 12, fontWeight: 500 }}>{d.bathymetry.refraction_effects}</div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Metadata */}
+          {/* Metadata footer */}
           <p className="sd-ai-meta">
-            {current.provider} {current.model_display} · {new Date(current.created_at).toLocaleDateString()}
+            {current.provider} · {current.model_display} · {new Date(current.created_at).toLocaleDateString()}
           </p>
         </div>
       )}
