@@ -569,7 +569,7 @@ function StreamingMessage({ toolEvents, text }) {
         )}
         {text
           ? <div className="cop-msg-content cop-streaming">{renderBold(text)}<span className="cop-cursor"/></div>
-          : toolEvents.length === 0 && <div className="cop-typing"><span/><span/><span/></div>
+          : <div className="cop-typing"><span/><span/><span/></div>
         }
       </div>
     </div>
