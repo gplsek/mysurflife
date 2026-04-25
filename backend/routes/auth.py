@@ -88,7 +88,10 @@ async def update_own_profile(
     for field in ("display_name", "skill_level", "home_spot_id", "home_spot_name", "stance", "years_surfing"):
         if field in profile_data:
             val = profile_data[field]
-            payload[field] = val.strip() if isinstance(val, str) else val
+            # Empty strings → NULL so check constraints on enum columns are never violated
+            if isinstance(val, str):
+                val = val.strip() or None
+            payload[field] = val
 
     # Fields that require a schema migration — dropped gracefully if the column doesn't exist yet
     _migration_fields = {"stance", "years_surfing"}
