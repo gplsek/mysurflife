@@ -200,14 +200,16 @@ async def invite_user(
     make_admin = invite_data.get("is_admin", False)
 
     try:
-        new_user = admin_client.auth.admin.create_user({"email": email, "email_confirm": True})
+        # invite_user_by_email sends the Supabase invite email and creates the account
+        new_user = admin_client.auth.admin.invite_user_by_email(email)
         user_id = new_user.user.id
-        admin_client.table("user_roles").insert({
+        # Upsert so re-inviting an existing email doesn't 409
+        admin_client.table("user_roles").upsert({
             "user_id": user_id,
             "email": email,
             "is_admin": make_admin,
-        }).execute()
-        print(f"✅ User '{email}' invited by {user.get('email', 'unknown')} (admin={make_admin})")
+        }, on_conflict="user_id").execute()
+        print(f"✅ Invite sent to '{email}' by {user.get('email', 'unknown')} (admin={make_admin})")
         return {"success": True, "user": {"id": user_id, "email": email, "is_admin": make_admin}}
     except Exception as e:
         print(f"❌ Error inviting user: {e}")
