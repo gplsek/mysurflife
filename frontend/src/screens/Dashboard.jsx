@@ -1,44 +1,282 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { EmptyFavorites } from '../states/index.jsx';
+import { getAuthHeaders } from '../supabaseClient';
 import LogoPulse from '../design/LogoPulse';
+import './Dashboard.css';
 
-function Toggle({ on, onChange }) {
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function greetingWord() {
+  const h = new Date().getHours();
+  if (h < 5)  return 'Good night';
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function formatDate() {
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+  });
+}
+
+function firstName(profile, user) {
+  const dn = profile?.display_name;
+  if (dn && dn.trim()) return dn.trim().split(' ')[0];
+  const em = user?.email || '';
+  return em.split('@')[0] || 'Surfer';
+}
+
+function slugToLabel(slug) {
+  return slug
+    .replace(/^(usr_\d+|[0-9]+)$/, 'Spot')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function ratingTier(r) {
+  if (r >= 5) return 'firing';
+  if (r >= 4) return 'solid';
+  if (r >= 3) return 'good';
+  if (r >= 2) return 'fair';
+  return 'flat';
+}
+
+function tierLabel(t) {
+  return { firing: 'Firing', solid: 'Solid', good: 'Good', fair: 'Fair', flat: 'Flat' }[t] || '—';
+}
+
+function fmtDuration(min) {
+  if (!min) return '—';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+function fmtSessionDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function coordToRegion(lat, lon) {
+  if (!lat || !lon) return '';
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+}
+
+function buildStreakCells(sessions) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = 30;
+  const sessSet = new Set(
+    sessions.map(s => {
+      const d = new Date((s.date || '') + 'T12:00:00');
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })
+  );
+  const cells = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    cells.push({ t: d.getTime(), on: sessSet.has(d.getTime()), today: i === 0 });
+  }
+  return cells;
+}
+
+function computeYearStats(sessions) {
+  const year = new Date().getFullYear();
+  const ySessions = sessions.filter(s => {
+    const y = s.date ? parseInt(s.date.slice(0, 4), 10) : 0;
+    return y === year;
+  });
+  const count = ySessions.length;
+  const totalMin = ySessions.reduce((a, s) => a + (s.duration || 0), 0);
+  const totalWaves = ySessions.reduce((a, s) => a + (s.waves || 0), 0);
+  const longest = ySessions.reduce((a, s) => Math.max(a, s.duration || 0), 0);
+  const spotCounts = {};
+  ySessions.forEach(s => {
+    if (s.spot) spotCounts[s.spot] = (spotCounts[s.spot] || 0) + 1;
+  });
+  const topSpot = Object.entries(spotCounts).sort((a, b) => b[1] - a[1])[0];
+  return { count, totalMin, totalWaves, longest, topSpot: topSpot || null };
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
+const IconPlus = () => (
+  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+    <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+const IconArrow = () => (
+  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <path d="M3 11L11 3M5 3h6v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+);
+const IconBell = () => (
+  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <path d="M3.5 10.5l7 0M7 2v.5M4 4.5C4 3.1 5.3 2 7 2s3 1.1 3 2.5c0 3 1.5 4.5 1.5 6h-9c0-1.5 1.5-3 1.5-6zM6 11.5a1 1 0 0 0 2 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+  </svg>
+);
+const IconPhone = () => (
+  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+    <rect x="3" y="1.5" width="6" height="9" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+    <circle cx="6" cy="8.5" r="0.6" fill="currentColor"/>
+  </svg>
+);
+const IconEmail = () => (
+  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+    <rect x="1.5" y="3" width="9" height="6" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M2 4l4 3 4-3" stroke="currentColor" strokeWidth="1.2"/>
+  </svg>
+);
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function AlertSwitch({ on, onToggle }) {
   return (
-    <button className={`toggle ${on ? 'on' : ''}`} onClick={onChange} aria-pressed={on}>
-      <span className="toggle-knob" />
-    </button>
+    <button
+      className={`alert-switch${on ? ' on' : ''}`}
+      onClick={e => { e.stopPropagation(); onToggle(); }}
+      aria-pressed={on}
+      aria-label="Toggle alert"
+    />
   );
 }
+
+function StreakStrip({ sessions }) {
+  const cells = buildStreakCells(sessions);
+  return (
+    <div className="streak-strip" aria-label="30-day surf streak">
+      {cells.map((c, i) => (
+        <span
+          key={i}
+          className={`streak-cell${c.on ? ' on' : ''}${c.today ? ' today' : ''}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function OutlookStubCard({ slug, navigate }) {
+  const name = slugToLabel(slug);
+  return (
+    <article
+      className="outlook-card fair"
+      onClick={() => navigate(`/spots/${slug}`)}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="oc-name">{name}</div>
+      <div className="oc-region">Favorite spot</div>
+      <div className="oc-rating-row">
+        <span className="oc-dots">
+          {[0,1,2,3,4].map(i => <span key={i} className="oc-dot" />)}
+        </span>
+        <span className="oc-score"><span className="oc-max">—</span></span>
+      </div>
+      <div className="oc-stub">Open map for live conditions</div>
+    </article>
+  );
+}
+
+function SpotRow({ name, region, tier, isPrivate, lat, lon, onOpen, onAlert, onRemove }) {
+  const abbrev = name.substring(0, 2).toUpperCase();
+  return (
+    <div className="spot-row" onClick={onOpen}>
+      <span className={`pin-tile${tier ? ` ${tier}` : ''}${isPrivate ? ' private' : ''}`}>
+        {abbrev}
+      </span>
+      <div className="spot-info">
+        <div className="spot-row-name">
+          {name}
+          {isPrivate && <span className="priv-lock">Private</span>}
+        </div>
+        <div className="spot-row-region">
+          {region}
+          {lat && lon && <span className="latlon">{lat.toFixed(3)}, {lon.toFixed(3)}</span>}
+        </div>
+      </div>
+      {tier && <span className={`now-pill ${tier}`}>{tierLabel(tier)}</span>}
+      <div className="row-actions" onClick={e => e.stopPropagation()}>
+        {onOpen && (
+          <button title="Open" onClick={onOpen}><IconArrow /></button>
+        )}
+        {onAlert && (
+          <button title="Set alert" onClick={onAlert}><IconBell /></button>
+        )}
+        {onRemove && (
+          <button title="Remove" onClick={onRemove}>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function Dashboard({ onOpenMap }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [favs, setFavs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ sessions: 0, hours: 0, avgRating: null });
-  const [stormOpen, setStormOpen] = useState(false);
 
-  const now = new Date();
-  const hour = now.getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState({});
+  const [favorites, setFavorites] = useState([]);
+  const [userSpots, setUserSpots] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const alertsRef = useRef([]);
 
   useEffect(() => {
-    const fetchDashboard = async () => {
+    if (!user) { setLoading(false); return; }
+
+    async function load() {
       try {
-        // TODO: wire to real /api/dashboard/{user_id} endpoint
-        // For now use buoy status as proxy for "data is live"
-        await fetch('/api/buoy-status/all').then(r => r.json());
+        const headers = await getAuthHeaders();
+        const [profRes, favRes, spotsRes, sessRes, alertsRes] = await Promise.allSettled([
+          fetch('/api/user/profile', { headers }).then(r => r.json()),
+          fetch('/api/user/favorites', { headers }).then(r => r.json()),
+          fetch('/api/user/spots', { headers }).then(r => r.json()),
+          fetch('/api/sessions?limit=20', { headers }).then(r => r.json()),
+          fetch('/api/alerts', { headers }).then(r => r.json()),
+        ]);
+
+        if (profRes.status === 'fulfilled') setProfile(profRes.value?.profile || {});
+        if (favRes.status === 'fulfilled') setFavorites(favRes.value?.favorites || []);
+        if (spotsRes.status === 'fulfilled') setUserSpots(spotsRes.value?.spots || []);
+        if (sessRes.status === 'fulfilled') setSessions(sessRes.value?.sessions || []);
+        if (alertsRes.status === 'fulfilled') {
+          const a = alertsRes.value?.alerts || [];
+          setAlerts(a);
+          alertsRef.current = a;
+        }
       } catch (_) {
         // silently degrade
       } finally {
         setLoading(false);
       }
-    };
-    fetchDashboard();
-  }, []);
+    }
+    load();
+  }, [user]);
+
+  async function toggleAlert(id, currentActive) {
+    try {
+      const headers = await getAuthHeaders();
+      await fetch(`/api/alerts/${id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !currentActive }),
+      });
+      setAlerts(prev => prev.map(a => a.id === id ? { ...a, active: !a.active } : a));
+    } catch (_) {}
+  }
 
   if (loading) {
     return (
@@ -48,90 +286,376 @@ export default function Dashboard({ onOpenMap }) {
     );
   }
 
+  const name = firstName(profile, user);
+  const dateStr = formatDate();
+  const greeting = greetingWord();
+  const yis = computeYearStats(sessions);
+  const firingAlerts = alerts.filter(a => a.active && a.lastTriggered).length;
+  const recentSessions = sessions.slice(0, 5);
+
   return (
     <div className="screen dashboard">
-      <div className="screen-head">
-        <div>
-          <div className="eyebrow">{greeting} · {dateStr}</div>
-          <h1 className="screen-title">
-            Check the map for today's{' '}
-            <span className="text-fire">conditions.</span>
+      <div className="dash-page">
+
+        {/* 1. Greeting */}
+        <header className="dash-greeting">
+          <h1>
+            {greeting}, {name}.{' '}
+            <span className="g-serif">
+              {firingAlerts > 0 ? 'Something\'s firing.' : 'Check the conditions.'}
+            </span>
           </h1>
-          <div className="screen-sub">
-            {user
-              ? `Signed in as ${user.email} · real-time buoy data from 18 California stations`
-              : 'Real-time buoy data from 18 California stations'}
+          <div className="g-meta">
+            <span>{dateStr}</span>
+            {firingAlerts > 0 && (
+              <span className="meta-badge fire">
+                <span className="mb-dot" />
+                {firingAlerts} alert{firingAlerts !== 1 ? 's' : ''} firing
+              </span>
+            )}
+            {favorites.length > 0 && (
+              <span className="meta-badge aqua">
+                <span className="mb-dot" />
+                {favorites.length} favorite spot{favorites.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-        </div>
-        {stats.sessions > 0 && (
-          <div className="screen-meta">
-            <div className="meta-stat">
-              <span className="num">{stats.sessions}</span>
-              <span className="lbl">sessions YTD</span>
+        </header>
+
+        {/* 2. Today's Outlook (stubbed — no live forecast per spot) */}
+        {favorites.length > 0 && (
+          <section className="db-section">
+            <div className="db-section-head">
+              <h2>
+                Today's outlook{' '}
+                <span className="s-count">{favorites.length} favorites</span>
+              </h2>
+              <div className="s-actions">
+                <button className="db-btn ghost" onClick={onOpenMap}>Open map →</button>
+              </div>
             </div>
-            {stats.avgRating && (
-              <div className="meta-stat">
-                <span className="num">{stats.avgRating.toFixed(1)}</span>
-                <span className="lbl">avg rating</span>
+            <div className="outlook">
+              <div className="outlook-grid">
+                {favorites.map(slug => (
+                  <OutlookStubCard key={slug} slug={slug} navigate={navigate} />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 3. Spots: favorites + private side by side */}
+        <section className="db-section">
+          <div className="db-section-head">
+            <h2>
+              Spots{' '}
+              <span className="s-count">
+                {favorites.length + userSpots.length} total
+                {favorites.length > 0 ? ` · ${favorites.length} favorites` : ''}
+                {userSpots.length > 0 ? ` · ${userSpots.length} private` : ''}
+              </span>
+            </h2>
+            <div className="s-actions">
+              <button className="db-btn" onClick={() => navigate('/map')}>
+                <IconPlus /> Add favorite
+              </button>
+              <button className="db-btn primary" onClick={() => navigate('/map')}>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path d="M6 .5L7.5 4 11 4.5 8.4 7l.6 3.5L6 9 3 10.5 3.6 7 1 4.5 4.5 4z" fill="currentColor"/>
+                </svg>
+                Drop a pin
+              </button>
+            </div>
+          </div>
+
+          <div className="db-split">
+            {/* Favorites column */}
+            <div>
+              <div className="split-head">
+                <span>Favorites</span>
+                <span className="s-ct">{favorites.length}</span>
+              </div>
+              {favorites.length === 0 ? (
+                <div className="spots-empty-inline">
+                  No favorites yet.{' '}
+                  <a href="#" onClick={e => { e.preventDefault(); navigate('/map'); }}>
+                    Find spots on the map →
+                  </a>
+                </div>
+              ) : (
+                favorites.map(slug => (
+                  <SpotRow
+                    key={slug}
+                    name={slugToLabel(slug)}
+                    region=""
+                    tier={null}
+                    isPrivate={false}
+                    onOpen={() => navigate(`/spots/${slug}`)}
+                    onAlert={() => navigate('/alerts')}
+                    onRemove={null}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Private spots column */}
+            <div>
+              <div className="split-head">
+                <span>Your private spots</span>
+                <span className="s-ct">{userSpots.length} · only you</span>
+              </div>
+              {userSpots.length === 0 ? (
+                <div className="spots-empty-inline">
+                  Found a new spot on a trip?{' '}
+                  <a href="#" onClick={e => { e.preventDefault(); navigate('/map'); }}>
+                    Drop a pin →
+                  </a>
+                </div>
+              ) : (
+                userSpots.map(spot => (
+                  <SpotRow
+                    key={spot.id}
+                    name={spot.name}
+                    region={spot.break_type ? `${spot.break_type} break` : ''}
+                    lat={spot.latitude}
+                    lon={spot.longitude}
+                    tier={null}
+                    isPrivate={true}
+                    onOpen={() => navigate(`/spots/${spot.slug}`)}
+                    onAlert={null}
+                    onRemove={null}
+                  />
+                ))
+              )}
+              {userSpots.length > 0 && (
+                <div className="spots-empty-inline">
+                  Found a new spot on a trip?{' '}
+                  <a href="#" onClick={e => { e.preventDefault(); navigate('/map'); }}>
+                    Drop a pin →
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* 4. Alerts */}
+        <section className="db-section">
+          <div className="db-section-head">
+            <h2>
+              Alerts{' '}
+              <span className="s-count">
+                {alerts.length} total
+                {firingAlerts > 0 ? ` · ${firingAlerts} firing` : ''}
+              </span>
+            </h2>
+            <div className="s-actions">
+              <button className="db-btn primary" onClick={() => navigate('/alerts')}>
+                <IconPlus /> New alert
+              </button>
+            </div>
+          </div>
+
+          {alerts.length === 0 ? (
+            <div className="alerts-empty">
+              No alerts yet.{' '}
+              <button className="db-btn ghost" onClick={() => navigate('/alerts')}>
+                Create your first alert →
+              </button>
+            </div>
+          ) : (
+            alerts.map(alert => {
+              const active = alert.active;
+              const triggered = alert.lastTriggered;
+              const state = !active ? 'snoozed' : triggered ? 'firing' : 'armed';
+              return (
+                <div className="alert-list-row" key={alert.id}>
+                  <span className={`state-chip ${state}`}>
+                    <span className="sc-dot" />
+                    {state.charAt(0).toUpperCase() + state.slice(1)}
+                  </span>
+                  <span className={`pin-tile alert-pin ${state === 'firing' ? 'firing' : state === 'armed' ? 'solid' : 'flat'}`}>
+                    {(alert.spot || '??').substring(0, 2).toUpperCase()}
+                  </span>
+                  <div className="alert-spot-cell">
+                    {alert.spot}
+                    {alert.spot_id && <span className="asc-reg">{alert.spot_id}</span>}
+                  </div>
+                  <div className="alert-rule">
+                    <span className="ar-v">{alert.condition}</span>
+                  </div>
+                  <div className="ch-icons">
+                    <span className="ch-icon" title="Push"><IconPhone /></span>
+                    <span className="ch-icon" title="Email"><IconEmail /></span>
+                  </div>
+                  <div className="alert-next">
+                    {triggered ? (
+                      <>Last fire<br /><span className="an-v">{new Date(triggered).toLocaleDateString()}</span></>
+                    ) : (
+                      <>Watching</>
+                    )}
+                  </div>
+                  <AlertSwitch on={active} onToggle={() => toggleAlert(alert.id, active)} />
+                </div>
+              );
+            })
+          )}
+        </section>
+
+        {/* 5. Year in Surf */}
+        <section className="db-section">
+          <div className="db-section-head">
+            <h2>{new Date().getFullYear()} · Year in surf</h2>
+            <div className="s-actions">
+              {profile.skill_level && (
+                <span className="meta-badge aqua" style={{ textTransform: 'capitalize' }}>
+                  {profile.skill_level}
+                </span>
+              )}
+              <button className="db-btn ghost" onClick={() => navigate('/journal')}>
+                View full year →
+              </button>
+            </div>
+          </div>
+
+          <div className="yis-grid">
+            <div className="yis-cell">
+              <div className="yis-label">Sessions</div>
+              <div className="yis-value">{yis.count || '—'}</div>
+              <div className="yis-sub">this year</div>
+            </div>
+            <div className="yis-cell">
+              <div className="yis-label">Waves</div>
+              <div className="yis-value">{yis.totalWaves || '—'}</div>
+              <div className="yis-sub">
+                {yis.count > 0 ? `est · ${(yis.totalWaves / yis.count).toFixed(1)} / sesh` : '—'}
+              </div>
+            </div>
+            <div className="yis-cell">
+              <div className="yis-label">Water time</div>
+              <div className="yis-value">
+                {yis.totalMin > 0 ? (
+                  <>
+                    {Math.floor(yis.totalMin / 60)}
+                    <span className="yis-unit">h {yis.totalMin % 60}m</span>
+                  </>
+                ) : '—'}
+              </div>
+              <div className="yis-sub">
+                {yis.count > 0 && yis.totalMin > 0
+                  ? `avg ${Math.round(yis.totalMin / yis.count)} min`
+                  : '—'}
+              </div>
+            </div>
+            <div className="yis-cell">
+              <div className="yis-label">Longest</div>
+              <div className="yis-value">
+                {yis.longest > 0 ? (
+                  <>{yis.longest}<span className="yis-unit">m</span></>
+                ) : '—'}
+              </div>
+              <div className="yis-sub">
+                {yis.longest > 0 ? `${fmtDuration(yis.longest)} session` : '—'}
+              </div>
+            </div>
+          </div>
+
+          <div className="yis-foot">
+            <div>
+              <div className="yis-label">30-day streak</div>
+              <StreakStrip sessions={sessions} />
+            </div>
+            <div>
+              <div className="yis-label">Top spot this year</div>
+              {yis.topSpot ? (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>
+                    {yis.topSpot[0]}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--muted)' }}>
+                    {yis.topSpot[1]} session{yis.topSpot[1] !== 1 ? 's' : ''}
+                    {yis.count > 0 ? ` · ${Math.round((yis.topSpot[1] / yis.count) * 100)}% of the year` : ''}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>Log your first session →</div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* 6 + 7: Quiver + Recent sessions side by side */}
+        <div className="dash-row-2col">
+
+          {/* Quiver (stubbed — no API yet) */}
+          <section className="db-section">
+            <div className="db-section-head">
+              <h2>Quiver <span className="s-count">coming soon</span></h2>
+              <div className="s-actions">
+                <button className="db-btn" disabled style={{ opacity: 0.45 }}>
+                  <IconPlus /> Add board
+                </button>
+              </div>
+            </div>
+            <div className="quiver-empty">
+              Board tracking coming soon.
+            </div>
+          </section>
+
+          {/* Recent Sessions */}
+          <section className="db-section">
+            <div className="db-section-head">
+              <h2>Recent sessions</h2>
+              <div className="s-actions">
+                <button className="db-btn primary" onClick={() => navigate('/journal')}>
+                  <IconPlus /> Log session
+                </button>
+              </div>
+            </div>
+
+            {recentSessions.length === 0 ? (
+              <div className="sessions-empty">
+                No sessions logged yet.{' '}
+                <button className="db-btn ghost" onClick={() => navigate('/journal')}>
+                  Log your first →
+                </button>
+              </div>
+            ) : (
+              recentSessions.map(s => {
+                const tier = ratingTier(s.rating || s.perceived_quality || 0);
+                const metaParts = [];
+                if (s.swell) metaParts.push(`${s.swell}ft`);
+                if (s.wind) metaParts.push(`${s.wind}mph wind`);
+                return (
+                  <div className="session-log-row" key={s.id} onClick={() => navigate('/journal')}>
+                    <span className="sess-date">{fmtSessionDate(s.date)}</span>
+                    <span className={`tier-dot ${tier}`} />
+                    <div className="sess-info">
+                      <div className="sess-spot">{s.spot || 'Unknown spot'}</div>
+                      <div className="sess-meta">
+                        {metaParts.length > 0 ? metaParts.join(' · ') : (s.note || s.size || '—')}
+                      </div>
+                    </div>
+                    <div className="sess-stats">
+                      {fmtDuration(s.duration)}
+                      <br />
+                      <span className="ss-sub">{s.waves ? `${s.waves} waves` : '—'}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {recentSessions.length > 0 && (
+              <div style={{ padding: '11px 20px', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                <button className="db-btn ghost" onClick={() => navigate('/journal')}>
+                  View all sessions →
+                </button>
               </div>
             )}
-            <div className="meta-stat">
-              <span className="num">{stats.hours}<span style={{ fontSize: 14, color: 'var(--muted)' }}>h</span></span>
-              <span className="lbl">in the water</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Favorites grid — empty state until wired */}
-      <div className="favs-grid">
-        <div style={{ gridColumn: '1 / -1' }}>
-          <EmptyFavorites onAdd={() => navigate('/map')} />
-        </div>
-      </div>
-
-      {/* Quick access row */}
-      <div className="dash-row">
-        <div className="dash-card wide">
-          <div className="card-head">
-            <div className="eyebrow">Live Buoys</div>
-            <button
-              className="btn-ghost"
-              onClick={() => navigate('/map')}
-              style={{ fontSize: 12 }}
-            >
-              Open map →
-            </button>
-          </div>
-          <div style={{ color: 'var(--fg-2)', fontSize: 13, lineHeight: 1.6 }}>
-            18 NDBC stations along the California coast — Del Mar, Mission Bay,
-            Point Loma, Santa Monica, Point Dume, Santa Maria, Monterey, Bodega Bay, and more.
-            Observations update every 30–60 minutes.
-          </div>
+          </section>
         </div>
 
-        <div className="dash-card">
-          <div className="card-head">
-            <div className="eyebrow">Quick links</div>
-          </div>
-          <div className="window-list">
-            <div className="window" style={{ cursor: 'pointer' }} onClick={() => navigate('/map')}>
-              <span className="mono-tiny">MAP</span>
-              <span>Live buoy map</span>
-              <span className="dot rating-4" />
-            </div>
-            <div className="window" style={{ cursor: 'pointer' }} onClick={() => navigate('/journal')}>
-              <span className="mono-tiny">LOG</span>
-              <span>Session journal</span>
-              <span className="dot rating-3" />
-            </div>
-            <div className="window" style={{ cursor: 'pointer' }} onClick={() => navigate('/alerts')}>
-              <span className="mono-tiny">ALERTS</span>
-              <span>Notifications</span>
-              <span className="dot rating-3" />
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

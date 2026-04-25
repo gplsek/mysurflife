@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../AuthContext';
+import { useTheme } from '../../design/ThemeProvider';
 import { getAuthHeaders } from '../../supabaseClient';
 import LogoPulse from '../../design/LogoPulse';
 import './ProfileDrawer.css';
@@ -48,6 +49,7 @@ function Seg({ options, value, onChange }) {
 
 export default function ProfileDrawer({ open, onClose }) {
   const { user, isAdmin, signOut } = useAuth();
+  const { preference: themePref, setTheme } = useTheme();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState(null);
@@ -437,7 +439,7 @@ export default function ProfileDrawer({ open, onClose }) {
             <div className="pd-pref-row">
               <div className="pd-pref-stack">
                 <div className="pd-pref-label">Theme</div>
-                <div className="pd-pref-sub">Auto follows system</div>
+                <div className="pd-pref-sub">Auto follows system preference</div>
               </div>
               <Seg
                 options={[
@@ -446,8 +448,8 @@ export default function ProfileDrawer({ open, onClose }) {
                   { value: 'dawn', label: 'Dawn' },
                   { value: 'daylight', label: 'Light' },
                 ]}
-                value={prefs.theme || 'ocean'}
-                onChange={v => savePrefs({ theme: v })}
+                value={themePref}
+                onChange={setTheme}
               />
             </div>
 
