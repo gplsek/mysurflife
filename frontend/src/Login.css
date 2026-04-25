@@ -144,6 +144,18 @@
   cursor: not-allowed;
 }
 
+.btn-link {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  text-align: center;
+}
+.btn-link:hover { text-decoration: underline; }
+
 .login-footer {
   margin-top: 2rem;
   text-align: center;

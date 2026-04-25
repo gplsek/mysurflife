@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { supabase } from './supabaseClient';
 import './Login.css';
 
 const Login = () => {
@@ -8,10 +9,12 @@ const Login = () => {
   const location = useLocation();
   const { signIn } = useAuth();
 
+  const [mode, setMode] = useState('login'); // 'login' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   const from = location.state?.from?.pathname || '/';
 
@@ -39,6 +42,70 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  const handleForgot = async (e) => {
+    e.preventDefault();
+    if (!email) { setError('Enter your email address'); return; }
+    setError('');
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) throw error;
+      setResetSent(true);
+    } catch (err) {
+      setError(err.message || 'Failed to send reset email');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (mode === 'forgot') {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <div className="login-header">
+            <h1>mysurflife</h1>
+            <p>Reset your password</p>
+          </div>
+
+          {resetSent ? (
+            <div className="login-form">
+              <div className="alert alert-success">
+                Check your email — a reset link is on its way.
+              </div>
+              <button className="btn-primary" onClick={() => { setMode('login'); setResetSent(false); }}>
+                Back to sign in
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgot} className="login-form">
+              {error && <div className="alert alert-error">{error}</div>}
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? 'Sending…' : 'Send reset link'}
+              </button>
+              <button type="button" className="btn-link" onClick={() => { setMode('login'); setError(''); }}>
+                ← Back to sign in
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">
@@ -80,6 +147,14 @@ const Login = () => {
 
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign In'}
+          </button>
+
+          <button
+            type="button"
+            className="btn-link"
+            onClick={() => { setMode('forgot'); setError(''); }}
+          >
+            Forgot password?
           </button>
         </form>
 

@@ -213,6 +213,30 @@ const ManageUsers = () => {
     }
   };
 
+  const handleResendInvite = async (userId, userEmail) => {
+    if (!window.confirm(`Resend invite email to ${userEmail}?`)) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/users/${userId}/resend-invite`, { method: 'POST', headers });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Failed'); }
+      alert(`Invite resent to ${userEmail}`);
+    } catch (err) {
+      alert('Failed to resend invite: ' + err.message);
+    }
+  };
+
+  const handleResetPassword = async (userId, userEmail) => {
+    if (!window.confirm(`Send password reset email to ${userEmail}?`)) return;
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST', headers });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Failed'); }
+      alert(`Password reset email sent to ${userEmail}`);
+    } catch (err) {
+      alert('Failed to send reset: ' + err.message);
+    }
+  };
+
   const handleSaveProfile = async (userId, profileData) => {
     const headers = { ...(await getAuthHeaders()), 'Content-Type': 'application/json' };
     const response = await fetch(`/api/admin/users/${userId}/profile`, {
@@ -358,6 +382,24 @@ const ManageUsers = () => {
                         >
                           {user.is_admin ? '⬇️' : '⬆️'}
                         </button>
+                        {!user.last_sign_in_at ? (
+                          <button
+                            onClick={() => handleResendInvite(user.id, user.email)}
+                            className="action-button"
+                            title="Resend invite email"
+                          >
+                            📨
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleResetPassword(user.id, user.email)}
+                            className="action-button"
+                            disabled={user.id === currentUser?.user_id}
+                            title="Send password reset email"
+                          >
+                            🔑
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteUser(user.id, user.email)}
                           className="action-button delete"

@@ -16,6 +16,7 @@ import Home from './screens/Home';
 import Logo from './design/Logo';
 import LogoPulse from './design/LogoPulse';
 import NavDrawer from './components/shell/NavDrawer';
+import ProfileDrawer from './components/shell/ProfileDrawer';
 import { useMapState } from './components/map/useMapState';
 import './design/shell.css';
 
@@ -78,8 +79,8 @@ function RootRoute() {
 function Shell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, signOut } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const searchRef = useRef(null);
@@ -106,19 +107,6 @@ function Shell() {
     if (v !== 'map') { mapSetQuery(''); setSearchVal(''); }
     navigate(v === 'dashboard' ? '/' : `/${v}`);
   };
-
-  const handleSignOut = async () => {
-    setMenuOpen(false);
-    await signOut();
-  };
-
-  React.useEffect(() => {
-    const h = (e) => {
-      if (menuOpen && !e.target.closest('.auth-menu-container')) setMenuOpen(false);
-    };
-    document.addEventListener('click', h);
-    return () => document.removeEventListener('click', h);
-  }, [menuOpen]);
 
   const initials = user?.email
     ? user.email.slice(0, 2).toUpperCase()
@@ -208,60 +196,14 @@ function Shell() {
         {/* Right side */}
         <div className="topbar-right">
           {user ? (
-            <div className="auth-menu-container" style={{ position: 'relative' }}>
-              <button
-                className="avatar"
-                onClick={() => setMenuOpen(m => !m)}
-                title={user.email}
-              >
-                {initials}
-              </button>
-
-              {menuOpen && (
-                <div className="auth-dropdown">
-                  <div className="auth-dropdown-user">
-                    <div className="auth-dropdown-role">
-                      {isAdmin ? 'Admin' : 'Member'}
-                    </div>
-                    <div className="auth-dropdown-email">{user.email}</div>
-                  </div>
-                  <div className="auth-dropdown-items">
-                    {isAdmin && (
-                      <>
-                        <Link
-                          to="/admin/users"
-                          className="auth-dropdown-link"
-                          onClick={() => setMenuOpen(false)}
-                        >
-                          Manage Users
-                        </Link>
-                        <Link
-                          to="/admin/personas"
-                          className="auth-dropdown-link"
-                          onClick={() => setMenuOpen(false)}
-                        >
-                          Manage AI Personas
-                        </Link>
-                        <Link
-                          to="/admin/storms"
-                          className="auth-dropdown-link"
-                          onClick={() => setMenuOpen(false)}
-                        >
-                          Storm Filters
-                        </Link>
-                        <div className="auth-dropdown-divider" />
-                      </>
-                    )}
-                    <button
-                      className="auth-dropdown-btn auth-dropdown-signout"
-                      onClick={handleSignOut}
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <button
+              className="avatar"
+              onClick={() => setProfileOpen(true)}
+              title={user.email}
+              aria-label="Open profile"
+            >
+              {initials}
+            </button>
           ) : (
             <Link
               to="/login"
@@ -280,6 +222,11 @@ function Shell() {
         view={view}
         mapState={mapState}
         onMapToggle={mapToggle}
+      />
+
+      <ProfileDrawer
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
       />
     </div>
   );

@@ -216,6 +216,50 @@ async def invite_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/api/admin/users/{user_id}/resend-invite")
+async def resend_invite(
+    user_id: str,
+    user: Dict = Depends(require_admin)
+):
+    """Re-send the Supabase invite email to a user who hasn't signed in yet."""
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    try:
+        user_data = admin_client.auth.admin.get_user_by_id(user_id)
+        email = user_data.user.email
+        admin_client.auth.admin.invite_user_by_email(email)
+        print(f"✅ Invite resent to '{email}' by {user.get('email', 'unknown')}")
+        return {"success": True, "email": email}
+    except Exception as e:
+        print(f"❌ Error resending invite: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/admin/users/{user_id}/reset-password")
+async def reset_password(
+    user_id: str,
+    user: Dict = Depends(require_admin)
+):
+    """Send a password-reset email to a user."""
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    try:
+        user_data = admin_client.auth.admin.get_user_by_id(user_id)
+        email = user_data.user.email
+        # reset_password_for_email uses Supabase's configured mailer (same as invite)
+        admin_client.auth.reset_password_for_email(
+            email,
+            options={"redirect_to": "https://mysurflife.com/login"},
+        )
+        print(f"✅ Password reset sent to '{email}' by {user.get('email', 'unknown')}")
+        return {"success": True, "email": email}
+    except Exception as e:
+        print(f"❌ Error sending password reset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/api/admin/users/{user_id}/role")
 async def update_user_role(
     user_id: str,
