@@ -1,0 +1,16 @@
+# Systemd Service — rate_spots tier 1 (CA + HI, buoy-based)
+# File location: /etc/systemd/system/mysurflife-rate-spots-tier1.service
+
+[Unit]
+Description=MySurfLife rate_spots tier 1 (CA + HI buoy-based ratings)
+After=network.target mysurflife-backend.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/mysurflife/backend
+Environment="PATH=/var/www/mysurflife/backend/venv/bin"
+ExecStart=/var/www/mysurflife/backend/venv/bin/python -m jobs.rate_spots --tier 1
+StandardOutput=journal
+StandardError=journal

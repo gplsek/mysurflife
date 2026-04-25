@@ -1,0 +1,19 @@
+# Systemd Timer — rate_spots tier 1 (every 15 min)
+# File location: /etc/systemd/system/mysurflife-rate-spots-tier1.timer
+#
+# Commands:
+#   sudo systemctl enable --now mysurflife-rate-spots-tier1.timer
+#   sudo systemctl status mysurflife-rate-spots-tier1.timer
+#   sudo journalctl -u mysurflife-rate-spots-tier1.service -f
+
+[Unit]
+Description=MySurfLife rate_spots tier 1 — every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

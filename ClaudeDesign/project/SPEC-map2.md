@@ -33,10 +33,18 @@ This spec is the contract. If a behavior in the prototype is not listed here, as
 24  .left-rail
 25  .region-bar, .zoom-controls
 26  .preview-card
+28  .timeline
 30  .topbar
 ```
 
 All chrome must stay **above** Leaflet's own panes. The CSS overrides (`#map .leaflet-pane { z-index: 1 !important }`, etc.) are intentional — do not remove.
+
+### Companion specs
+
+- **`SPEC-map-timeline.md`** — the bottom-anchored forecast scrubber (compact pill + expanded panel). Drives `curH` (hours from NOW), and **everything time-aware on this page must react to it**: spot ratings/colors, the legend counts, storm marker positions and intensities, the spot/storm preview cards, and (v2) overlay layers. Don't ship the map without reading that spec — most of the static "now-only" behavior described below is actually a function of `curH`, defaulting to `curH=0`.
+- **`SPEC-spot-detail.md`** — the per-spot page that opens from the preview card.
+- **`SPEC-storm-card.md`** — the storm detail card that opens from a storm marker.
+- **`SPEC-profile-drawer.md`** — the user drawer behind the avatar.
 
 ### Data loaded on mount
 
@@ -122,10 +130,10 @@ Each `.tab`: 7×12 padding, 7px radius, 13px weight-500 `--fg-2`. `.on` → `--b
 - `.search-kbd` pill on the right shows `⌘K`
 - **Shortcut:** `⌘K` / `Ctrl+K` (global) focuses + selects the input. `Esc` blurs it and closes any open preview.
 - **Debounce:** 250ms after last keystroke, then:
-  1. Set `state.query = trimmed`
-  2. Find first match (spot whose `name` or `region` contains query, case-insensitive)
-  3. `map.flyTo(match, 8, duration: 0.9)` if found
-  4. Re-`render()` (filters markers to matches)
+    1. Set `state.query = trimmed`
+    2. Find first match (spot whose `name` or `region` contains query, case-insensitive)
+    3. `map.flyTo(match, 8, duration: 0.9)` if found
+    4. Re-`render()` (filters markers to matches)
 - Placeholder hints 4 entity types, but prototype only searches spots. **Production:** extend to buoys (by id/name) and storms (by name). Return the first match ranked Spot > Region > Buoy > Storm.
 
 ### 1.4 Right cluster (`.topbar-right`, `margin-left: auto`)
@@ -356,11 +364,11 @@ Native browser `title` attribute: `Buoy {id} · {name} · {wave}ft @ {period}s`.
 2. **Storms** — if `state.showStorms`, add all 3 (no visibility filter, they're global).
 3. **Buoys** — if `state.showBuoys && zoom >= 2`, add each buoy whose lat/lon is in current bounds.
 4. **Spots** — if `state.showSpots`:
-   - Filter `SPOTS` by: `favsOnly` (require `s.fav`), `query` (substring in name/region), `region.bbox`, and `bounds.contains(s)`.
-   - If `zoom < 5`: bucket spots into a `Map` keyed by `${floor(px/55)},${floor(py/55)}` using `map.latLngToContainerPoint`.
-     - Cell size 1 → single spot marker.
-     - Cell size >1 → cluster marker at the average lat/lon, avg rating drives color.
-   - If `zoom >= 5`: render every visible spot as its own marker.
+    - Filter `SPOTS` by: `favsOnly` (require `s.fav`), `query` (substring in name/region), `region.bbox`, and `bounds.contains(s)`.
+    - If `zoom < 5`: bucket spots into a `Map` keyed by `${floor(px/55)},${floor(py/55)}` using `map.latLngToContainerPoint`.
+        - Cell size 1 → single spot marker.
+        - Cell size >1 → cluster marker at the average lat/lon, avg rating drives color.
+    - If `zoom >= 5`: render every visible spot as its own marker.
 5. `updateLegendCounts()` + `updateStatusCounts()`.
 
 **Performance note:** tearing down and rebuilding markers per move is fine up to ~500 spots. Past that, switch to Supercluster + diff-render. Keep the CSS marker renderer.
@@ -454,7 +462,7 @@ Every mutator (toggle, region select, search, move/zoom) ends by calling `render
 | 1 | `SPOTS[]` | Hardcoded 48-entry array | Spots API/DB. Min shape per §0. |
 | 2 | `spot.rating` | Static per-entry | Live score from current forecast (swell × period × wind alignment × tide). Refresh every 15–30 min. |
 | 3 | `BUOYS[]` | Hardcoded with real NDBC IDs | Pull live from NDBC (`ndbc.noaa.gov/data/realtime2/{id}.txt` — latest `.spec` gives dominant wave height/period). Filter to coastal/shelf stations relevant to surf. |
-| 4 | `STORMS[]` | Hardcoded 3 | Pull from NOAA OPC surface analysis (low-pressure centers with pressure + max winds). Or derive from WW3 where seas > 20ft concentrate. Refresh every 6h. |
+| 4 | `STORMS[]` | Hardcoded 3, frozen at "now" | Pull from NOAA OPC surface analysis (low-pressure centers with pressure + max winds). Or derive from WW3 where seas > 20ft concentrate. Refresh every 6h. **Also: each storm carries a track (6-hourly samples + best-track); position and intensity must interpolate as the timeline cursor moves.** See `SPEC-map-timeline.md` §6.2. |
 | 5 | `REGIONS[]` | Hardcoded editorial | Can stay hardcoded OR derive dynamically from user's favorites clustered by region. |
 | 6 | Legend buoy/storm counts | Static `62` / `3` | `BUOYS.length` / `STORMS.length`. |
 | 7 | "Updated 2m ago" status | Static | Bind to actual data-freshness timestamp; update every 60s. |
@@ -474,9 +482,10 @@ Every mutator (toggle, region select, search, move/zoom) ends by calling `render
 - **CSS divIcon markers** — do not switch to bitmap sprites.
 - **Tile fade override** (`.leaflet-tile { opacity: 1 !important }`).
 - **Map init inside `whenReady` + `invalidateSize`** — races tile load otherwise.
-- **Storm markers `interactive: false`** — they're ambient, not clickable.
+- **Storm markers `interactive: false`** — the OUTER container is non-interactive; the inner `.core` dot is clickable (it carries the click target with an invisible padded hit area). Don't make the rings interactive — they cover too much area.
 - **Buoys hide below zoom 2** — clutter management.
-- **Legend counts reflect full inventory**, not visible set — intentional.
+- **Legend counts reflect full inventory**, not visible set — intentional. They DO update when the timeline cursor moves (see `SPEC-map-timeline.md` §6.1) — the inventory is the same but the ratings shift, so the per-tier counts shift.
+- **Storms move with the timeline** — see `SPEC-map-timeline.md` §6.2. The marker position interpolates between forecast track points; intensity (ring opacity, preview-card metrics) reads at-cursor. Past the forecast horizon, marker dims to 50% and the preview card adds a "beyond forecast" chip.
 - **"Favorites only" filter** requires `spot.fav: true`. Currently 7 spots: Pipeline, Mavericks, Rincon, Lower Trestles, Nazaré, Jeffreys Bay, Snapper Rocks.
 - **Preview card flies to spot at `max(currentZoom, 7)`** — avoids zooming out.
 

@@ -364,7 +364,7 @@ function WindChartArtifact({ data }) {
 function SessionLogArtifact({ data }) {
   if (!data) return null;
   const { spot_name, date, duration_str, board, rating,
-    wind_quality, wave_size, shape, crowd, fun_factor, compare } = data;
+    wind_quality, wave_size, shape, crowd, fun_factor, saved, compare } = data;
   const fields = [
     ['WIND',       wind_quality],
     ['WAVE SIZE',  wave_size],
@@ -375,7 +375,17 @@ function SessionLogArtifact({ data }) {
 
   return (
     <div className="cop-sess-form">
-      <h4 className="cop-sess-title">Session · {spot_name}</h4>
+      <div className="cop-sess-title-row">
+        <h4 className="cop-sess-title">Session · {spot_name}</h4>
+        {saved && (
+          <span className="cop-sess-saved">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            saved
+          </span>
+        )}
+      </div>
       <div className="cop-sess-sub">
         {[date, duration_str, board].filter(Boolean).join(' · ')}
       </div>
@@ -604,9 +614,10 @@ export default function Copilot({ context }) {
     setLoading(true);
     try {
       const apiMsgs = next.map(m => ({ role: m.role, content: m.content }));
+      const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/copilot/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMsgs, context: context || null }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

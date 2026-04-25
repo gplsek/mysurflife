@@ -78,11 +78,15 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
   const markersRef       = useRef([]);
   const renderTimerRef   = useRef(null);
   const lastRenderKeyRef = useRef('');
+  const curHRef          = useRef(0);
 
+  const [curH,          setCurH]          = useState(0);
   const [preview,       setPreview]       = useState(null);
+  const [buoyPreview,   setBuoyPreview]   = useState(null);
   const [inViewCount,   setInViewCount]   = useState(0);
   const [stormPreview,  setStormPreview]  = useState(null);
   const [detailStorm,   setDetailStorm]   = useState(null);
+  const queryFlyRef = useRef('');
 
   const {
     spots, userSpots, buoys, storms, loading, updatedAt,
@@ -114,9 +118,10 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       iconAnchor: [19, 19],
     });
     const marker = L.marker([spot.latitude, spot.longitude], { icon });
-    marker.on('click', () => {
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
       setStormPreview(null);
-      setDetailSpot(null);
+      setDetailStorm(null);
       const cc = spot.current_conditions || {};
       setPreview({
         id:     spot.id   || spot.slug,
@@ -144,16 +149,12 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       iconAnchor: [11, 11],
     });
     const marker = L.marker([buoy.lat, buoy.lon], { icon });
-    const htFt   = buoy.wave_height_ft != null
-      ? buoy.wave_height_ft.toFixed(1)
-      : buoy.wave_height_m != null
-        ? (buoy.wave_height_m * 3.28).toFixed(1)
-        : '—';
-    const period = buoy.dominant_period_sec != null ? `${buoy.dominant_period_sec}s` : '—';
-    marker.bindPopup(
-      `<div class="mv-buoy-popup"><strong>${buoy.name || buoy.station}</strong><br/>${htFt} ft @ ${period}</div>`,
-      { className: 'mv-popup' }
-    );
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      setPreview(null);
+      setStormPreview(null);
+      setBuoyPreview(buoy);
+    });
     marker.addTo(map);
     markersRef.current.push(marker);
   }, []);
@@ -170,28 +171,37 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       iconAnchor: [22, 22],
     });
     const marker = L.marker([lat, lon], { icon });
-    marker.on('click', () => {
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
       map.flyTo([lat, lon], Math.min(map.getZoom() + 2.5, 7));
     });
     marker.addTo(map);
     markersRef.current.push(marker);
   }, []);
 
-  const addStormMarker = useCallback((storm) => {
+  const addStormMarker = useCallback((storm, curH = 0) => {
     const map = mapRef.current;
     if (!map) return;
+    // Dim progressively as timeline advances — no track data yet to move the pin
+    const opacity = curH === 0 ? 1 : Math.max(0.35, 1 - curH / 300);
     const icon = L.divIcon({
-      html: stormMarkerHtml(storm),
+      html: stormMarkerHtml(storm, opacity),
       className: '',
       iconSize: [120, 120],
       iconAnchor: [60, 60],
     });
-    const marker = L.marker([storm.lat, storm.lon], { icon, interactive: true });
-    marker.on('click', () => {
-      setPreview(null);
-      setStormPreview(storm);
-    });
+    // Outer container is non-interactive (rings cover too much area).
+    // Click is wired directly to the .core dot via L.DomEvent after addTo.
+    const marker = L.marker([storm.lat, storm.lon], { icon, interactive: false });
     marker.addTo(map);
+    const core = marker.getElement()?.querySelector('.core');
+    if (core) {
+      L.DomEvent.on(core, 'click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        setPreview(null);
+        setStormPreview(storm);
+      });
+    }
     markersRef.current.push(marker);
   }, []);
 
@@ -205,7 +215,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       iconAnchor: [18, 18],
     });
     const marker = L.marker([spot.latitude, spot.longitude], { icon });
-    marker.on('click', () => {
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
       setStormPreview(null);
       setPreview({
         id:     spot.slug,
@@ -233,7 +244,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       bounds.toBBoxString(), zoom,
       s.region, s.showSpots, s.showBuoys, s.showStorms, s.favsOnly, s.query,
       spotsRef.current.length, buoysRef.current.length, stormsRef.current.length,
-      userSpotsRef.current.length,
+      userSpotsRef.current.length, curHRef.current,
     ].join('_');
     if (renderKey === lastRenderKeyRef.current) return;
     lastRenderKeyRef.current = renderKey;
@@ -250,7 +261,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
 
     if (s.showStorms) {
       for (const storm of stormsRef.current) {
-        addStormMarker(storm);
+        addStormMarker(storm, curHRef.current);
       }
     }
 
@@ -338,6 +349,11 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
 
     map.on('moveend', scheduleRender);
     map.on('zoomend', scheduleRender);
+    map.on('click', () => {
+      setPreview(null);
+      setBuoyPreview(null);
+      setStormPreview(null);
+    });
     mapRef.current = map;
 
     // Force Leaflet to re-measure its container after React paints the layout
@@ -355,6 +371,59 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
 
   // Re-render when data or filter state changes
   useEffect(() => { scheduleRender(); }, [spots, userSpots, buoys, storms, state, scheduleRender]);
+
+  // Keep curHRef in sync; force marker re-render (storm dimming) on timeline change
+  useEffect(() => {
+    curHRef.current = curH;
+    lastRenderKeyRef.current = ''; // invalidate so next scheduleRender fires
+    scheduleRender();
+  }, [curH, scheduleRender]);
+
+  // Geolocation: auto-select nearest region on first load
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords: { latitude: lat, longitude: lng } }) => {
+        const match = REGIONS.find(r => {
+          if (!r.bbox) return false;
+          const [[s, w], [n, e]] = r.bbox;
+          return lat >= s && lat <= n && lng >= w && lng <= e;
+        });
+        if (match) {
+          setRegion(match.id);
+          if (mapRef.current) {
+            const [[s, w], [n, e]] = match.bbox;
+            mapRef.current.fitBounds([[s, w], [n, e]], { padding: [40, 40], animate: true });
+          }
+        } else if (mapRef.current) {
+          mapRef.current.flyTo([lat, lng], 6, { duration: 1.2 });
+        }
+      },
+      () => {},
+      { timeout: 8000, maximumAge: 300000 }
+    );
+  }, []); // run once on mount
+
+  // Search: fly to first match (Spot > Buoy) when query changes
+  useEffect(() => {
+    const q = (state.query || '').toLowerCase().trim();
+    if (!q) { queryFlyRef.current = ''; return; }
+    if (q === queryFlyRef.current || !mapRef.current) return;
+    queryFlyRef.current = q;
+    const spot = spotsRef.current.find(sp =>
+      sp.name.toLowerCase().includes(q) || (sp.region || '').toLowerCase().includes(q)
+    );
+    if (spot?.latitude != null && spot?.longitude != null) {
+      mapRef.current.flyTo([spot.latitude, spot.longitude], 8, { duration: 0.9 });
+      return;
+    }
+    const buoy = buoysRef.current.find(b =>
+      (b.name || '').toLowerCase().includes(q) || b.id?.toLowerCase().includes(q)
+    );
+    if (buoy?.lat != null && buoy?.lon != null) {
+      mapRef.current.flyTo([buoy.lat, buoy.lon], 7, { duration: 0.9 });
+    }
+  }, [state.query, spotsRef, buoysRef]);
 
   // Add-spot mode: map click drops a pin
   useEffect(() => {
@@ -395,6 +464,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     const handler = (e) => {
       if (e.key === 'Escape') {
         setPreview(null);
+        setBuoyPreview(null);
         setStormPreview(null);
         setDetailStorm(null);
       }
@@ -467,6 +537,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
         isFav={preview ? spots.find(s => s.slug === preview.slug)?.fav ?? false : false}
         onToggleFav={toggleFavorite}
         onPreviewClose={() => setPreview(null)}
+        buoyPreview={buoyPreview}
+        onBuoyPreviewClose={() => setBuoyPreview(null)}
         stormPreview={stormPreview}
         onStormPreviewClose={() => setStormPreview(null)}
         onStormOpenDetail={() => {
@@ -475,6 +547,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
         }}
         addSpotMode={addSpotMode}
         onAddSpotToggle={() => { setAddSpotMode(m => !m); setAddSpotForm(null); }}
+        curH={curH}
+        onCurHChange={setCurH}
       />
       {detailStorm && (
         <StormCard

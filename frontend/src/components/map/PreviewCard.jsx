@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ratingTier, ratingColor } from './markers';
 import { TIER_LABELS } from './constants';
 
@@ -60,9 +61,11 @@ export function PreviewCard({ preview, isFav, onToggleFav, onClose }) {
               <span>°F</span>
             </div>
           </div>
-          <a href={`/spots/${preview.slug}`} className="mv-prev-open">
-            Open spot →
-          </a>
+          {!preview.is_user_spot && preview.slug && (
+            <Link to={`/spots/${preview.slug}`} className="mv-prev-open">
+              Open spot →
+            </Link>
+          )}
         </>
       )}
     </div>

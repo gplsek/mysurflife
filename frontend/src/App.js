@@ -11,7 +11,7 @@ import ManageStorms from './ManageStorms';
 import Dashboard from './screens/Dashboard';
 import SessionJournal from './screens/SessionJournal';
 import Alerts from './screens/Alerts';
-import Copilot from './screens/Copilot';
+import Sione from './screens/Sione';
 import Home from './screens/Home';
 import Logo from './design/Logo';
 import LogoPulse from './design/LogoPulse';
@@ -43,7 +43,7 @@ const AlertsIcon = () => (
     <path d="M4 10a2 2 0 004 0"/>
   </svg>
 );
-const CopilotIcon = () => (
+const SioneIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
     <path d="M10 1H2a1 1 0 00-1 1v6a1 1 0 001 1h2l2 2 2-2h2a1 1 0 001-1V2a1 1 0 00-1-1z"/>
     <path d="M4 5h4M4 7h2" strokeLinecap="round"/>
@@ -81,6 +81,7 @@ function Shell() {
   const { user, isAdmin, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchVal, setSearchVal] = useState('');
   const searchRef = useRef(null);
   const { state: mapState, stateRef: mapStateRef, toggleState: mapToggle, setRegion: mapSetRegion, setQuery: mapSetQuery } = useMapState();
 
@@ -98,10 +99,13 @@ function Shell() {
   const view = pathname === '/map' ? 'map'
              : pathname === '/journal' ? 'journal'
              : pathname === '/alerts' ? 'alerts'
-             : pathname === '/copilot' ? 'copilot'
+             : pathname === '/sione' ? 'sione'
              : 'dashboard';
 
-  const navTo = (v) => navigate(v === 'dashboard' ? '/' : `/${v}`);
+  const navTo = (v) => {
+    if (v !== 'map') { mapSetQuery(''); setSearchVal(''); }
+    navigate(v === 'dashboard' ? '/' : `/${v}`);
+  };
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -137,7 +141,7 @@ function Shell() {
       {view === 'dashboard' && <Dashboard onOpenMap={() => navTo('map')} />}
       {view === 'journal' && <SessionJournal />}
       {view === 'alerts' && <Alerts />}
-      {view === 'copilot' && <Copilot />}
+      {view === 'sione' && <Sione />}
 
       {/* ── Floating topbar ── */}
       <div className="topbar">
@@ -172,8 +176,8 @@ function Shell() {
           <button className={view === 'alerts' ? 'active' : ''} onClick={() => navTo('alerts')}>
             <AlertsIcon /> Alerts
           </button>
-          <button className={view === 'copilot' ? 'active' : ''} onClick={() => navTo('copilot')}>
-            <CopilotIcon /> Copilot
+          <button className={view === 'sione' ? 'active' : ''} onClick={() => navTo('sione')}>
+            <SioneIcon /> Sione
           </button>
         </nav>
 
@@ -182,7 +186,22 @@ function Shell() {
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
             <circle cx="5" cy="5" r="3.5"/><path d="M8 8l3 3"/>
           </svg>
-          <input ref={searchRef} placeholder="Search spots, regions…" />
+          <input
+            ref={searchRef}
+            placeholder="Search spots, regions…"
+            value={searchVal}
+            onChange={e => {
+              setSearchVal(e.target.value);
+              if (view === 'map') mapSetQuery(e.target.value);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                setSearchVal('');
+                mapSetQuery('');
+                e.target.blur();
+              }
+            }}
+          />
           <span className="mono-tiny" style={{ opacity: 0.5 }}>⌘K</span>
         </div>
 
@@ -284,7 +303,8 @@ function App() {
             <Route path="/map"      element={<RequireAuth><Shell /></RequireAuth>} />
             <Route path="/journal"  element={<RequireAuth><Shell /></RequireAuth>} />
             <Route path="/alerts"   element={<RequireAuth><Shell /></RequireAuth>} />
-            <Route path="/copilot"  element={<RequireAuth><Shell /></RequireAuth>} />
+            <Route path="/sione"    element={<RequireAuth><Shell /></RequireAuth>} />
+            <Route path="/copilot"  element={<Navigate to="/sione" replace />} />
 
             {/* Old map — available until Phase 5 ships */}
             <Route path="/old-map" element={<RequireAuth><MapOverlay /></RequireAuth>} />

@@ -4645,16 +4645,75 @@ async def _copilot_calculate_swell_arrival(
         return {"error": str(e)}
 
 
+async def _copilot_save_session(
+    user_id: Optional[str],
+    spot_id: str,
+    spot_name: str,
+    session_date: str,
+    duration_min: Optional[int] = None,
+    perceived_size: Optional[str] = None,
+    perceived_quality: Optional[int] = None,
+    perceived_wind: Optional[str] = None,
+    perceived_crowd: Optional[int] = None,
+    waves_caught: Optional[int] = None,
+    board_display: Optional[str] = None,
+    perceived_note: Optional[str] = None,
+) -> Dict:
+    """Persist a session entry on behalf of the Copilot tool loop."""
+    if not user_id:
+        return {"error": "Not authenticated — user must be signed in to save sessions."}
+
+    try:
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+        if not admin_client:
+            return {"error": "Database unavailable"}
+
+        row = {k: v for k, v in {
+            "user_id":           user_id,
+            "spot_id":           spot_id,
+            "spot_name":         spot_name,
+            "session_date":      session_date,
+            "duration_min":      duration_min,
+            "perceived_size":    perceived_size,
+            "perceived_quality": perceived_quality,
+            "perceived_wind":    perceived_wind,
+            "perceived_crowd":   perceived_crowd,
+            "waves_caught":      waves_caught,
+            "board_display":     board_display,
+            "perceived_note":    perceived_note,
+            "log_method":        "copilot",
+        }.items() if v is not None}
+
+        result = admin_client.table("sessions").insert(row).execute()
+        if not result.data:
+            return {"error": "Failed to save session"}
+
+        session = result.data[0]
+        print(f"✅ Copilot session saved: {session['id']} — {spot_name} {session_date}")
+        return {"success": True, "session_id": session["id"]}
+
+    except Exception as e:
+        print(f"❌ Copilot save_session error: {e}")
+        return {"error": str(e)}
+
+
 # ── Endpoint ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/copilot/chat")
-async def copilot_chat(request: CopilotChatRequest):
+async def copilot_chat(
+    request: CopilotChatRequest,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
     """
     Copilot chat endpoint.
     Accepts a message thread and optional context (spot_id, region).
     Returns {message, artifacts, follow_ups}.
     """
     try:
+        import functools
+        user_id = user["user_id"] if user else None
+
         tool_registry = {
             "get_spot_conditions":       _copilot_get_spot_conditions,
             "get_conditions_window":     _copilot_get_conditions_window,
@@ -4662,6 +4721,7 @@ async def copilot_chat(request: CopilotChatRequest):
             "compare_spots":             _copilot_compare_spots,
             "rank_spots":                _copilot_rank_spots,
             "calculate_swell_arrival":   _copilot_calculate_swell_arrival,
+            "save_session":              functools.partial(_copilot_save_session, user_id),
         }
 
         messages = [{"role": m.role, "content": m.content} for m in request.messages]

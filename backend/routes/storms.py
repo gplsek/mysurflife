@@ -1,14 +1,18 @@
 """
 /api/storms/active          — live storm positions for the map page.
 /api/storms/{id}/arrivals   — swell arrival forecast per surf region.
+/api/storms/parse-bulletin  — AI-powered structured extraction from raw bulletin text.
 
 Wraps high_seas.py bulletin parsing and storm_arrivals.py physics.
 """
 import asyncio
+import hashlib
 import json
+import time
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from high_seas import get_high_seas, _format_type
 from storm_arrivals import compute_arrivals
@@ -215,3 +219,141 @@ async def get_storm_arrivals(storm_id: str):
         "storm_id":   storm_id,
         "computed_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
     }
+
+
+# ── Bulletin AI parser ─────────────────────────────────────────────────────────
+
+try:
+    import anthropic
+    _ANTHROPIC_AVAILABLE = True
+except ImportError:
+    _ANTHROPIC_AVAILABLE = False
+
+_BULLETIN_CACHE: dict[str, dict] = {}   # key → {"result": ..., "expires": float}
+_BULLETIN_CACHE_TTL = 3600              # 1 hour
+
+_PARSE_BULLETIN_MODEL = "claude-haiku-4-5-20251001"
+
+_PARSE_BULLETIN_SYSTEM = """\
+You are a marine meteorology data extractor. You receive raw NOAA high-seas forecast
+bulletin text for a single storm system and return ONLY a valid JSON object — no markdown,
+no prose, no code fences.
+
+Extract the following fields. Use null for any field you cannot determine with confidence.
+
+{
+  "forecast_track": [
+    {
+      "hours": <integer — 0 = current, 24 = 24h, 36 = 36h, 48 = 48h, etc.>,
+      "lat":  <decimal degrees, positive = N>,
+      "lon":  <decimal degrees, negative = W>,
+      "pressure_mb": <integer or null>,
+      "wind_kts":    <integer or null>,
+      "sea_m":       <float or null — convert from feet if needed: ft / 3.281>
+    }
+  ],
+  "max_wind_kts":    <integer or null — highest wind speed mentioned>,
+  "max_sea_m":       <float or null  — highest seas mentioned, in metres>,
+  "max_sea_ft":      <float or null  — highest seas mentioned, in feet>,
+  "direction":       <string or null — movement direction e.g. "NE", "NNW">,
+  "speed_kts":       <integer or null — movement speed in knots>,
+  "fetch_radius_nm": <integer or null — gale/storm force radius in nautical miles>
+}
+
+Rules:
+- forecast_track MUST include an entry for hours=0 (current position) if lat/lon are determinable.
+- Include 24h, 36h (if present), and 48h entries from the text.
+- Latitudes like "45N" → 45.0; "45.5N" → 45.5; "30S" → -30.0.
+- Longitudes like "140W" → -140.0; "140E" → 140.0.
+- Sea heights: if only a range is given (e.g. "15 to 20 ft"), use the peak value.
+- Output ONLY the JSON object. No other text.
+"""
+
+
+class BulletinParseRequest(BaseModel):
+    raw_text: str
+    storm_id: Optional[str] = None   # for logging only
+
+
+def _bulletin_cache_key(raw_text: str) -> str:
+    return hashlib.sha256(raw_text.encode()).hexdigest()
+
+
+def _bulletin_cache_get(key: str) -> Optional[dict]:
+    entry = _BULLETIN_CACHE.get(key)
+    if entry and time.monotonic() < entry["expires"]:
+        return entry["result"]
+    if entry:
+        del _BULLETIN_CACHE[key]
+    return None
+
+
+def _bulletin_cache_set(key: str, result: dict) -> None:
+    _BULLETIN_CACHE[key] = {"result": result, "expires": time.monotonic() + _BULLETIN_CACHE_TTL}
+
+
+@router.post("/api/storms/parse-bulletin")
+async def parse_bulletin(req: BulletinParseRequest):
+    """
+    Use Claude Haiku to extract structured storm data from a raw NOAA bulletin snippet.
+    Results are cached in-memory for 1 hour keyed by content hash.
+    No auth required — bulletin data is public.
+    """
+    if not req.raw_text or not req.raw_text.strip():
+        return {"ok": False, "error": "raw_text is empty"}
+
+    if not _ANTHROPIC_AVAILABLE:
+        return {"ok": False, "error": "anthropic SDK not installed"}
+
+    cache_key = _bulletin_cache_key(req.raw_text)
+    cached = _bulletin_cache_get(cache_key)
+    if cached is not None:
+        print(f"✅ parse-bulletin cache hit (storm_id={req.storm_id})")
+        return cached
+
+    print(f"🌊 parse-bulletin: calling Claude Haiku (storm_id={req.storm_id}, chars={len(req.raw_text)})")
+
+    try:
+        client = anthropic.Anthropic()
+
+        message = client.messages.create(
+            model=_PARSE_BULLETIN_MODEL,
+            max_tokens=1024,
+            system=_PARSE_BULLETIN_SYSTEM,
+            messages=[
+                {"role": "user", "content": req.raw_text.strip()}
+            ],
+        )
+
+        raw_json = message.content[0].text.strip()
+
+        # Strip accidental markdown fences if Claude wraps anyway
+        if raw_json.startswith("```"):
+            lines = raw_json.splitlines()
+            raw_json = "\n".join(
+                line for line in lines
+                if not line.strip().startswith("```")
+            )
+
+        parsed = json.loads(raw_json)
+
+        result = {
+            "ok": True,
+            "forecast_track":  parsed.get("forecast_track") or [],
+            "max_wind_kts":    parsed.get("max_wind_kts"),
+            "max_sea_m":       parsed.get("max_sea_m"),
+            "max_sea_ft":      parsed.get("max_sea_ft"),
+            "direction":       parsed.get("direction"),
+            "speed_kts":       parsed.get("speed_kts"),
+            "fetch_radius_nm": parsed.get("fetch_radius_nm"),
+        }
+
+    except json.JSONDecodeError as e:
+        print(f"❌ parse-bulletin: JSON decode error: {e}")
+        return {"ok": False, "error": f"Claude returned non-JSON response: {e}"}
+    except Exception as e:
+        print(f"❌ parse-bulletin: Claude API error: {e}")
+        return {"ok": False, "error": str(e)}
+
+    _bulletin_cache_set(cache_key, result)
+    return result

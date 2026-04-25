@@ -27,7 +27,7 @@ FALLBACK_BUOY_LIST = [
     {"id": "46069", "lat": 33.67,  "lon": -120.21,  "name": "San Nicolas Island", "wind_fallback": None},
 
     # Central California
-    {"id": "46063", "lat": 34.289, "lon": -120.218, "name": "Santa Barbara", "wind_fallback": None},
+    {"id": "46053", "lat": 34.245, "lon": -120.015, "name": "Santa Barbara", "wind_fallback": None},
     {"id": "46011", "lat": 34.935, "lon": -121.93,  "name": "Santa Maria", "wind_fallback": None},
     {"id": "46054", "lat": 35.167, "lon": -120.983, "name": "Point Buchon (SLO)", "wind_fallback": None},
     {"id": "46028", "lat": 35.741, "lon": -121.884, "name": "Cape San Martin", "wind_fallback": None},
@@ -50,15 +50,15 @@ FALLBACK_BUOY_LIST = [
 
     # Offshore Pacific
     {"id": "46002", "lat": 42.614, "lon": -130.516, "name": "Oregon Offshore", "wind_fallback": None},
-    {"id": "46005", "lat": 46.134, "lon": -131.018, "name": "Washington Offshore", "wind_fallback": None},
+    # 46005 (Washington Offshore) decommissioned — covered by 46041 + 46002
 
     # Hawaii (Popular surf spots)
     {"id": "51001", "lat": 23.445, "lon": -162.279, "name": "NW Hawaii", "wind_fallback": None},
     {"id": "51002", "lat": 17.208, "lon": -157.754, "name": "South of Oahu", "wind_fallback": None},
-    {"id": "51003", "lat": 21.673, "lon": -157.752, "name": "Mokapu Point, Oahu", "wind_fallback": None},
+    {"id": "51202", "lat": 21.414, "lon": -157.681, "name": "Mokapu Point, Oahu", "wind_fallback": None},
     {"id": "51004", "lat": 17.531, "lon": -152.363, "name": "SE Oahu", "wind_fallback": None},
     {"id": "51101", "lat": 22.183, "lon": -159.481, "name": "Hanalei, Kauai", "wind_fallback": None},
-    {"id": "51201", "lat": 21.671, "lon": -158.118, "name": "Waimea Bay", "wind_fallback": None}  # Primary North Shore buoy
+    {"id": "51211", "lat": 21.297, "lon": -157.959, "name": "Pearl Harbor Entrance, Oahu", "wind_fallback": None},
 ]
 
 # Cache for buoy list to avoid repeated database queries

@@ -30,7 +30,8 @@ export function useMapBundle() {
 
   const fetchBundle = useCallback(async (signal) => {
     try {
-      const res = await fetch('/api/map/bundle?include_storms=true&include_buoys=true', { signal });
+      const headers = await _authHeaders();
+      const res = await fetch('/api/map/bundle?include_storms=true&include_buoys=true', { signal, headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSpots(data.spots       || []);

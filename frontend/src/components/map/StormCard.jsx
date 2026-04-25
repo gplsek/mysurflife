@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate }        from 'react-router-dom';
 import { StormFetchWedge }    from './StormFetchWedge';
 import { StormForecastTrack } from './StormForecastTrack';
 import { RegionalScorecard }  from './RegionalScorecard';
@@ -59,6 +60,7 @@ function prepareTrack(forecast_track) {
 }
 
 export function StormCard({ storm, mapRef, onClose }) {
+  const navigate = useNavigate();
   const [l2Status,       setL2Status]       = useState('idle');
   const [arrivals,       setArrivals]       = useState(null);
   const [selectedRegion, setSelectedRegion] = useState(null);
@@ -300,7 +302,10 @@ export function StormCard({ storm, mapRef, onClose }) {
         </div>
 
         {/* ─── L1: Quick chip ─── */}
-        <div className="l1-quick-chip">
+        <button
+          className="l1-quick-chip"
+          onClick={() => navigate(`/sione?storm=${storm.id}`)}
+        >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
             <path
               d="M1.5 2.5C1.5 1.95 1.95 1.5 2.5 1.5h8c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H4l-2.5 2V2.5z"
@@ -311,7 +316,7 @@ export function StormCard({ storm, mapRef, onClose }) {
           </svg>
           Ask Sione about this storm
           <span className="spark">Chat ↗</span>
-        </div>
+        </button>
 
         {/* ─── L1: Raw bulletin ─── */}
         {storm.raw_text && (

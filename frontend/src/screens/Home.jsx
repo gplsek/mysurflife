@@ -61,7 +61,7 @@ const DEMO_CONVERSATION = [
   },
 ];
 
-function CopilotDemo() {
+function SioneDemo() {
   const viewportRef = useRef(null);
   const trackRef = useRef(null);
   const inputRef = useRef(null);
@@ -115,7 +115,7 @@ function CopilotDemo() {
           await sleep(500);
         } else if (step.type === 'bot') {
           const thinking = appendBubble(
-            `<div class="home-bubble-who">Copilot</div>
+            `<div class="home-bubble-who">Sione</div>
              <div class="home-bubble-b"><span class="home-typing"><span></span><span></span><span></span></span></div>`,
             'home-bubble-bot'
           );
@@ -160,12 +160,12 @@ function CopilotDemo() {
   }, []);
 
   return (
-    <div className="home-demo" aria-label="Animated Copilot demo">
+    <div className="home-demo" aria-label="Animated Sione demo">
       <div className="home-demo-head">
         <div className="home-demo-dots">
           <span /><span /><span />
         </div>
-        <span className="home-demo-title">mysurflife / copilot</span>
+        <span className="home-demo-title">mysurflife / sione</span>
         <span className="home-demo-pill">LIVE</span>
       </div>
       <div className="home-demo-scroll" ref={viewportRef}>
@@ -246,7 +246,7 @@ export default function Home() {
         </a>
         <div className="home-nav-links">
           <a href="#how">How it works</a>
-          <a href="#copilot">Copilot</a>
+          <a href="#sione">Sione</a>
           <a href="#forecast">Forecast</a>
           <a href="#journal">Journal</a>
           <a href="#spots">Spots</a>
@@ -269,7 +269,7 @@ export default function Home() {
               <em>learns how you surf.</em>
             </h1>
             <p className="home-subhead">
-              Real-time buoys. <b>16-day</b> wave models. An AI Copilot that synthesizes it all
+              Real-time buoys. <b>16-day</b> wave models. Sione, our AI that synthesizes it all
               and tells you when <em style={{ color: 'oklch(0.96 0.008 90)' }}>your</em> conditions
               are aligning — and gets sharper every time you paddle out.
             </p>
@@ -306,7 +306,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <CopilotDemo />
+          <SioneDemo />
         </section>
 
         {/* ── STATS BAND ── */}
@@ -370,7 +370,7 @@ export default function Home() {
             </div>
             <div className="home-step home-reveal">
               <span className="home-step-num">02 — ASK</span>
-              <h3>Ask the Copilot anything</h3>
+              <h3>Ask Sione anything</h3>
               <p>"How does Wednesday morning look at Blacks?" Pulls live buoys, model forecasts, and tides — explains the answer in plain language, backed by physics.</p>
             </div>
             <div className="home-step home-reveal">
@@ -394,12 +394,12 @@ export default function Home() {
               The forecast that explains itself
             </div>
             <h2>Wave, wind, tide — <em>one timeline, one explanation.</em></h2>
-            <p>Most apps show you charts and expect you to interpret them. We explain what the charts mean for your session — in the Copilot, in the answer, and on the chart itself.</p>
+            <p>Most apps show you charts and expect you to interpret them. We explain what the charts mean for your session — in Sione, in the answer, and on the chart itself.</p>
           </div>
           <div className="home-timeline-wrap home-reveal">
             <div className="home-timeline-copy">
               <h3>The 16-day timeline, <em>unified</em>.</h3>
-              <p>Every spot gets wave height + period, wind speed + direction, and tide state on the same axis. Filter windows by your preference profile. Pull it up in the Copilot with a single question.</p>
+              <p>Every spot gets wave height + period, wind speed + direction, and tide state on the same axis. Filter windows by your preference profile. Pull it up in Sione with a single question.</p>
               <ul className="home-bullet-list">
                 <li><b>Swell arrival tracking.</b> Storm distance + period + decay tells you when the leading edge hits — to the hour.</li>
                 <li><b>Category scale.</b> 6ft @ 14s is a Cat 3 (shoulder-to-head). 6ft @ 7s is Cat 1 (closed out). <em>Period matters.</em></li>
@@ -474,15 +474,15 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── AI COPILOT ── */}
-        <section id="copilot" className="home-section">
+        {/* ── SIONE ── */}
+        <section id="sione" className="home-section">
           <div className="home-section-head home-reveal">
             <div className="home-eyebrow">
               <span className="home-dot" />
-              AI Copilot
+              Sione
             </div>
             <h2>Not a chatbot. <em>A surf-specific AI with access to everything.</em></h2>
-            <p>The Copilot is the interface between you and everything we know about the ocean — live data, real physics, your personal history. Every answer comes with the reasoning, so you're not just getting predictions, you're learning to read the ocean.</p>
+            <p>Sione is the interface between you and everything we know about the ocean — live data, real physics, your personal history. Every answer comes with the reasoning, so you're not just getting predictions, you're learning to read the ocean.</p>
           </div>
           <div className="home-feats">
             <div className="home-feat home-reveal">
@@ -532,7 +532,7 @@ export default function Home() {
             <div className="home-feat home-reveal">
               <span className="home-feat-tag">CALIBRATE</span>
               <h3>Your personal calibration factor.</h3>
-              <p>Some surfers consistently perceive waves bigger than buoys report. Some smaller. Your factor gets baked into every prediction the Copilot makes for you.</p>
+              <p>Some surfers consistently perceive waves bigger than buoys report. Some smaller. Your factor gets baked into every prediction Sione makes for you.</p>
             </div>
           </div>
         </section>
@@ -621,13 +621,13 @@ export default function Home() {
               <Logo variant="mark" size={22} />
               mysurflife
             </div>
-            <p>A personal surf intelligence platform. Real-time buoys, 16-day forecasts, and an AI Copilot that learns how you surf.</p>
+            <p>A personal surf intelligence platform. Real-time buoys, 16-day forecasts, and Sione — our AI that learns how you surf.</p>
           </div>
           <div className="home-foot-col">
             <h5>Product</h5>
             <ul>
               <li><a href="#forecast">Forecast</a></li>
-              <li><a href="#copilot">Copilot</a></li>
+              <li><a href="#sione">Sione</a></li>
               <li><a href="#journal">Journal</a></li>
               <li><a href="#spots">Spots</a></li>
             </ul>

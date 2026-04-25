@@ -1,0 +1,17 @@
+# Systemd Timer — rate_spots tier 3 (every 6 hours)
+# File location: /etc/systemd/system/mysurflife-rate-spots-tier3.timer
+#
+# Commands:
+#   sudo systemctl enable --now mysurflife-rate-spots-tier3.timer
+
+[Unit]
+Description=MySurfLife rate_spots tier 3 — every 6 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=6h
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

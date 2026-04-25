@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const SCORE_COLORS = { 4: 'solid', 5: 'firing' };
 
 export function ArrivalRow({ spot, highlight, stormId, regionId }) {
+  const navigate = useNavigate();
   const isHighlight = highlight === spot.id;
   const scoreColor  = SCORE_COLORS[spot.score] || 'default';
 
@@ -72,9 +74,7 @@ export function ArrivalRow({ spot, highlight, stormId, regionId }) {
       <div className="ctas">
         <button
           className="spot-cta primary"
-          onClick={() => {
-            /* Phase 5: Scout handoff — POST /api/scout/sessions */
-          }}
+          onClick={() => navigate(`/sione?storm=${stormId}&spot=${spot.id}&region=${regionId}`)}
         >
           Plan trip with Sione
         </button>

@@ -43,13 +43,13 @@ _BUNDLE_TTL = 60  # seconds
 
 # ── Component fetchers ────────────────────────────────────────────────────────
 
-async def _fetch_spots() -> List[Dict]:
-    """Spots LEFT JOIN spot_ratings — returns map-bundle shape."""
+async def _fetch_spots() -> tuple:
+    """Spots LEFT JOIN spot_ratings — returns (spot_list, spots_freshness_str)."""
     try:
         admin = get_supabase_admin_client()
         client = admin or supabase
         if not client:
-            return []
+            return [], None
 
         # spots table
         spots_resp = client.table("spots").select(
@@ -63,6 +63,10 @@ async def _fetch_spots() -> List[Dict]:
             "primary_swell_dir, wind_mph, wind_dir, water_temp_f, computed_at"
         ).execute()
         ratings = {r["spot_slug"]: r for r in (ratings_resp.data or [])}
+        spots_freshness = max(
+            (r["computed_at"] for r in ratings.values() if r.get("computed_at")),
+            default=None,
+        )
 
         out = []
         for slug, spot in spots.items():
@@ -83,10 +87,10 @@ async def _fetch_spots() -> List[Dict]:
                 "water":   r.get("water_temp_f"),
                 "rated_at": r.get("computed_at"),
             })
-        return out
+        return out, spots_freshness
     except Exception as e:
         print(f"❌ map/bundle: spots fetch failed: {e}")
-        return []
+        return [], None
 
 
 async def _fetch_storms() -> tuple:
@@ -246,7 +250,7 @@ async def get_map_bundle(
     buoys_coro   = _fetch_buoys()  if include_buoys  else _empty()
     spots_coro   = _fetch_spots()
 
-    (spots, (storms, storms_ts), (buoys, buoys_ts)) = await asyncio.gather(
+    (spots, spots_ts), (storms, storms_ts), (buoys, buoys_ts) = await asyncio.gather(
         spots_coro, storms_coro, buoys_coro,
         return_exceptions=False,
     )
@@ -256,7 +260,7 @@ async def get_map_bundle(
     if isinstance(storms, Exception): storms = []
     if isinstance(buoys,  Exception): buoys  = []
 
-    updated_at = storms_ts or None
+    updated_at = storms_ts or spots_ts or None
 
     shared = {
         "spots":      spots,
@@ -266,7 +270,7 @@ async def get_map_bundle(
         "components": {
             "storms_freshness": storms_ts,
             "buoys_freshness":  buoys_ts,
-            "spots_freshness":  None,  # driven by spot_ratings.computed_at
+            "spots_freshness":  spots_ts,
         },
         "cached": False,
     }

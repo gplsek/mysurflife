@@ -195,51 +195,91 @@ def compute_arrivals(storm: Dict, db_spots: List[Dict]) -> List[Dict]:
     mov_str   = movement.get("direction")
     mov_deg   = _COMPASS_DEG.get(mov_str, -1.0) if mov_str else -1.0
 
-    period_s  = _estimate_period(wind_kts)
-    speed_kmh = _group_speed_kmh(period_s)
-    now_utc   = datetime.now(tz=timezone.utc)
+    now_utc = datetime.now(tz=timezone.utc)
+
+    # Build list of positions to evaluate: current position + forecast track.
+    # Each track waypoint adds a future swell source — the envelope (max across all
+    # positions) gives a more accurate peak height and arrival time than current
+    # position alone.
+    positions = [{
+        "lat":         storm_lat,
+        "lon":         storm_lon,
+        "wind_kts":    wind_kts,
+        "seas_ft":     seas_ft,
+        "mov_deg":     mov_deg,
+        "hours_ahead": 0,
+    }]
+    for tp in (storm.get("forecast_track") or []):
+        if tp.get("lat") is None or tp.get("lon") is None:
+            continue
+        tp_wind = tp.get("wind_kts") or wind_kts
+        positions.append({
+            "lat":         tp["lat"],
+            "lon":         tp["lon"],
+            "wind_kts":    tp_wind,
+            "seas_ft":     tp.get("sea_height_ft") or max(4.0, tp_wind * 0.15),
+            "mov_deg":     mov_deg,  # assume same general movement direction
+            "hours_ahead": tp.get("hours_ahead") or 0,
+        })
+
+    # Best arrival per region across all positions
+    region_best: Dict[str, Dict] = {}
+
+    for pos in positions:
+        pos_period = _estimate_period(pos["wind_kts"])
+        pos_speed  = _group_speed_kmh(pos_period)
+
+        for region in SURF_REGIONS:
+            dist_km = _haversine_km(pos["lat"], pos["lon"], region["lat"], region["lon"])
+            if dist_km > _MAX_RANGE_KM:
+                continue
+
+            bearing = _bearing_deg(pos["lat"], pos["lon"], region["lat"], region["lon"])
+
+            if pos["mov_deg"] >= 0:
+                diff = _angle_diff(bearing, pos["mov_deg"])
+                if diff > 120:
+                    continue
+                dir_factor = max(0.3, math.cos(math.radians(diff * 0.75)))
+            else:
+                dir_factor = 0.75
+
+            peak_ft = _arrival_height_ft(pos["seas_ft"], dist_km, pos_period, dir_factor)
+            if peak_ft < _MIN_HEIGHT_FT:
+                continue
+
+            travel_h   = dist_km / pos_speed
+            arrival_dt = now_utc + timedelta(hours=pos["hours_ahead"] + travel_h)
+            window_h   = max(12, min(72, round(dist_km / 800)))
+            arrival_dir_deg = (bearing + 180) % 360
+            arrival_dir     = _deg_to_compass(arrival_dir_deg)
+
+            rid = region["id"]
+            if rid not in region_best or peak_ft > region_best[rid]["peak_ft"]:
+                region_best[rid] = {
+                    "region":     region,
+                    "peak_ft":    peak_ft,
+                    "period_s":   pos_period,
+                    "arrival_dt": arrival_dt,
+                    "window_h":   window_h,
+                    "arrival_dir": arrival_dir,
+                }
 
     arrivals = []
-
-    for region in SURF_REGIONS:
-        dist_km = _haversine_km(storm_lat, storm_lon, region["lat"], region["lon"])
-        if dist_km > _MAX_RANGE_KM:
-            continue
-
-        # Bearing from storm to region centroid
-        bearing = _bearing_deg(storm_lat, storm_lon, region["lat"], region["lon"])
-
-        # Directional window: swell fans within ±120° of storm movement
-        if mov_deg >= 0:
-            diff = _angle_diff(bearing, mov_deg)
-            if diff > 120:
-                continue
-            dir_factor = max(0.3, math.cos(math.radians(diff * 0.75)))
-        else:
-            dir_factor = 0.75  # unknown movement: apply moderate discount
-
-        peak_ft = _arrival_height_ft(seas_ft, dist_km, period_s, dir_factor)
-        if peak_ft < _MIN_HEIGHT_FT:
-            continue
-
-        travel_h  = dist_km / speed_kmh
-        arrival_dt = now_utc + timedelta(hours=travel_h)
-        window_h  = max(12, min(72, round(dist_km / 800)))
-
-        # Swell arrives FROM the direction of the storm (opposite of bearing)
-        arrival_dir_deg = (bearing + 180) % 360
-        arrival_dir     = _deg_to_compass(arrival_dir_deg)
-
-        spots  = _spots_for_region(region, db_spots, peak_ft, period_s, arrival_dir, arrival_dt)
-        score  = _score_from_ft(peak_ft)
-
+    for best in region_best.values():
+        region = best["region"]
+        spots  = _spots_for_region(
+            region, db_spots, best["peak_ft"], best["period_s"],
+            best["arrival_dir"], best["arrival_dt"]
+        )
+        score  = _score_from_ft(best["peak_ft"])
         arrivals.append({
             "region_id":   region["id"],
             "name":        region["name"],
             "parent":      region["parent"],
-            "peak_ft":     round(peak_ft, 1),
-            "peak_when":   _fmt_dt(arrival_dt),
-            "window_h":    window_h,
+            "peak_ft":     round(best["peak_ft"], 1),
+            "peak_when":   _fmt_dt(best["arrival_dt"]),
+            "window_h":    best["window_h"],
             "tier":        _tier_from_score(score),
             "spots":       spots,
             "total_spots": len(spots),

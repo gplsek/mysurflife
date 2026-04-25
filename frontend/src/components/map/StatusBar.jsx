@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import LogoPulse from '../../design/LogoPulse';
 
-export function StatusBar({ loading, inViewCount, totalCount, updatedAt }) {
+export function StatusBar({ loading, inViewCount, totalCount, updatedAt, timelineOpen }) {
   const [ago, setAgo] = useState('');
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export function StatusBar({ loading, inViewCount, totalCount, updatedAt }) {
   }, [updatedAt]);
 
   return (
-    <div className="mv-statusbar">
+    <div className={`mv-statusbar${timelineOpen ? ' tl-open' : ''}`}>
       <div className="mv-status-left">
         <span className="mv-live-dot" />
         <span>Live</span>

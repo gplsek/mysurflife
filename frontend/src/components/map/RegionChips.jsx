@@ -63,6 +63,7 @@ export function RegionChips({ activeRegion, onRegion, spots = [] }) {
           onClick={() => onRegion(r.id)}
         >
           {r.label}
+          <span className="mv-chip-ct">{getCount(r)}</span>
         </button>
       ))}
 

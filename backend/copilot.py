@@ -178,6 +178,33 @@ TOOL_DEFS: List[Dict] = [
         }
     },
     {
+        "name": "save_session",
+        "description": (
+            "Save a surf session to the user's session journal. "
+            "Call this when the user describes a session they just completed or want to log. "
+            "Extract all available details from the conversation. After saving, "
+            "include a 'session_log' artifact in your respond call with saved=true. "
+            "If the user is not authenticated, explain they need to sign in to save sessions."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "spot_id":           {"type": "string", "description": "Spot slug, e.g. 'blacks-beach'"},
+                "spot_name":         {"type": "string", "description": "Human-readable spot name"},
+                "session_date":      {"type": "string", "description": "Date in YYYY-MM-DD format"},
+                "duration_min":      {"type": "integer", "description": "Session duration in minutes"},
+                "perceived_size":    {"type": "string", "description": "Subjective size description, e.g. '3-4ft', 'head high'"},
+                "perceived_quality": {"type": "integer", "description": "Overall quality 1-10 (maps to rating)"},
+                "perceived_wind":    {"type": "string", "description": "Wind description, e.g. 'offshore', 'light onshore'"},
+                "perceived_crowd":   {"type": "integer", "description": "Crowd level 1-5 (1=empty, 5=packed)"},
+                "waves_caught":      {"type": "integer", "description": "Number of waves caught"},
+                "board_display":     {"type": "string", "description": "Board used, e.g. '6'2 shortboard'"},
+                "perceived_note":    {"type": "string", "description": "Free-form session notes"},
+            },
+            "required": ["spot_id", "spot_name", "session_date"]
+        }
+    },
+    {
         "name": "respond",
         "description": (
             "Submit your final answer to the user. Always call this tool last "
@@ -214,7 +241,7 @@ TOOL_DEFS: List[Dict] = [
                                     "why: explanation panel — list of plus/minus bullet factors. "
                                     "equipment: board/wetsuit recommendation from user's quiver. "
                                     "wind_chart: SVG wind timeline with onshore shading. "
-                                    "session_log: post-session log form with rating dots and compare block."
+                                    "session_log: post-session log form with rating dots and compare block. Add saved=true when save_session succeeded."
                                 )
                             },
                             "title": {"type": "string"},
@@ -300,6 +327,18 @@ WRONG response pattern (causes overstatement):
 → Report WW3 model values as current conditions
 → Add canyon amplification on top of already-amplified model output
 
+## Logging sessions
+When a user describes a session they just had OR asks to log/record a session:
+1. Extract all available details (spot, date, duration, size, quality, waves, board, notes).
+2. If session_date is not given, use today's date.
+3. Call save_session first to persist the entry.
+4. Then call respond with a session_log artifact (set saved=true in the data).
+5. If save_session returns an error about auth, tell the user to sign in to save sessions.
+6. Keep the message warm and specific: mention actual conditions they described.
+
+Examples of triggers: "just got back from a session at Swamis", "log my session today",
+"/log 2h at Cardiff, head high, offshore", "I surfed Blacks this morning, caught 8 waves".
+
 ## Artifact mapping — always include relevant artifacts
 When you call a tool, pass its **full result object** as the artifact `data` field:
 - get_spot_conditions result → artifact type "spot_summary"
@@ -308,7 +347,7 @@ When you call a tool, pass its **full result object** as the artifact `data` fie
 - Explanation of recommendation → artifact type "why" with {title, bullets: [{sign: "+"|"-", text}]}
 - Board/wetsuit rec → artifact type "equipment" with {boards: [{name, is_primary, rationale, confidence, condition}], expect_note}
 - Wind timeline → artifact type "wind_chart" with {spot_name, best_window, now_index, points: [{wind_mph, is_onshore, hour_label}]}
-- Session log → artifact type "session_log" with {spot_name, date, duration_str, board, rating, wind_quality, wave_size, shape, crowd, fun_factor, compare: {predicted, actual, note}}
+- Session log → artifact type "session_log" with {spot_name, date, duration_str, board, rating, wind_quality, wave_size, shape, crowd, fun_factor, saved: true|false, compare: {predicted, actual, note}}
 - calculate_swell_arrival result → artifact type "swell_arrival" (pass the full result)
 Include artifact titles like "Cardiff Reef — Right Now" or "Forecast: Next 24h".
 
@@ -471,4 +510,6 @@ def _params_summary(name: str, inp: Dict[str, Any]) -> str:
         slug = inp.get("spot_slug", "")
         n = len(inp.get("storm_positions", []))
         return f"{slug} · {n} storm{'s' if n != 1 else ''}"
+    if name == "save_session":
+        return f"{inp.get('spot_name', inp.get('spot_id', ''))} · {inp.get('session_date', '')}"
     return ""

@@ -21,7 +21,7 @@ const NAV_ITEMS = [
     icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M2 6a5 5 0 0110 0v3l1 2H1l1-2V6z"/><path d="M5 11a2 2 0 004 0"/></svg>,
   },
   {
-    id: 'copilot', path: '/copilot', label: 'Copilot',
+    id: 'sione', path: '/sione', label: 'Sione',
     icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M12 1H2a1 1 0 00-1 1v7a1 1 0 001 1h2l3 3 3-3h2a1 1 0 001-1V2a1 1 0 00-1-1z"/><path d="M4 6h6M4 8h3"/></svg>,
   },
 ];

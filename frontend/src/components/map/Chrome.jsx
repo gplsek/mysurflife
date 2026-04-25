@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { RegionChips }       from './RegionChips';
 import { LeftRail }          from './LeftRail';
 import { ZoomControls }      from './ZoomControls';
 import { PreviewCard }       from './PreviewCard';
+import { BuoyPreviewCard }   from './BuoyPreviewCard';
 import { StormPreviewCard }  from './StormPreviewCard';
 import { StatusBar }         from './StatusBar';
+import MapTimeline           from './MapTimeline';
 import { ratingTier }        from './markers';
 import { TIER_LEGEND }       from './constants';
 
@@ -23,14 +25,28 @@ export default function Chrome({
   isFav,
   onToggleFav,
   onPreviewClose,
+  buoyPreview,
+  onBuoyPreviewClose,
   stormPreview,
   onStormPreviewClose,
   onStormOpenDetail,
   addSpotMode,
   onAddSpotToggle,
+  curH,
+  onCurHChange,
 }) {
+  const [timelineOpen, setTimelineOpen] = useState(false);
+
+  const handleExpandChange = useCallback((open) => {
+    setTimelineOpen(open);
+  }, []);
+
   const tierCounts = TIER_LEGEND.reduce((acc, { tier }) => {
-    acc[tier] = spots.filter(sp => ratingTier(sp.current_conditions?.overall_score) === tier).length;
+    acc[tier] = spots.filter(sp => {
+      const r = sp.rating ?? (sp.current_conditions?.overall_score != null
+        ? sp.current_conditions.overall_score / 2 : null);
+      return ratingTier(r) === tier;
+    }).length;
     return acc;
   }, {});
 
@@ -47,6 +63,7 @@ export default function Chrome({
       />
       <ZoomControls mapRef={mapRef} addSpotMode={addSpotMode} onAddSpotToggle={onAddSpotToggle} />
       <PreviewCard preview={preview} isFav={isFav} onToggleFav={onToggleFav} onClose={onPreviewClose} />
+      <BuoyPreviewCard buoy={buoyPreview} onClose={onBuoyPreviewClose} />
       {stormPreview && (
         <StormPreviewCard
           storm={stormPreview}
@@ -54,11 +71,17 @@ export default function Chrome({
           onOpenDetail={onStormOpenDetail}
         />
       )}
+      <MapTimeline
+        curH={curH}
+        onCurHChange={onCurHChange}
+        onExpandChange={handleExpandChange}
+      />
       <StatusBar
         loading={loading}
         inViewCount={inViewCount}
         totalCount={spots.length}
         updatedAt={updatedAt}
+        timelineOpen={timelineOpen}
       />
     </>
   );

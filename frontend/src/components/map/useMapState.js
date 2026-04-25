@@ -11,7 +11,7 @@ export function useMapState() {
   const [state, setState] = useState({
     region:     readSavedRegion(),
     showSpots:  true,
-    showBuoys:  true,
+    showBuoys:  false,
     showStorms: true,
     favsOnly:   false,
     query:      '',
@@ -20,7 +20,13 @@ export function useMapState() {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  const toggleState = (key) => setState(s => ({ ...s, [key]: !s[key] }));
+  const toggleState = (key) => setState(s => {
+    const next = !s[key];
+    // Spots and buoys are mutually exclusive — too busy together
+    if (key === 'showSpots' && next) return { ...s, showSpots: true, showBuoys: false };
+    if (key === 'showBuoys' && next) return { ...s, showBuoys: true, showSpots: false };
+    return { ...s, [key]: next };
+  });
   const setRegion = (id) => {
     try { localStorage.setItem(REGION_KEY, id); } catch {}
     setState(s => ({ ...s, region: id }));
