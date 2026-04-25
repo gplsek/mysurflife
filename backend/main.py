@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncio
@@ -4737,5 +4738,49 @@ async def copilot_chat(
         }
 
 
+@app.post("/api/sione/chat")
+async def sione_chat_stream(
+    request: CopilotChatRequest,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
+    """
+    Sione streaming chat endpoint.
+    Returns text/event-stream SSE frames: token | tool_start | tool_done | done | error
+    """
+    import functools
+    from copilot import handle_chat_stream
+
+    user_id = user["user_id"] if user else None
+
+    tool_registry = {
+        "get_spot_conditions":       _copilot_get_spot_conditions,
+        "get_conditions_window":     _copilot_get_conditions_window,
+        "get_buoy_history":          _copilot_get_buoy_history,
+        "compare_spots":             _copilot_compare_spots,
+        "rank_spots":                _copilot_rank_spots,
+        "calculate_swell_arrival":   _copilot_calculate_swell_arrival,
+        "save_session":              functools.partial(_copilot_save_session, user_id),
+    }
+
+    messages = [{"role": m.role, "content": m.content} for m in request.messages]
+
+    async def generate():
+        try:
+            async for chunk in handle_chat_stream(messages, request.context, tool_registry):
+                yield chunk
+        except Exception as e:
+            print(f"❌ Sione stream error: {e}")
+            import json
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Something went wrong. Please try again.'})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 

@@ -10,10 +10,11 @@ Usage (from main.py):
     result = await handle_chat(messages, context, tool_registry)
 """
 
+import asyncio
 import json
 import os
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from anthropic import AsyncAnthropic
 
@@ -513,3 +514,147 @@ def _params_summary(name: str, inp: Dict[str, Any]) -> str:
     if name == "save_session":
         return f"{inp.get('spot_name', inp.get('spot_id', ''))} · {inp.get('session_date', '')}"
     return ""
+
+
+# ── SSE streaming ─────────────────────────────────────────────────────────────
+
+def _sse_event(data: Dict) -> str:
+    return f"data: {json.dumps(data, default=str)}\n\n"
+
+
+async def handle_chat_stream(
+    messages: List[Dict[str, Any]],
+    context: Optional[Dict[str, Any]],
+    tool_registry: Dict[str, Callable],
+) -> AsyncGenerator[str, None]:
+    """
+    Async generator yielding SSE data strings for streaming responses.
+
+    Frame types:
+      {"type":"tool_start","name":"...","params":"..."}
+      {"type":"tool_done","name":"...","ms":123}
+      {"type":"token","text":"..."}
+      {"type":"done","artifacts":[...],"follow_ups":[...],"tools_called":[...]}
+      {"type":"error","message":"..."}
+    """
+    if not ANTHROPIC_API_KEY:
+        yield _sse_event({"type": "error", "message": "Sione is not configured (missing API key)."})
+        return
+
+    client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+
+    system = SYSTEM_PROMPT
+    if context:
+        if context.get("spot_id"):
+            system += f"\n\nContext: the user is currently viewing the '{context['spot_id']}' spot page."
+        elif context.get("region"):
+            system += f"\n\nContext: the user is browsing the '{context['region']}' region."
+
+    current_messages = list(messages)
+    tools_called: List[Dict[str, Any]] = []
+
+    for _ in range(MAX_TOOL_ITERATIONS):
+        async with client.messages.stream(
+            model=MODEL,
+            max_tokens=2000,
+            system=system,
+            tools=TOOL_DEFS,
+            messages=current_messages,
+        ) as stream:
+            # Stream text tokens as they arrive (present on end_turn steps)
+            async for event in stream:
+                if (event.type == "content_block_delta"
+                        and hasattr(event.delta, "type")
+                        and event.delta.type == "text_delta"
+                        and event.delta.text):
+                    yield _sse_event({"type": "token", "text": event.delta.text})
+
+            final = await stream.get_final_message()
+
+        if final.stop_reason == "end_turn":
+            yield _sse_event({
+                "type": "done",
+                "artifacts": [],
+                "follow_ups": [],
+                "tools_called": tools_called,
+            })
+            return
+
+        if final.stop_reason != "tool_use":
+            break
+
+        # Process tool calls in this turn
+        tool_results = []
+        respond_payload = None
+
+        for block in final.content:
+            if block.type != "tool_use":
+                continue
+
+            if block.name == "respond":
+                respond_payload = block.input
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": "Response submitted.",
+                })
+                continue
+
+            # Emit tool_start before executing
+            yield _sse_event({
+                "type": "tool_start",
+                "name": block.name,
+                "params": _params_summary(block.name, block.input),
+            })
+
+            tool_fn = tool_registry.get(block.name)
+            t0 = time.monotonic()
+            if tool_fn:
+                try:
+                    result = await tool_fn(**block.input)
+                except Exception as e:
+                    result = {"error": f"Tool {block.name} failed: {str(e)}"}
+            else:
+                result = {"error": f"Unknown tool: {block.name}"}
+            ms = round((time.monotonic() - t0) * 1000)
+
+            tools_called.append({
+                "name": block.name,
+                "params_summary": _params_summary(block.name, block.input),
+                "ms": ms,
+            })
+
+            yield _sse_event({"type": "tool_done", "name": block.name, "ms": ms})
+
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": json.dumps(result, default=str),
+            })
+
+        if respond_payload:
+            # Stream the respond message word-by-word so users see text appear
+            msg = respond_payload.get("message", "")
+            words = msg.split(" ")
+            for i, word in enumerate(words):
+                chunk = word + ("" if i == len(words) - 1 else " ")
+                yield _sse_event({"type": "token", "text": chunk})
+                await asyncio.sleep(0.018)  # ~55 words/sec — readable without feeling slow
+
+            yield _sse_event({
+                "type": "done",
+                "artifacts": respond_payload.get("artifacts", []),
+                "follow_ups": respond_payload.get("follow_ups", []),
+                "tools_called": tools_called,
+            })
+            return
+
+        current_messages = current_messages + [
+            {"role": "assistant", "content": final.content},
+            {"role": "user", "content": tool_results},
+        ]
+
+    yield _sse_event({
+        "type": "error",
+        "message": "I had trouble processing that request. Please try again.",
+    })

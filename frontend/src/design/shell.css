@@ -910,6 +910,18 @@
 .cop-typing span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes cop-bob { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
 
+/* Streaming cursor */
+.cop-cursor {
+  display: inline-block;
+  width: 2px; height: 1em;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: cop-blink 0.8s step-end infinite;
+}
+@keyframes cop-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
 /* Score ring */
 .cop-score-ring {
   position: relative; width: 62px; height: 62px; flex-shrink: 0;

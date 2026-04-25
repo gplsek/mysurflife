@@ -534,7 +534,7 @@ function AssistantMessage({ content, artifacts, tools_called, time }) {
       <div className="cop-msg-avatar cop-avatar-bot"><D1Mark size={18}/></div>
       <div className="cop-msg-body">
         <div className="cop-msg-meta">
-          <b>Copilot</b>
+          <b>Sione</b>
           {time && <span>{time}</span>}
           {tools_called?.length > 0 && (
             <><span>·</span><span>{tools_called.length} tool{tools_called.length !== 1 ? 's' : ''}</span></>
@@ -554,12 +554,23 @@ function AssistantMessage({ content, artifacts, tools_called, time }) {
   );
 }
 
-function ThinkingMessage() {
+function StreamingMessage({ toolEvents, text }) {
   return (
     <div className="cop-msg cop-msg-bot">
       <div className="cop-msg-avatar cop-avatar-bot"><D1Mark size={18}/></div>
       <div className="cop-msg-body">
-        <div className="cop-typing"><span/><span/><span/></div>
+        <div className="cop-msg-meta"><b>Sione</b></div>
+        {toolEvents.length > 0 && (
+          <div className="cop-tool-calls">
+            {toolEvents.map((tc, i) => (
+              <ToolCallChip key={i} name={tc.name} params={tc.params} done={tc.done}/>
+            ))}
+          </div>
+        )}
+        {text
+          ? <div className="cop-msg-content cop-streaming">{renderBold(text)}<span className="cop-cursor"/></div>
+          : toolEvents.length === 0 && <div className="cop-typing"><span/><span/><span/></div>
+        }
       </div>
     </div>
   );
@@ -573,6 +584,9 @@ export default function Copilot({ context }) {
   const [input, setInput]                 = useState('');
   const [loading, setLoading]             = useState(false);
   const [allToolsCalled, setAllToolsCalled] = useState([]);
+  const [streamText,  setStreamText]  = useState('');
+  const [liveTools,   setLiveTools]   = useState([]);
+  const abortRef = useRef(null);
   const [profile, setProfile]             = useState({});
   const threadRef = useRef(null);
   const inputRef  = useRef(null);
@@ -598,43 +612,90 @@ export default function Copilot({ context }) {
   useEffect(scrollToBottom, [messages, loading, scrollToBottom]);
 
   const clearMessages = useCallback(() => {
+    abortRef.current?.abort();
     setMessages([]);
     setAllToolsCalled([]);
+    setStreamText('');
+    setLiveTools([]);
+    setLoading(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
   const sendMessage = useCallback(async (text) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
+
     const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     const userMsg = { role: 'user', content: trimmed, time: t };
     const next = [...messages, userMsg];
     setMessages(next);
     setInput('');
     setLoading(true);
+    setStreamText('');
+    setLiveTools([]);
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
     try {
       const apiMsgs = next.map(m => ({ role: m.role, content: m.content }));
       const authHeaders = await getAuthHeaders();
-      const res = await fetch('/api/copilot/chat', {
+      const res = await fetch('/api/sione/chat', {
         method: 'POST',
         headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMsgs, context: context || null }),
+        signal: ctrl.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.tools_called?.length) {
-        setAllToolsCalled(prev => [...prev, ...data.tools_called]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+      let finalData = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const raw = decoder.decode(value, { stream: true });
+        const lines = raw.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let frame;
+          try { frame = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (frame.type === 'token') {
+            accumulated += frame.text;
+            setStreamText(accumulated);
+          } else if (frame.type === 'tool_start') {
+            setLiveTools(prev => [...prev, { name: frame.name, params: frame.params, done: false }]);
+          } else if (frame.type === 'tool_done') {
+            setLiveTools(prev => prev.map(tc =>
+              tc.name === frame.name && !tc.done ? { ...tc, done: true, ms: frame.ms } : tc
+            ));
+          } else if (frame.type === 'done') {
+            finalData = frame;
+          } else if (frame.type === 'error') {
+            accumulated = frame.message || 'Something went wrong. Please try again.';
+            finalData = { artifacts: [], follow_ups: [], tools_called: [] };
+          }
+        }
       }
+
       const replyTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      if (finalData?.tools_called?.length) {
+        setAllToolsCalled(prev => [...prev, ...finalData.tools_called]);
+      }
       setMessages(prev => [...prev, {
-        role: 'assistant',
-        content:      data.message || '',
-        artifacts:    data.artifacts || [],
-        follow_ups:   data.follow_ups || [],
-        tools_called: data.tools_called || [],
+        role:         'assistant',
+        content:      accumulated,
+        artifacts:    finalData?.artifacts    || [],
+        follow_ups:   finalData?.follow_ups   || [],
+        tools_called: finalData?.tools_called || [],
         time:         replyTime,
       }]);
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return;
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Something went wrong. Please try again.',
@@ -642,6 +703,8 @@ export default function Copilot({ context }) {
         time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       }]);
     } finally {
+      setStreamText('');
+      setLiveTools([]);
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
@@ -749,7 +812,7 @@ export default function Copilot({ context }) {
                 : <AssistantMessage key={i} content={m.content} artifacts={m.artifacts}
                     tools_called={m.tools_called} time={m.time}/>
             ))}
-            {loading && <ThinkingMessage/>}
+            {loading && <StreamingMessage toolEvents={liveTools} text={streamText}/>}
           </div>
         )}
 
