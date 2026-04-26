@@ -148,44 +148,67 @@ def _basin_label(section: str) -> Optional[str]:
 
 def _parse_fetch_info(section: str) -> Optional[Dict]:
     """
-    Parse wind-fetch geometry from standard NWS wording, e.g.:
+    Parse wind-fetch geometry from NWS High Seas wording.
+
+    Handles multiple formats:
       'STORM FORCE WINDS FROM W QUADRANT 150 NM'
       'GALE FORCE WINDS NE SEMICIRCLE 120 NM'
       'GALE FORCE WINDS 300 NM RADIUS'
+      'WITHIN 240 NM SW AND W QUADRANTS WINDS 40 TO 50 KT'
+      'WITHIN 360 NM S QUADRANT WINDS 30 TO 45 KT'
+
+    Returns the entry with the largest radius_nm (peak storm footprint).
     """
     tier_map = {"GALE": 34, "STORM": 48, "HURRICANE": 64, "WHOLE GALE": 48}
     tier_pat = r"(WHOLE GALE|GALE|STORM|HURRICANE)\s+FORCE\s+WINDS"
 
-    m = re.search(
+    candidates = []
+
+    # Pattern A: "STORM FORCE WINDS [FROM direction QUADRANT / direction SEMICIRCLE] X NM"
+    for m in re.finditer(
         tier_pat + r"(?:\s+FROM\s+([\w/]+)\s+QUADRANT|\s+([\w/]+)\s+SEMICIRCLE)?"
         r"\s*(\d+)\s*NM",
-        section,
-        re.IGNORECASE,
-    )
-    if not m:
-        # Fallback: '... NM RADIUS'
-        m2 = re.search(
-            tier_pat + r"\s+(\d+)\s*NM\s+RADIUS",
-            section,
-            re.IGNORECASE,
-        )
-        if not m2:
-            return None
-        tier_str = m2.group(1).upper()
-        return {
-            "quadrant": "ALL",
-            "radius_nm": int(m2.group(2)),
+        section, re.IGNORECASE,
+    ):
+        tier_str = m.group(1).upper()
+        quadrant = (m.group(2) or m.group(3) or "ALL").upper()
+        candidates.append({
+            "quadrant": quadrant,
+            "radius_nm": int(m.group(4)),
             "wind_kts_in_fetch": tier_map.get(tier_str, 34),
-        }
+        })
 
-    tier_str  = m.group(1).upper()
-    quadrant  = (m.group(2) or m.group(3) or "ALL").upper()
-    radius_nm = int(m.group(4))
-    return {
-        "quadrant": quadrant,
-        "radius_nm": radius_nm,
-        "wind_kts_in_fetch": tier_map.get(tier_str, 34),
-    }
+    # Pattern B: "X NM RADIUS" after tier keyword
+    for m in re.finditer(tier_pat + r"\s+(\d+)\s*NM\s+RADIUS", section, re.IGNORECASE):
+        tier_str = m.group(1).upper()
+        candidates.append({
+            "quadrant": "ALL",
+            "radius_nm": int(m.group(2)),
+            "wind_kts_in_fetch": tier_map.get(tier_str, 34),
+        })
+
+    # Pattern C (NWS High Seas): "WITHIN X NM [direction] QUADRANT[S] WINDS Y TO Z KT"
+    # e.g. "WITHIN 240 NM SW AND W QUADRANTS WINDS 40 TO 50 KT"
+    # Note: "WITHIN 360 NM S AND 420 NM W QUADRANTS" is shorthand for two radii — iterate both
+    for m in re.finditer(
+        r"WITHIN\s+(\d+)\s*NM\s+([NSEW]{1,3})\b.*?QUADRANT[S]?[^.]*?WINDS?\s+\d+\s+TO\s+(\d+)\s*KT",
+        section, re.IGNORECASE,
+    ):
+        radius_nm   = int(m.group(1))
+        quadrant    = m.group(2).strip().upper()
+        max_wind    = int(m.group(3))
+        tier_str    = "HURRICANE" if max_wind >= 64 else "STORM" if max_wind >= 48 else "GALE"
+        candidates.append({
+            "quadrant": quadrant,
+            "radius_nm": radius_nm,
+            "wind_kts_in_fetch": tier_map.get(tier_str, 34),
+        })
+
+    if not candidates:
+        return None
+
+    # Return the entry with the largest radius (peak storm footprint)
+    return max(candidates, key=lambda c: c["radius_nm"])
 
 
 def _parse_forecast_track(section: str, issued_utc: Optional[str]) -> List[Dict]:
@@ -309,22 +332,34 @@ def _parse_bulletin(text: str) -> Dict:
 
                 pressure_mb = int(match.group(4)) if match.group(4) else None
 
-                # Wind speed — look for "WINDS TO XX KT" or "MAX WINDS XX KT"
-                wind_m = re.search(
-                    r"(?:WINDS?\s+TO|MAX\s+WINDS?)\s+(\d+)\s*KT",
-                    sec,
-                    re.IGNORECASE,
-                )
-                wind_kts = int(wind_m.group(1)) if wind_m else None
+                # Wind speed — take maximum across all mentions in section:
+                #   "WINDS X TO Y KT" (range → use max Y)
+                #   "WINDS TO X KT" or "MAX WINDS X KT" (single ceiling)
+                _wind_vals = [
+                    int(w) for w in re.findall(
+                        r"WINDS?\s+\d+\s+TO\s+(\d+)\s*KT", sec, re.IGNORECASE
+                    )
+                ] + [
+                    int(w) for w in re.findall(
+                        r"(?:WINDS?\s+TO|MAX\s+WINDS?)\s+(\d+)\s*KT", sec, re.IGNORECASE
+                    )
+                ]
+                wind_kts = max(_wind_vals) if _wind_vals else None
 
-                # Sea heights — "SEAS XX TO YY FT"
-                seas_m = re.search(
-                    r"SEAS?\s+(\d+)\s+TO\s+(\d+)\s*FT",
-                    sec,
-                    re.IGNORECASE,
+                # Sea heights — accept FT or M (convert M→ft); take peak across whole section
+                _seas_ft: list = [
+                    float(v) for v in re.findall(
+                        r"SEAS?\s+\d+(?:\.\d+)?\s+TO\s+(\d+(?:\.\d+)?)\s*FT",
+                        sec, re.IGNORECASE,
+                    )
+                ]
+                _seas_m_raw: list = re.findall(
+                    r"SEAS?\s+\d+(?:\.\d+)?\s+TO\s+(\d+(?:\.\d+)?)\s*M\b",
+                    sec, re.IGNORECASE,
                 )
-                sea_min_ft = int(seas_m.group(1)) if seas_m else None
-                sea_max_ft = int(seas_m.group(2)) if seas_m else None
+                _seas_ft += [float(v) * 3.281 for v in _seas_m_raw]
+                sea_max_ft = round(max(_seas_ft)) if _seas_ft else None
+                sea_min_ft = None  # kept for schema compat; peak is what matters
 
                 # Movement — "MOVING NE 15 KT" or "NEARLY STATIONARY"
                 move_m = re.search(
@@ -469,6 +504,42 @@ async def get_high_seas(ocean: str) -> Dict:
         }
 
     parsed = _parse_bulletin(text)
+
+    # ── LLM enhancement pass ─────────────────────────────────────────────────
+    # For any system still missing sea_height_ft or fetch, try Claude Haiku
+    # to fill the gaps. Fires concurrently; failures are silently swallowed.
+    try:
+        from storm_bulletin_parser import parse_bulletin_section
+        import asyncio as _asyncio
+
+        async def _enhance(system: Dict) -> None:
+            if system.get("sea_height_ft") is not None and system.get("fetch") is not None:
+                return  # regex already got everything
+            raw = system.get("raw_text", "")
+            if not raw:
+                return
+            llm_data = await parse_bulletin_section(raw)
+            if not llm_data:
+                return
+            if system.get("sea_height_ft") is None and llm_data.get("sea_height_ft"):
+                system["sea_height_ft"] = llm_data["sea_height_ft"]
+            if system.get("sea_range_ft") is None and llm_data.get("sea_range_ft"):
+                system["sea_range_ft"] = llm_data["sea_range_ft"]
+            if system.get("fetch") is None and llm_data.get("fetch"):
+                system["fetch"] = llm_data["fetch"]
+            if system.get("wind_kts") is None and llm_data.get("wind_kts"):
+                system["wind_kts"] = llm_data["wind_kts"]
+                system["warning_tier"] = _warning_tier(llm_data["wind_kts"])
+            if system.get("movement") is None and llm_data.get("movement"):
+                system["movement"] = llm_data["movement"]
+
+        await _asyncio.gather(*[_enhance(s) for s in parsed["systems"]], return_exceptions=True)
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"⚠️  high_seas LLM enhancement error: {e}")
+    # ─────────────────────────────────────────────────────────────────────────
+
     result = {
         "ocean": ocean,
         "label": cfg["label"],
