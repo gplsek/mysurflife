@@ -21,7 +21,7 @@ router = APIRouter()
 
 _SURF_TYPES = {"LOW", "TROPICAL STORM", "TROPICAL DEPRESSION", "HURRICANE", "TYPHOON"}
 
-_OCEAN_KEYS = ["north-pacific", "north-atlantic", "south-pacific"]
+_OCEAN_KEYS = ["north-pacific", "north-atlantic", "east-pacific"]
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config" / "storms_config.json"
 
@@ -45,7 +45,7 @@ def save_storms_config(cfg: dict) -> None:
 
 
 def _storm_id(ocean: str, lat: float, lon: float) -> str:
-    prefix = {"north-pacific": "np", "north-atlantic": "na", "south-pacific": "sp"}.get(ocean, ocean[:2])
+    prefix = {"north-pacific": "np", "north-atlantic": "na", "east-pacific": "ep"}.get(ocean, ocean[:2])
     return f"{prefix}-{lat:.1f}-{abs(lon):.1f}"
 
 
@@ -150,7 +150,7 @@ async def get_active_storms(
 
 # ── Storm arrivals ────────────────────────────────────────────────────────────
 
-_OCEAN_PREFIX = {"np": "north-pacific", "na": "north-atlantic", "sp": "south-pacific"}
+_OCEAN_PREFIX = {"np": "north-pacific", "na": "north-atlantic", "ep": "east-pacific"}
 
 
 async def _find_storm(storm_id: str) -> Optional[dict]:

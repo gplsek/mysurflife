@@ -9,7 +9,7 @@ No API key required. NWS Products API is public.
 
 Endpoints exposed (registered in main.py):
     GET /api/high-seas/{ocean}
-        ocean: north-pacific | south-pacific | north-atlantic
+        ocean: north-pacific | east-pacific | north-atlantic
 """
 import re
 from datetime import datetime, timedelta, timezone
@@ -27,10 +27,10 @@ _OCEAN_PRODUCT_MAP = {
         "location": "NP",
         "label": "North Pacific High Seas Forecast",
     },
-    "south-pacific": {
+    "east-pacific": {
         "type": "HSF",
         "location": "EP2",
-        "label": "East/South Pacific High Seas Forecast",
+        "label": "East Pacific High Seas Forecast",
     },
     "north-atlantic": {
         "type": "HSF",
@@ -213,23 +213,41 @@ def _parse_fetch_info(section: str) -> Optional[Dict]:
 
 def _parse_forecast_track(section: str, issued_utc: Optional[str]) -> List[Dict]:
     """
-    Parse NWS forecast position statements, e.g.:
-      'WILL MOVE NE TO 44N 151W BY 12Z TUE THEN NE TO 46N 148W BY 12Z WED'
-    Returns list of {hours_ahead, lat, lon} sorted by hours_ahead.
-    """
-    waypoints = []
+    Parse NWS forecast position statements. Handles two bulletin styles:
 
-    # Normalise whitespace
+    Style A — explicit hour offsets (North Atlantic / most HSF products):
+      '.12 HOUR FORECAST LOW 61N45W 989 MB'
+      '.24 HOUR FORECAST COMPLEX LOW WITH MAIN CENTER NEAR 62N41W'
+      '.36 HOUR FORECAST LOW NEAR 44N 151W'
+
+    Style B — day/time waypoints (some North Pacific products):
+      'WILL MOVE NE TO 44N 151W BY 12Z TUE THEN NE TO 46N 148W BY 12Z WED'
+
+    Returns list of {hours_ahead, lat, lon} sorted by hours_ahead.
+    Duplicate hours_ahead values are deduplicated (first match wins).
+    """
+    waypoints: List[Dict] = []
+    seen_hours: set = set()
+
     text = " ".join(section.split())
 
-    # Each waypoint: coords + optional BY {time}
-    # Pattern handles "TO 44N 151W BY 12Z TUE" and "NEAR 44N 151W"
-    wp_pat = re.compile(
-        r"(?:TO|NEAR)\s+(\d+(?:\.\d+)?[NS])\s+(\d+(?:\.\d+)?[EW])"
-        r"(?:[^\.]*?BY\s+(\d{1,2})Z\s+(\w{3}))?",
+    # ── Style A: ".12 HOUR FORECAST ... [NEAR] <LAT><LON>" ─────────────────
+    # Handles both "61N45W" (concatenated) and "61N 45W" (spaced)
+    hour_pat = re.compile(
+        r"\.(\d{1,3})\s+HOUR\s+FORECAST\b[^.]*?"
+        r"(?:NEAR\s+|LOW\s+|HIGH\s+|CENTER\s+NEAR\s+)?"
+        r"(\d+(?:\.\d+)?[NS])\s*(\d+(?:\.\d+)?[EW])",
         re.IGNORECASE,
     )
+    for m in hour_pat.finditer(text):
+        hours_ahead = int(m.group(1))
+        lat = _parse_lat(m.group(2))
+        lon = _parse_lon(m.group(3))
+        if lat is not None and lon is not None and hours_ahead not in seen_hours:
+            waypoints.append({"hours_ahead": hours_ahead, "lat": lat, "lon": lon})
+            seen_hours.add(hours_ahead)
 
+    # ── Style B: "TO <LAT> <LON> BY <HH>Z <DAY>" ───────────────────────────
     issued_dt = None
     if issued_utc:
         try:
@@ -237,6 +255,11 @@ def _parse_forecast_track(section: str, issued_utc: Optional[str]) -> List[Dict]
         except Exception:
             pass
 
+    wp_pat = re.compile(
+        r"(?:TO|NEAR)\s+(\d+(?:\.\d+)?[NS])\s+(\d+(?:\.\d+)?[EW])"
+        r"(?:[^.]*?BY\s+(\d{1,2})Z\s+(\w{3}))?",
+        re.IGNORECASE,
+    )
     for m in wp_pat.finditer(text):
         lat = _parse_lat(m.group(1))
         lon = _parse_lon(m.group(2))
@@ -259,11 +282,10 @@ def _parse_forecast_track(section: str, issued_utc: Optional[str]) -> List[Dict]
             except Exception:
                 pass
 
-        waypoints.append({
-            "hours_ahead": hours_ahead,
-            "lat": lat,
-            "lon": lon,
-        })
+        if hours_ahead not in seen_hours:
+            waypoints.append({"hours_ahead": hours_ahead, "lat": lat, "lon": lon})
+            if hours_ahead is not None:
+                seen_hours.add(hours_ahead)
 
     # Sort by hours_ahead (None last)
     waypoints.sort(key=lambda w: w["hours_ahead"] if w["hours_ahead"] is not None else 9999)
@@ -424,7 +446,7 @@ def _parse_bulletin(text: str) -> Dict:
 # Storm observations persistence
 # ---------------------------------------------------------------------------
 
-_OCEAN_PREFIX = {"north-pacific": "np", "north-atlantic": "na", "south-pacific": "sp"}
+_OCEAN_PREFIX = {"north-pacific": "np", "north-atlantic": "na", "east-pacific": "ep"}
 
 
 def _persist_storm_observations(ocean: str, systems: List[Dict], observed_utc: Optional[str]) -> None:
@@ -563,7 +585,7 @@ def register_routes(app) -> None:
     async def high_seas_endpoint(
         ocean: str = FPath(
             ...,
-            description="Ocean basin: north-pacific | south-pacific | north-atlantic",
+            description="Ocean basin: north-pacific | east-pacific | north-atlantic",
         ),
     ):
         """

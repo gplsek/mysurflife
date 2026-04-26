@@ -182,8 +182,40 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
   const addStormMarker = useCallback((storm, curH = 0) => {
     const map = mapRef.current;
     if (!map) return;
-    // Dim progressively as timeline advances — no track data yet to move the pin
-    const opacity = curH === 0 ? 1 : Math.max(0.35, 1 - curH / 300);
+
+    const track = Array.isArray(storm.forecast_track) ? storm.forecast_track : [];
+
+    // Interpolate position at curH if track data is available
+    let displayLat = storm.lat;
+    let displayLon = storm.lon;
+    if (track.length > 0 && curH > 0) {
+      // Find surrounding waypoints
+      const sorted = [...track].filter(w => w.hours_ahead != null).sort((a, b) => a.hours_ahead - b.hours_ahead);
+      if (sorted.length > 0) {
+        if (curH <= sorted[0].hours_ahead) {
+          // Before first waypoint — interpolate from current pos to first wp
+          const frac = curH / sorted[0].hours_ahead;
+          displayLat = storm.lat + (sorted[0].lat - storm.lat) * frac;
+          displayLon = storm.lon + (sorted[0].lon - storm.lon) * frac;
+        } else if (curH >= sorted[sorted.length - 1].hours_ahead) {
+          displayLat = sorted[sorted.length - 1].lat;
+          displayLon = sorted[sorted.length - 1].lon;
+        } else {
+          for (let i = 0; i < sorted.length - 1; i++) {
+            const a = sorted[i];
+            const b = sorted[i + 1];
+            if (curH >= a.hours_ahead && curH <= b.hours_ahead) {
+              const frac = (curH - a.hours_ahead) / (b.hours_ahead - a.hours_ahead);
+              displayLat = a.lat + (b.lat - a.lat) * frac;
+              displayLon = a.lon + (b.lon - a.lon) * frac;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    const opacity = curH === 0 ? 1 : Math.max(0.4, 1 - curH / 240);
     const icon = L.divIcon({
       html: stormMarkerHtml(storm, opacity),
       className: '',
@@ -192,7 +224,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
     });
     // Outer container is non-interactive (rings cover too much area).
     // Click is wired directly to the .core dot via L.DomEvent after addTo.
-    const marker = L.marker([storm.lat, storm.lon], { icon, interactive: false });
+    const marker = L.marker([displayLat, displayLon], { icon, interactive: false });
     marker.addTo(map);
     const core = marker.getElement()?.querySelector('.core');
     if (core) {
@@ -203,6 +235,40 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       });
     }
     markersRef.current.push(marker);
+
+    // Draw forecast track polyline + ghost waypoints
+    if (track.length > 0) {
+      const sorted = [...track].filter(w => w.hours_ahead != null && w.lat != null && w.lon != null)
+        .sort((a, b) => a.hours_ahead - b.hours_ahead);
+      if (sorted.length > 0) {
+        // Full track path: current pos → all waypoints
+        const trackLatLngs = [[storm.lat, storm.lon], ...sorted.map(w => [w.lat, w.lon])];
+        const trackLine = L.polyline(trackLatLngs, {
+          color: '#e5743d',
+          weight: 1.5,
+          opacity: 0.45,
+          dashArray: '4 6',
+          interactive: false,
+        });
+        trackLine.addTo(map);
+        markersRef.current.push(trackLine);
+
+        // Ghost markers at future waypoints (those ahead of curH)
+        for (const wp of sorted) {
+          if (wp.hours_ahead <= curH) continue;
+          const ghostOpacity = Math.max(0.15, 0.5 - wp.hours_ahead / 300);
+          const ghostIcon = L.divIcon({
+            html: `<div style="width:8px;height:8px;border-radius:50%;background:#e5743d;opacity:${ghostOpacity};border:1px solid rgba(229,116,61,0.6)"></div>`,
+            className: '',
+            iconSize: [8, 8],
+            iconAnchor: [4, 4],
+          });
+          const ghost = L.marker([wp.lat, wp.lon], { icon: ghostIcon, interactive: false });
+          ghost.addTo(map);
+          markersRef.current.push(ghost);
+        }
+      }
+    }
   }, []);
 
   const addUserSpotMarker = useCallback((spot) => {

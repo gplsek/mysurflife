@@ -8,14 +8,14 @@ import './ManageStorms.css';
 const OCEAN_OPTIONS = [
   { id: 'north-pacific',  label: 'North Pacific' },
   { id: 'north-atlantic', label: 'North Atlantic' },
-  { id: 'south-pacific',  label: 'East/South Pacific' },
+  { id: 'east-pacific',   label: 'East Pacific' },
 ];
 
 const DEFAULT_CONFIG = {
   min_pressure_mb: 1020,
   min_wind_kts:    0,
   include_highs:   false,
-  oceans:          ['north-pacific', 'north-atlantic', 'south-pacific'],
+  oceans:          ['north-pacific', 'north-atlantic', 'east-pacific'],
 };
 
 export default function ManageStorms() {
