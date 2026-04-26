@@ -63,8 +63,8 @@ except ImportError as e:
 
 from config import CACHE_DURATION
 from services.cache import cache, _timeline_cache, _TIMELINE_CACHE_TTL, _dataset_cache, _in_flight_requests
+import services.state as _svc_state
 from services.state import NDBC_SEM, WIND_SEM, TIMELINE_SEM
-from services.state import http_client as _http_client
 from services.state import _sione_sessions, _SESSION_TTL
 
 # L2 Redis cache (shared across workers, longer TTL)
@@ -313,7 +313,7 @@ async def fetch_wind_from_open_meteo(lat: float, lon: float) -> Dict:
             f"&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m"
             f"&wind_speed_unit=ms"
         )
-        response = await _http_client.get(url)
+        response = await _svc_state.http_client.get(url)
         response.raise_for_status()
         data = response.json()
         current = data.get("current", {})
@@ -336,7 +336,7 @@ async def fetch_wind_from_station(station_id: str) -> Dict:
     try:
         url = f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
         async with NDBC_SEM:
-            response = await _http_client.get(url)
+            response = await _svc_state.http_client.get(url)
             response.raise_for_status()
             lines = response.text.splitlines()
 
@@ -403,7 +403,7 @@ async def fetch_buoy_data(buoy_id: str, use_cache: bool = True, wind_fallback_st
     try:
         url = f"https://www.ndbc.noaa.gov/data/realtime2/{buoy_id}.txt"
         async with NDBC_SEM:
-            response = await _http_client.get(url)
+            response = await _svc_state.http_client.get(url)
             response.raise_for_status()  # Raise error for bad status codes
             lines = response.text.splitlines()
 
@@ -658,7 +658,7 @@ async def get_buoy_history(station_id: str, hours: int = 48):
     
     try:
         async with NDBC_SEM:
-            response = await _http_client.get(url)
+            response = await _svc_state.http_client.get(url)
             response.raise_for_status()
             text = response.text
     except Exception as e:
@@ -966,7 +966,7 @@ async def get_buoy_forecast(station_id: str, hours: int = 120):
         # Fetch current NDBC data to establish baseline
         ndbc_url = f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
         async with NDBC_SEM:
-            response = await _http_client.get(ndbc_url)
+            response = await _svc_state.http_client.get(ndbc_url)
             response.raise_for_status()
             text = response.text
         
@@ -1191,13 +1191,13 @@ async def fetch_real_noaa_wind(
 
     try:
         # Use shared HTTP client with timeout
-        if not _http_client:
+        if not _svc_state.http_client:
             print("❌ HTTP client not initialized")
             return None
         
         print(f"🌐 Fetching GRIB from NOMADS: {file_name} (forecast hour {fh})")
         async with NDBC_SEM:  # Limit concurrent requests
-            resp = await _http_client.get(grib_url, timeout=30.0)
+            resp = await _svc_state.http_client.get(grib_url, timeout=30.0)
             resp.raise_for_status()
             content = resp.content
 
@@ -1995,7 +1995,7 @@ async def fetch_real_noaa_ww3_grib(
 
     try:
         print(f"🌊 Fetching WW3 GRIB: {file_name} f{fh:03d} ({run_date} {run_cycle}z)")
-        resp = await _http_client.get(grib_url, timeout=30.0)
+        resp = await _svc_state.http_client.get(grib_url, timeout=30.0)
         resp.raise_for_status()
         content = resp.content
 

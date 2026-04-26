@@ -1,12 +1,13 @@
 """services/cache.py — Shared in-memory caches and request-deduplication dict."""
 import asyncio
-from datetime import timedelta
 from typing import Any, Dict
+
+from config import TIMELINE_CACHE_TTL
 
 cache: Dict[str, Any] = {}
 
 _timeline_cache: Dict[str, Dict] = {}
-_TIMELINE_CACHE_TTL = timedelta(minutes=30)
+_TIMELINE_CACHE_TTL = TIMELINE_CACHE_TTL  # single source of truth in config.py
 
 _dataset_cache: Dict[str, Dict] = {}
 
