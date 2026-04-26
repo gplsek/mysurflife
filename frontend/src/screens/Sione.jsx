@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { getAuthHeaders } from '../supabaseClient';
 import LogoPulse from '../design/LogoPulse';
@@ -580,6 +581,7 @@ function StreamingMessage({ toolEvents, text }) {
 
 export default function Copilot({ context }) {
   const { user } = useAuth();
+  const location = useLocation();
   const [messages, setMessages]           = useState([]);
   const [input, setInput]                 = useState('');
   const [loading, setLoading]             = useState(false);
@@ -590,9 +592,24 @@ export default function Copilot({ context }) {
   const [profile, setProfile]             = useState({});
   const threadRef = useRef(null);
   const inputRef  = useRef(null);
+  // Session context from navigation state (storm card handoff, etc.)
+  const sessionContextRef = useRef(null);
 
   const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   const initials = user?.email ? user.email.slice(0, 2).toUpperCase() : 'JP';
+
+  // Seed opening message + context from navigation state (storm card handoff)
+  useEffect(() => {
+    const state = location.state;
+    if (state?.messages?.length) {
+      setMessages(state.messages);
+    }
+    if (state?.context) {
+      sessionContextRef.current = state.context;
+    }
+    // Clear state so back-navigation doesn't re-seed
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+  }, []); // mount-only — intentionally excludes location.state
 
   useEffect(() => {
     if (!user) return;
@@ -643,7 +660,7 @@ export default function Copilot({ context }) {
       const res = await fetch('/api/sione/chat', {
         method: 'POST',
         headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMsgs, context: context || null }),
+        body: JSON.stringify({ messages: apiMsgs, context: sessionContextRef.current || context || null }),
         signal: ctrl.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -873,6 +890,22 @@ export default function Copilot({ context }) {
 
       {/* ── Right context pane ── */}
       <aside className="cop-ctx-pane">
+
+        {sessionContextRef.current?.storm_id && (
+          <div className="cop-ctx-sec">
+            <h5 className="cop-ctx-head">Storm context</h5>
+            <div className="cop-ctx-row">
+              <span className="cop-ctx-k">Storm</span>
+              <span className="cop-ctx-v" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {sessionContextRef.current.storm_id}
+              </span>
+            </div>
+            <div className="cop-ctx-row">
+              <span className="cop-ctx-k">Mode</span>
+              <span className="cop-ctx-v">Storm Planner</span>
+            </div>
+          </div>
+        )}
 
         <div className="cop-ctx-sec">
           <h5 className="cop-ctx-head">Active context</h5>

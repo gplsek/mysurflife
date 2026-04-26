@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate }        from 'react-router-dom';
+import { getAuthHeaders }     from '../../supabaseClient';
 import { StormFetchWedge }    from './StormFetchWedge';
 import { StormForecastTrack } from './StormForecastTrack';
 import { RegionalScorecard }  from './RegionalScorecard';
@@ -67,6 +68,7 @@ export function StormCard({ storm, mapRef, onClose }) {
   const [l2Sort,         setL2Sort]         = useState('size');
   const [highlight,      setHighlight]      = useState(null);
   const [minutesAgoVal,  setMinutesAgoVal]  = useState(() => minutesAgo(storm?.issued_utc));
+  const [chipLoading,    setChipLoading]    = useState(false);
   const abortRef = useRef(null);
 
   /* ─── Data prep ───────────────────────────────────────────── */
@@ -142,6 +144,37 @@ export function StormCard({ storm, mapRef, onClose }) {
       window.history.replaceState(null, '', u2.toString());
     };
   }, [storm.id, onClose]);
+
+  /* ─── Ask Sione handoff ──────────────────────────────────── */
+  const handleAskSione = useCallback(async () => {
+    setChipLoading(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const payload = {
+        mode:   'storm_trip',
+        storm:  { ...storm, arrivals: arrivals || [] },
+        source: 'storm-card',
+      };
+      const res = await fetch('/api/sione/sessions', {
+        method:  'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(res.status);
+      const { session_id, opening_message } = await res.json();
+      const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      navigate('/sione', {
+        state: {
+          messages: [{ role: 'assistant', content: opening_message, time: t }],
+          context:  { session_id, storm_id: storm.id },
+        },
+      });
+    } catch (_) {
+      navigate(`/sione?storm=${storm.id}`);
+    } finally {
+      setChipLoading(false);
+    }
+  }, [storm, arrivals, navigate]);
 
   /* ─── Map reactions on region select ─────────────────────── */
   const applyMapReactions = useCallback((regionId) => {
@@ -303,8 +336,9 @@ export function StormCard({ storm, mapRef, onClose }) {
 
         {/* ─── L1: Quick chip ─── */}
         <button
-          className="l1-quick-chip"
-          onClick={() => navigate(`/sione?storm=${storm.id}`)}
+          className={`l1-quick-chip${chipLoading ? ' loading' : ''}`}
+          onClick={handleAskSione}
+          disabled={chipLoading}
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
             <path
@@ -314,8 +348,8 @@ export function StormCard({ storm, mapRef, onClose }) {
               fill="none"
             />
           </svg>
-          Ask Sione about this storm
-          <span className="spark">Chat ↗</span>
+          {chipLoading ? 'Opening…' : 'Ask Sione about this storm'}
+          {!chipLoading && <span className="spark">Chat ↗</span>}
         </button>
 
         {/* ─── L1: Raw bulletin ─── */}

@@ -404,12 +404,16 @@ async def handle_chat(
 
     client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
-    system = SYSTEM_PROMPT
-    if context:
-        if context.get("spot_id"):
-            system += f"\n\nContext: the user is currently viewing the '{context['spot_id']}' spot page."
-        elif context.get("region"):
-            system += f"\n\nContext: the user is browsing the '{context['region']}' region."
+    session = (context or {}).get("session") or {}
+    if session.get("system_prompt_override"):
+        system = session["system_prompt_override"]
+    else:
+        system = SYSTEM_PROMPT
+        if context:
+            if context.get("spot_id"):
+                system += f"\n\nContext: the user is currently viewing the '{context['spot_id']}' spot page."
+            elif context.get("region"):
+                system += f"\n\nContext: the user is browsing the '{context['region']}' region."
 
     current_messages = list(messages)
     tools_called: List[Dict[str, Any]] = []
@@ -543,12 +547,17 @@ async def handle_chat_stream(
 
     client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
-    system = SYSTEM_PROMPT
-    if context:
-        if context.get("spot_id"):
-            system += f"\n\nContext: the user is currently viewing the '{context['spot_id']}' spot page."
-        elif context.get("region"):
-            system += f"\n\nContext: the user is browsing the '{context['region']}' region."
+    # Session overrides take priority (storm_trip and future modes)
+    session = (context or {}).get("session") or {}
+    if session.get("system_prompt_override"):
+        system = session["system_prompt_override"]
+    else:
+        system = SYSTEM_PROMPT
+        if context:
+            if context.get("spot_id"):
+                system += f"\n\nContext: the user is currently viewing the '{context['spot_id']}' spot page."
+            elif context.get("region"):
+                system += f"\n\nContext: the user is browsing the '{context['region']}' region."
 
     current_messages = list(messages)
     tools_called: List[Dict[str, Any]] = []
