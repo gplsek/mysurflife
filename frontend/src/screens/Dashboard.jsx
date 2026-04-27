@@ -5,6 +5,12 @@ import { getAuthHeaders } from '../supabaseClient';
 import LogoPulse from '../design/LogoPulse';
 import './Dashboard.css';
 
+const OCEAN_COLS = [
+  { key: 'north-pacific',   label: 'North Pacific' },
+  { key: 'east-pacific',    label: 'East Pacific'  },
+  { key: 'north-atlantic',  label: 'North Atlantic' },
+];
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function greetingWord() {
@@ -161,25 +167,79 @@ function StreakStrip({ sessions }) {
   );
 }
 
-function OutlookStubCard({ slug, navigate }) {
-  const name = slugToLabel(slug);
+function OutlookCard({ spot, navigate }) {
+  const score  = spot.rating ?? null;
+  const tier   = score != null ? ratingTier(score * 2) : 'flat'; // rating is 0-5 scale
+  const dots   = score != null ? Math.round(score) : 0;
+  const swellFt = spot.swell != null ? spot.swell.toFixed(1) : null;
+  const period  = spot.period != null ? `${spot.period.toFixed(0)}s` : null;
+  const wind    = spot.wind   != null ? `${Math.round(spot.wind)}mph` : null;
+
   return (
     <article
-      className="outlook-card fair"
-      onClick={() => navigate(`/spots/${slug}`)}
+      className={`outlook-card ${tier}`}
+      onClick={() => navigate(`/spots/${spot.slug}`)}
       role="button"
       tabIndex={0}
     >
-      <div className="oc-name">{name}</div>
-      <div className="oc-region">Favorite spot</div>
+      <div className="oc-name">{spot.name}</div>
+      <div className="oc-region">{spot.region || 'Favorite spot'}</div>
       <div className="oc-rating-row">
         <span className="oc-dots">
-          {[0,1,2,3,4].map(i => <span key={i} className="oc-dot" />)}
+          {[0,1,2,3,4].map(i => (
+            <span key={i} className={`oc-dot${i < dots ? ' on' : ''}`} />
+          ))}
         </span>
-        <span className="oc-score"><span className="oc-max">—</span></span>
+        <span className="oc-score">
+          {score != null
+            ? <>{score.toFixed(1)}<span className="oc-max">/5</span></>
+            : <span className="oc-max">—</span>
+          }
+        </span>
       </div>
-      <div className="oc-stub">Open map for live conditions</div>
+      {(swellFt || wind) && (
+        <div className="oc-line">
+          {swellFt && <>{swellFt}<span className="oc-sub">ft</span>{period && <><span className="oc-sep">·</span>{period}</>}</>}
+          {swellFt && wind && <span className="oc-sep">·</span>}
+          {wind && <>{wind}<span className="oc-sub"> wind</span></>}
+        </div>
+      )}
+      {score == null && (
+        <div className="oc-line" style={{ color: 'var(--muted)' }}>No rating yet</div>
+      )}
     </article>
+  );
+}
+
+function StormCell({ storm, navigate }) {
+  const pressureOk = storm.pressure_mb != null;
+  const windOk     = storm.wind_kts    != null;
+  const seaOk      = storm.sea_height_ft != null;
+
+  const tier = !windOk ? 'flat'
+    : storm.wind_kts >= 64 ? 'firing'
+    : storm.wind_kts >= 48 ? 'solid'
+    : storm.wind_kts >= 34 ? 'good'
+    : storm.wind_kts >= 22 ? 'fair'
+    : 'flat';
+
+  const typeLabel = (storm.type || 'Low').replace(/_/g, ' ');
+
+  return (
+    <div
+      className={`storm-cell ${tier}`}
+      onClick={() => navigate(`/map?storm=${storm.id}`)}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="stc-name">{storm.name || typeLabel}</div>
+      <div className="stc-metrics">
+        {pressureOk && <span className="stc-metric">{storm.pressure_mb}<span className="stc-unit">mb</span></span>}
+        {windOk     && <span className="stc-metric">{Math.round(storm.wind_kts)}<span className="stc-unit">kts</span></span>}
+        {seaOk      && <span className="stc-metric">{storm.sea_height_ft.toFixed(0)}<span className="stc-unit">ft seas</span></span>}
+      </div>
+      <div className="stc-label">{storm.label || typeLabel}</div>
+    </div>
   );
 }
 
@@ -228,10 +288,12 @@ export default function Dashboard({ onOpenMap }) {
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({});
-  const [favorites, setFavorites] = useState([]);
+  const [favorites, setFavorites] = useState([]);   // slug strings
+  const [outlookSpots, setOutlookSpots] = useState([]); // full spot objects for favorites
   const [userSpots, setUserSpots] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [storms, setStorms] = useState([]);
   const alertsRef = useRef([]);
 
   useEffect(() => {
@@ -240,16 +302,26 @@ export default function Dashboard({ onOpenMap }) {
     async function load() {
       try {
         const headers = await getAuthHeaders();
-        const [profRes, favRes, spotsRes, sessRes, alertsRes] = await Promise.allSettled([
+        const [profRes, bundleRes, spotsRes, sessRes, alertsRes] = await Promise.allSettled([
           fetch('/api/user/profile', { headers }).then(r => r.json()),
-          fetch('/api/user/favorites', { headers }).then(r => r.json()),
+          fetch('/api/map/bundle', { headers }).then(r => r.json()),
           fetch('/api/user/spots', { headers }).then(r => r.json()),
           fetch('/api/sessions?limit=20', { headers }).then(r => r.json()),
           fetch('/api/alerts', { headers }).then(r => r.json()),
         ]);
 
         if (profRes.status === 'fulfilled') setProfile(profRes.value?.profile || {});
-        if (favRes.status === 'fulfilled') setFavorites(favRes.value?.favorites || []);
+
+        if (bundleRes.status === 'fulfilled') {
+          const bundle = bundleRes.value;
+          const favSlugs = bundle?.user?.favorites || [];
+          setFavorites(favSlugs);
+          const spotMap = {};
+          (bundle?.spots || []).forEach(s => { spotMap[s.slug] = s; });
+          setOutlookSpots(favSlugs.map(slug => spotMap[slug]).filter(Boolean));
+          setStorms(bundle?.storms || []);
+        }
+
         if (spotsRes.status === 'fulfilled') setUserSpots(spotsRes.value?.spots || []);
         if (sessRes.status === 'fulfilled') setSessions(sessRes.value?.sessions || []);
         if (alertsRes.status === 'fulfilled') {
@@ -322,7 +394,7 @@ export default function Dashboard({ onOpenMap }) {
           </div>
         </header>
 
-        {/* 2. Today's Outlook (stubbed — no live forecast per spot) */}
+        {/* 2. Today's Outlook */}
         {favorites.length > 0 && (
           <section className="db-section">
             <div className="db-section-head">
@@ -330,15 +402,21 @@ export default function Dashboard({ onOpenMap }) {
                 Today's outlook{' '}
                 <span className="s-count">{favorites.length} favorites</span>
               </h2>
-              <div className="s-actions">
-                <button className="db-btn ghost" onClick={onOpenMap}>Open map →</button>
-              </div>
             </div>
             <div className="outlook">
               <div className="outlook-grid">
-                {favorites.map(slug => (
-                  <OutlookStubCard key={slug} slug={slug} navigate={navigate} />
-                ))}
+                {outlookSpots.length > 0
+                  ? outlookSpots.map(spot => (
+                      <OutlookCard key={spot.slug} spot={spot} navigate={navigate} />
+                    ))
+                  : favorites.map(slug => (
+                      <OutlookCard
+                        key={slug}
+                        spot={{ slug, name: slugToLabel(slug), region: 'Favorite spot', rating: null }}
+                        navigate={navigate}
+                      />
+                    ))
+                }
               </div>
             </div>
           </section>
@@ -383,18 +461,23 @@ export default function Dashboard({ onOpenMap }) {
                   </a>
                 </div>
               ) : (
-                favorites.map(slug => (
-                  <SpotRow
-                    key={slug}
-                    name={slugToLabel(slug)}
-                    region=""
-                    tier={null}
-                    isPrivate={false}
-                    onOpen={() => navigate(`/spots/${slug}`)}
-                    onAlert={() => navigate('/alerts')}
-                    onRemove={null}
-                  />
-                ))
+                favorites.map(slug => {
+                  const sp = outlookSpots.find(s => s.slug === slug);
+                  const score = sp?.rating ?? null;
+                  const tier  = score != null ? ratingTier(score * 2) : null;
+                  return (
+                    <SpotRow
+                      key={slug}
+                      name={sp?.name || slugToLabel(slug)}
+                      region={sp?.region || ''}
+                      tier={tier}
+                      isPrivate={false}
+                      onOpen={() => navigate(`/spots/${slug}`)}
+                      onAlert={() => navigate('/alerts')}
+                      onRemove={null}
+                    />
+                  );
+                })
               )}
             </div>
 
@@ -439,7 +522,44 @@ export default function Dashboard({ onOpenMap }) {
           </div>
         </section>
 
-        {/* 4. Alerts */}
+        {/* 4. Storms by ocean */}
+        {storms.length > 0 && (
+          <section className="db-section">
+            <div className="db-section-head">
+              <h2>
+                Active storms{' '}
+                <span className="s-count">{storms.length} systems</span>
+              </h2>
+              <div className="s-actions">
+                <button className="db-btn ghost" onClick={() => navigate('/map')}>
+                  View on map →
+                </button>
+              </div>
+            </div>
+            <div className="storms-ocean-grid">
+              {OCEAN_COLS.map(({ key, label }) => {
+                const col = storms
+                  .filter(s => s.ocean === key)
+                  .sort((a, b) => (b.wind_kts ?? 0) - (a.wind_kts ?? 0))
+                  .slice(0, 5);
+                return (
+                  <div key={key} className="storms-ocean-col">
+                    <div className="soc-head">{label}</div>
+                    {col.length === 0 ? (
+                      <div className="soc-empty">Quiet</div>
+                    ) : (
+                      col.map(storm => (
+                        <StormCell key={storm.id} storm={storm} navigate={navigate} />
+                      ))
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 5. Alerts */}
         <section className="db-section">
           <div className="db-section-head">
             <h2>
@@ -502,7 +622,7 @@ export default function Dashboard({ onOpenMap }) {
           )}
         </section>
 
-        {/* 5. Year in Surf */}
+        {/* 6. Year in Surf */}
         <section className="db-section">
           <div className="db-section-head">
             <h2>{new Date().getFullYear()} · Year in surf</h2>

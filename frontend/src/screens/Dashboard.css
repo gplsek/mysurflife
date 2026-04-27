@@ -435,6 +435,63 @@
   font-size: 13px; color: var(--muted);
 }
 
+/* ─── Storms by ocean ─── */
+.storms-ocean-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+.storms-ocean-col {
+  background: var(--bg-2);
+  padding: 0;
+}
+.soc-head {
+  padding: 10px 16px 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-3);
+}
+.soc-empty {
+  padding: 20px 16px;
+  font-size: 12px; color: var(--muted-2);
+  font-family: var(--font-mono, 'Geist Mono', monospace);
+}
+.storm-cell {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border-bottom: 1px solid var(--border);
+  --sc-tier: var(--muted);
+}
+.storm-cell:last-child { border-bottom: none; }
+.storm-cell:hover { background: var(--bg-3); }
+.storm-cell.firing { --sc-tier: var(--coral, oklch(0.72 0.16 20)); }
+.storm-cell.solid  { --sc-tier: var(--gold, oklch(0.82 0.14 85)); }
+.storm-cell.good   { --sc-tier: var(--good, oklch(0.80 0.16 150)); }
+.storm-cell.fair   { --sc-tier: var(--accent); }
+.storm-cell.flat   { --sc-tier: var(--muted); }
+.stc-name {
+  font-size: 12.5px; font-weight: 600; letter-spacing: -0.01em;
+  color: var(--sc-tier);
+  margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stc-metrics {
+  display: flex; gap: 8px; align-items: baseline;
+  font-family: var(--font-mono, 'Geist Mono', monospace); font-size: 12px; font-weight: 600;
+  color: var(--fg);
+}
+.stc-metric { display: inline-flex; align-items: baseline; gap: 1px; }
+.stc-unit { font-size: 9px; color: var(--muted); font-weight: 400; margin-left: 1px; }
+.stc-label {
+  font-size: 10.5px; color: var(--muted);
+  font-family: var(--font-mono, 'Geist Mono', monospace);
+  margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 /* ─── Mobile ─── */
 @media (max-width: 900px) {
   .dash-page { padding: 0 16px 80px; }
@@ -462,6 +519,7 @@
   .pin-tile.alert-pin { display: none; }
   .row-actions { opacity: 1 !important; }
   .outlook-card { width: 165px; }
+  .storms-ocean-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

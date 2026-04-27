@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { CARTO_DARK, CARTO_LABELS, CARTO_LIGHT, CARTO_LIGHT_LABELS, CARTO_ATTR, REGIONS } from '../components/map/constants';
@@ -88,13 +89,30 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
   const [inViewCount,   setInViewCount]   = useState(0);
   const [stormPreview,  setStormPreview]  = useState(null);
   const [detailStorm,   setDetailStorm]   = useState(null);
-  const queryFlyRef = useRef('');
+  const queryFlyRef    = useRef('');
+  const stormOpenedRef = useRef(false);
+
+  const location = useLocation();
 
   const {
     spots, userSpots, buoys, storms, loading, updatedAt,
     spotsRef, userSpotsRef, buoysRef, stormsRef,
     toggleFavorite, addUserSpot, removeUserSpot,
   } = useMapBundle();
+
+  // Deep-link: ?storm=<id> opens StormCard directly
+  const stormIdParam = useMemo(() => {
+    return new URLSearchParams(location.search).get('storm');
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!stormIdParam || stormOpenedRef.current || storms.length === 0) return;
+    const target = storms.find(s => s.id === stormIdParam);
+    if (target) {
+      stormOpenedRef.current = true;
+      setDetailStorm(target);
+    }
+  }, [stormIdParam, storms]);
 
   const [addSpotMode,  setAddSpotMode]  = useState(false);
   const [addSpotForm,  setAddSpotForm]  = useState(null);  // {lat, lng} when pin dropped
