@@ -293,6 +293,9 @@ async def startup():
     from jobs.fetch_forecasts import run_forecast_prebake_loop
     asyncio.create_task(run_forecast_prebake_loop(get_all_spots, _redis_client))
 
+    from jobs.detect_storms import run_storm_detection_loop
+    asyncio.create_task(run_storm_detection_loop())
+
 @app.on_event("shutdown")
 async def shutdown():
     if _svc_state.http_client:
