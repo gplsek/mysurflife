@@ -277,11 +277,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Startup/shutdown for shared HTTP client
+# Startup/shutdown for shared HTTP client.
+# We mutate _svc_state.http_client (the module attribute) so every other
+# `_svc_state.http_client.X` reference picks up the live client. Do NOT use
+# `from services.state import http_client` — see services/state.py docstring.
 @app.on_event("startup")
 async def startup():
-    import services.state as _state
-    _state.http_client = httpx.AsyncClient(
+    _svc_state.http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(10.0, connect=5.0),
         limits=httpx.Limits(max_connections=20, max_keepalive_connections=20)
     )
@@ -293,10 +295,9 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    import services.state as _state
-    if _state.http_client:
-        await _state.http_client.aclose()
-        _state.http_client = None
+    if _svc_state.http_client:
+        await _svc_state.http_client.aclose()
+        _svc_state.http_client = None
 
 # BUOY_LIST now loaded from Supabase database (see buoy_registry.py)
 # Fallback list is in buoy_registry.py if database unavailable
