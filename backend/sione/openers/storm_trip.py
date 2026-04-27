@@ -200,8 +200,14 @@ def format_storm_context_block(storm: Dict, arrivals: List[Dict], user_ctx: Opti
     Injected after STORM_TRIP_SYSTEM_PROMPT.
     """
     lines = ["## Storm data"]
+    if storm.get("id"):
+        lines.append(f"- ID: {storm['id']}")
+    if storm.get("name"):
+        lines.append(f"- Name: {storm['name']}")
     s_type = (storm.get("type") or "LOW").title()
     lines.append(f"- Type: {s_type}")
+    if storm.get("ocean"):
+        lines.append(f"- Basin: {_basin(storm['ocean'])}")
     lat, lon = storm.get("lat"), storm.get("lon")
     if lat is not None and lon is not None:
         lines.append(
@@ -212,9 +218,13 @@ def format_storm_context_block(storm: Dict, arrivals: List[Dict], user_ctx: Opti
         lines.append(f"- Central pressure: {storm['pressure_mb']} mb")
     if storm.get("wind_kts"):
         lines.append(f"- Peak winds: {storm['wind_kts']} kt")
+    if storm.get("sea_height_ft"):
+        lines.append(f"- Seas: {storm['sea_height_ft']} ft")
     if storm.get("movement"):
         m = storm["movement"]
         lines.append(f"- Movement: {m.get('direction', '?')} at {m.get('speed_kts') or m.get('speed_kt', '?')} kt")
+    if storm.get("issued_utc"):
+        lines.append(f"- Bulletin issued: {storm['issued_utc']}")
 
     if arrivals:
         lines.append("\n## Regional impacts")
