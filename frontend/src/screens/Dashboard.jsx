@@ -193,28 +193,31 @@ function StreakStrip({ sessions }) {
   );
 }
 
-function WindArrow({ dir }) {
+function DirArrow({ dir, className }) {
   if (dir == null) return null;
   return (
     <svg
-      width="10" height="10" viewBox="0 0 10 10" aria-hidden
-      style={{ transform: `rotate(${dir}deg)`, flexShrink: 0 }}
+      width="9" height="9" viewBox="0 0 10 10" aria-hidden
+      className={className}
+      style={{ transform: `rotate(${dir}deg)`, flexShrink: 0, display: 'inline-block' }}
     >
-      <path d="M5 9V1M2 4l3-3 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <path d="M5 9V1M2 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   );
 }
 
 function OutlookCard({ spot, navigate }) {
-  const score    = spot.rating ?? null;
-  const tier     = score != null ? ratingTier(score * 2) : 'flat';
-  const dots     = score != null ? Math.round(score) : 0;
-  const swellFt  = spot.swell    != null ? spot.swell.toFixed(1) : null;
-  const period   = spot.period   != null ? `${spot.period.toFixed(0)}s` : null;
-  const windMph  = spot.wind     != null ? `${Math.round(spot.wind)}` : null;
-  const windComp = degToCompass(spot.wind_dir);
-  const tideInfo = spot.tide_state ? (TIDE_LABELS[spot.tide_state] || null) : null;
-  const tideFt   = spot.tide_ft   != null ? spot.tide_ft.toFixed(1) : null;
+  const score      = spot.rating    ?? null;
+  const tier       = score != null ? ratingTier(score * 2) : 'flat';
+  const dots       = score != null ? Math.round(score) : 0;
+  const swellFt    = spot.swell     != null ? spot.swell.toFixed(1)        : null;
+  const period     = spot.period    != null ? `${spot.period.toFixed(0)}s` : null;
+  const swellComp  = degToCompass(spot.swell_dir);
+  const windMph    = spot.wind      != null ? `${Math.round(spot.wind)}`   : null;
+  const windComp   = degToCompass(spot.wind_dir);
+  const tideInfo   = spot.tide_state ? (TIDE_LABELS[spot.tide_state] || null) : null;
+  const tideFt     = spot.tide_ft   != null ? spot.tide_ft.toFixed(1)     : null;
+  const hasData    = swellFt != null || windMph != null;
 
   return (
     <article
@@ -237,37 +240,55 @@ function OutlookCard({ spot, navigate }) {
           }
         </span>
       </div>
-      {(swellFt || windMph) && (
-        <div className="oc-line">
-          {swellFt && <>{swellFt}<span className="oc-sub">ft</span>{period && <><span className="oc-sep">·</span>{period}</>}</>}
-          {swellFt && windMph && <span className="oc-sep">·</span>}
-          {windMph && (
-            <span className="oc-wind">
-              <WindArrow dir={spot.wind_dir} />
-              {windComp && <span className="oc-wcomp">{windComp}</span>}
-              {windMph}<span className="oc-sub">mph</span>
-            </span>
-          )}
+
+      {swellFt && (
+        <div className="oc-data-row">
+          <DirArrow dir={spot.swell_dir} className="oc-dir-arrow oc-swell-arrow" />
+          {swellComp && <span className="oc-comp">{swellComp}</span>}
+          <span className="oc-val">{swellFt}<span className="oc-unit">ft</span></span>
+          {period && <span className="oc-period">{period}</span>}
         </div>
       )}
+
+      {windMph && (
+        <div className="oc-data-row oc-wind-row">
+          <DirArrow dir={spot.wind_dir} className="oc-dir-arrow oc-wind-arrow" />
+          {windComp && <span className="oc-comp">{windComp}</span>}
+          <span className="oc-val">{windMph}<span className="oc-unit">mph</span></span>
+          <span className="oc-row-label">wind</span>
+        </div>
+      )}
+
       {tideInfo && (
         <div className="oc-tide">
           {tideInfo.arrow && <span className="oc-tide-arrow">{tideInfo.arrow}</span>}
           {tideInfo.label}
-          {tideFt && <span className="oc-tide-ft">{tideFt}ft</span>}
+          {tideFt && <span className="oc-tide-ft"> {tideFt}ft</span>}
         </div>
       )}
-      {score == null && !swellFt && (
-        <div className="oc-line oc-no-data">No data yet</div>
+
+      {!hasData && (
+        <div className="oc-no-data">No forecast data yet</div>
       )}
     </article>
   );
 }
 
+function stormSourceTag(storm) {
+  const src = storm.source;
+  const confirmed = storm.confirmation_status === 'confirmed';
+  if (src === 'bulletin')    return { label: 'Bulletin',     cls: 'bulletin' };
+  if (src === 'reconciled')  return { label: 'Bulletin+GFS', cls: 'reconciled' };
+  if (src === 'model')       return confirmed
+    ? { label: 'GFS+WW3', cls: 'ww3' }
+    : { label: 'GFS',     cls: 'gfs' };
+  return { label: 'Model', cls: 'gfs' };
+}
+
 function StormCell({ storm, onOpen }) {
-  const pressureOk = storm.pressure_mb != null;
-  const windOk     = storm.wind_kts    != null;
-  const seaOk      = storm.sea_height_ft != null;
+  const pressureOk = storm.pressure_mb    != null;
+  const windOk     = storm.wind_kts       != null;
+  const seaOk      = storm.sea_height_ft  != null;
 
   const tier = !windOk ? 'flat'
     : storm.wind_kts >= 64 ? 'firing'
@@ -276,7 +297,7 @@ function StormCell({ storm, onOpen }) {
     : storm.wind_kts >= 22 ? 'fair'
     : 'flat';
 
-  const typeLabel = (storm.type || 'Low').replace(/_/g, ' ');
+  const tag = stormSourceTag(storm);
 
   return (
     <div
@@ -285,13 +306,13 @@ function StormCell({ storm, onOpen }) {
       role="button"
       tabIndex={0}
     >
-      <div className="stc-name">{storm.name || typeLabel}</div>
+      <div className="stc-name">{storm.name || (storm.type || 'Low').replace(/_/g, ' ')}</div>
       <div className="stc-metrics">
         {pressureOk && <span className="stc-metric">{storm.pressure_mb}<span className="stc-unit">mb</span></span>}
         {windOk     && <span className="stc-metric">{Math.round(storm.wind_kts)}<span className="stc-unit">kts</span></span>}
         {seaOk      && <span className="stc-metric">{storm.sea_height_ft.toFixed(0)}<span className="stc-unit">ft seas</span></span>}
       </div>
-      <div className="stc-label">{storm.label || typeLabel}</div>
+      <span className={`stc-source ${tag.cls}`}>{tag.label}</span>
     </div>
   );
 }
