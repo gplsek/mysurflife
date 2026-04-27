@@ -1,9 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ratingTier, ratingColor } from './markers';
 import { TIER_LABELS } from './constants';
 
 export function PreviewCard({ preview, isFav, onToggleFav, onClose }) {
+  const [live, setLive] = useState(null);
+
+  useEffect(() => {
+    if (!preview?.slug || preview.is_user_spot) {
+      setLive(null);
+      return;
+    }
+    setLive(null);
+    let cancelled = false;
+    fetch(`/api/surf-spots/${preview.slug}/conditions`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled && data) setLive(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [preview?.slug]);
+
+  // Live conditions overlay bundle values (bundle may be null for un-rated spots)
+  const wind   = live?.wind_speed_mph                           ?? preview?.wind;
+  const swell  = live?.surf_height_ft ?? live?.adjusted_height_ft ?? preview?.swell;
+  const period = live?.period_sec                               ?? preview?.period;
+  const water  = live?.water_temp_c != null
+    ? Math.round(live.water_temp_c * 9 / 5 + 32)
+    : preview?.water;
+
   return (
     <div className={`mv-preview${preview ? ' show' : ''}`}>
       {preview && (
@@ -36,28 +60,28 @@ export function PreviewCard({ preview, isFav, onToggleFav, onClose }) {
             </span>
             <span>
               {preview.rating != null ? preview.rating.toFixed(1) : '—'} / 5.0
-              {preview.swell != null ? ` · ${preview.swell.toFixed(1)}ft primary swell` : ''}
+              {swell != null ? ` · ${swell.toFixed(1)}ft primary swell` : ''}
             </span>
           </div>
           <div className="mv-prev-metrics">
             <div>
               <span>Swell</span>
-              <strong>{preview.swell != null ? preview.swell.toFixed(1) : '—'}</strong>
+              <strong>{swell != null ? swell.toFixed(1) : '—'}</strong>
               <span>ft</span>
             </div>
             <div>
               <span>Period</span>
-              <strong>{preview.period ?? '—'}</strong>
+              <strong>{period ?? '—'}</strong>
               <span>s</span>
             </div>
             <div>
               <span>Wind</span>
-              <strong>{preview.wind != null ? Math.round(preview.wind) : '—'}</strong>
+              <strong>{wind != null ? Math.round(wind) : '—'}</strong>
               <span>mph</span>
             </div>
             <div>
               <span>Water</span>
-              <strong>{preview.water ?? '—'}</strong>
+              <strong>{water ?? '—'}</strong>
               <span>°F</span>
             </div>
           </div>

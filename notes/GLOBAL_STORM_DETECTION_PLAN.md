@@ -41,7 +41,7 @@ Windy doesn't have any of these gaps — and Windy doesn't have a "storm databas
 | GFS 10m wind (u, v) | **In app** — `/api/wind-overlay?model=gfs` | Storm intensity (peak wind), fetch geometry |
 | GFS MSL pressure | **Not yet ingested** | Storm-center detection (local minima) |
 | HRRR / NAM wind | **In app** | High-res refinement near US coast (optional) |
-| WW3 wave height (htsgwsfc) | **In app** — `/api/waves-overlay?source=global` | Storm-generated sea height |
+| WW3 wave height (htsgwsfc) | **In app** — `/api/waves-overlay?source=global` | Storm-generated sea height + **hard filter** (§4.4 confirmation pass) |
 | WW3 wave period (perpwsfc) | **In app** | Peak period at storm + radials → arrival group velocity |
 | WW3 wave direction (dirpwsfc) | **In app** | Swell direction → spot exposure window match |
 | NWS High Seas bulletins | **In app** — `high_seas.py` | Reconciliation (named storms, warning tiers, raw text for Sione) |
@@ -113,7 +113,42 @@ Per forecast hour `t` in `[0, 6, 12, ..., 168]`:
 2. Record `htsgwsfc`, `perpwsfc`, `dirpwsfc` at center → `peak_sea_m`, `peak_period_s`, `swell_direction_deg`.
 3. Optionally sample at the 8-quadrant fetch radii for a more robust "peak swell within fetch."
 
-### 4.4 Output per detected storm at hour `t`
+### 4.4 WW3 confirmation pass (hard filter)
+
+A pressure minimum is the storm's *cause*; WW3 wave height is its *effect*. We require evidence of the effect before keeping the cause on the surf map. This is the algorithmic equivalent of how Stormsurf users visually confirm storms — they see the Hs blob, not the pressure low directly.
+
+**Algorithm** (per detected center from §4.1):
+
+1. Compute the **downwind cone** from the center:
+   - Vertex at `(lat, lon)`
+   - Axis = `fetch_peak_quadrant` from §4.2 (the direction the strongest fetch is pointing)
+   - Half-angle = 45° (covers the active fetch quadrant generously)
+   - Range = 100 nm to 800 nm downwind (waves need ~6–12h fetch to grow; the peak Hs typically sits a few hundred nm downwind of the center, not at the center itself)
+2. Sample WW3 `htsgwsfc` at all grid cells whose center falls inside the cone.
+3. Compute `max_cone_hs_m` = max Hs across sampled ocean cells. **Land cells are masked NaN in WW3 and are automatically excluded.**
+4. Apply two reject conditions:
+   - **`zero_ocean_cells`** — the cone contains no valid (non-NaN) Hs values. The center is fully embedded in continent / no fetch reaches blue water. Drop the storm.
+   - **`weak_fetch`** — `max_cone_hs_m < HS_CONFIRM_MIN` (default **3.0 m / ~10 ft**, tunable in `backend/config/storm_detector_config.json`). The pressure minimum exists but isn't producing surf-relevant seas. Drop the storm.
+5. Otherwise record `max_cone_hs_m` on the storm record as a confirmation signal. Use it as a tiebreaker in §7.1 region scoring (a storm with stronger confirmed seas outranks one barely passing the threshold).
+
+**What this filter eliminates for free:**
+
+| Class | Why it fails | Example |
+|---|---|---|
+| Continental lows | Cone has no ocean cells | Hudson Bay low, Great Plains cyclone, inland Canada/Alaska systems KWBC sometimes narrates |
+| Landfalling cyclones (post-landfall) | Cone over-water shrinks each hour as storm moves inland; eventually `max_cone_hs_m` drops below threshold | Hurricane that's been inland 24h+ — drops off the storm map naturally |
+| Pressure dimples without fetch | Real low but no surface wind to drive waves (e.g., upper-level low aloft) | Cut-off lows over Atlantic that don't deepen to the surface |
+| GFS spurious detections | Transient noise that doesn't generate sustained fetch | Boundary-layer convergence lines that scan as local pressure minima |
+
+**Tunables** (all in `storm_detector_config.json`):
+- `hs_confirm_min_m` — minimum confirmed Hs in cone (default 3.0)
+- `cone_half_angle_deg` — cone width (default 45)
+- `cone_range_nm` — `[min, max]` range from center (default `[100, 800]`)
+- `confirm_required` — bool, false to log-only and not actually drop (useful while validating thresholds)
+
+**Note on bulletin reconciliation:** named bulletin storms that fail confirmation should still be retained but tagged `confirmation_status: "weak"` rather than dropped — the bulletin is human-curated ground truth and we trust it over the model. This only filters *model-derived* storms.
+
+### 4.5 Output per detected storm at hour `t`
 
 ```json
 {
@@ -128,7 +163,9 @@ Per forecast hour `t` in `[0, 6, 12, ..., 168]`:
   "warning_tier": "storm",
   "peak_sea_m": 7.2,
   "peak_period_s": 14,
-  "swell_direction_deg": 295
+  "swell_direction_deg": 295,
+  "max_cone_hs_m": 8.4,
+  "confirmation_status": "confirmed"
 }
 ```
 
@@ -452,9 +489,11 @@ Each phase is independently shippable.
 - Writes consolidated rows to `derived_storms`
 - Adds `forecast_track`, intensification fields
 
-### Phase 4 — WW3 enrichment (½ day)
-- Sample WW3 at each track point's center
-- Write `peak_sea_m`, `peak_period_s`, `swell_direction_deg`
+### Phase 4 — WW3 enrichment + confirmation pass (1 day)
+- Sample WW3 at each track point's center → write `peak_sea_m`, `peak_period_s`, `swell_direction_deg`
+- §4.4 confirmation pass: sample Hs in the downwind cone, compute `max_cone_hs_m`, apply hard filter (drop `zero_ocean_cells` + `weak_fetch` cases)
+- Tunable thresholds in `storm_detector_config.json` (hs_confirm_min_m, cone_half_angle_deg, cone_range_nm)
+- Once shipped, **the interim land-mask filter in `routes/storms.py` becomes redundant** — the cone implicitly excludes continental systems via WW3's land mask. Remove the interim filter as part of this phase.
 
 ### Phase 5 — Landfall check (½ day)
 - Bundle Natural Earth 1:50m as a numpy `.npz` land mask in `backend/data/`
@@ -477,7 +516,7 @@ Each phase is independently shippable.
 - Frontend storm beacon distinguishes model-derived vs bulletin-confirmed (dashed vs solid ring)
 - Storm card consumes the new fields (period, direction, landfall, intensification)
 
-**Total estimate:** ~6 working days for full pipeline. Phase 1+2 alone (one and a half days) gets global storm centers on the map.
+**Total estimate:** ~6.5 working days for full pipeline. Phase 1+2 alone (one and a half days) gets global storm centers on the map. Phase 4 (now 1 day with confirmation pass) is what makes the detector trustworthy enough to ship as the primary storm source — without it, we'd see continental false positives on every run.
 
 ---
 
@@ -486,7 +525,9 @@ Each phase is independently shippable.
 | Risk | Mitigation |
 |---|---|
 | GFS misses small/early tropical systems that bulletins catch | Bulletins still ingested; reconciliation merges them in. Drawer shows "bulletin only" badge. |
-| Detector picks up weak transient lows the user doesn't care about | Tunable thresholds in `backend/config/storm_detector_config.json` — pressure cutoff, fetch radius minimum, peak wind minimum |
+| Detector picks up weak transient lows the user doesn't care about | Tunable thresholds in `backend/config/storm_detector_config.json` — pressure cutoff, fetch radius minimum, peak wind minimum, plus §4.4 `hs_confirm_min_m` (drops lows that don't actually generate surfable seas) |
+| Continental pressure minima get marked as storms (Hudson Bay, inland Canada lows) | §4.4 confirmation pass: WW3 land cells are NaN; cone with no valid ocean cells fails the filter automatically. Same mechanism handles landfalling cyclones — they decay off the map as their fetch retreats over the coast. |
+| `hs_confirm_min_m` threshold drops a real but small storm a user wanted to see | Set `confirm_required: false` initially to log-only, validate against bulletin storms across a few cycles, then enable. Bulletin-confirmed storms that fail confirmation are tagged "weak" rather than dropped (§4.4 reconciliation note). |
 | WW3 grid resolution misses storm-scale features | Sample over fetch box, take peak — averages out resolution noise |
 | Track matcher fails on fast-moving storms | 600 km window already generous; can boost to 800 km or use intensity matching as fallback |
 | Compute cost (running detection over 168 forecast hours globally per 6h cycle) | Detection is fast — global 50km grid is ~150k cells, local-minimum scan is O(n). Estimated ~30s per run. WW3 sampling is the heavier piece, can downsample to every-other-track-point. |

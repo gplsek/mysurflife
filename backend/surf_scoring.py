@@ -198,7 +198,7 @@ def calculate_wind_score(
                 score = 0.5 * weight
 
             # Apply wind speed penalty if too strong
-            if wind_speed_ms is not None:
+            if wind_speed_ms is not None and max_onshore_mph is not None:
                 wind_speed_mph = wind_speed_ms * 2.23694  # m/s to mph
                 if wind_speed_mph > max_onshore_mph:
                     speed_penalty = min(1.0, (wind_speed_mph - max_onshore_mph) / max_onshore_mph)
@@ -440,7 +440,7 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
         blended_buoy['wind_dir'],
         blended_buoy['wind_speed_ms'],
         wind_windows,
-        chars.get('max_onshore_mph', 15)
+        chars.get('max_onshore_mph') or 15
     )
 
     wind_speed_score = calculate_wind_speed_score(blended_buoy['wind_speed_ms'])

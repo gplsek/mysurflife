@@ -12,7 +12,7 @@ export function useMapState() {
     region:     readSavedRegion(),
     showSpots:  true,
     showBuoys:  false,
-    showStorms: true,
+    showStorms: false,
     favsOnly:   false,
     query:      '',
   });

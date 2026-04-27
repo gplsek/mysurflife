@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ocean">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Map · mysurflife</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.13 0.02 230);
+    --bg-2: oklch(0.17 0.02 230);
+    --bg-3: oklch(0.22 0.022 230);
+    --panel: oklch(0.16 0.018 230 / 0.92);
+    --border: oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --muted-2: oklch(0.42 0.012 230);
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --gold: oklch(0.82 0.14 85);
+    --good: oklch(0.80 0.16 150);
+    --coral: oklch(0.72 0.16 20);
+    --storm: oklch(0.70 0.18 35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--fg); font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  button { font-family: inherit; cursor: pointer; border: none; background: transparent; color: inherit; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ─── Base layout ─── */
+  #app { position: relative; width: 100%; height: 100%; }
+  #map { position: absolute; inset: 0; background: var(--bg); z-index: 0; }
+  #map .leaflet-pane,
+  #map .leaflet-top,
+  #map .leaflet-bottom { z-index: 1 !important; }
+  #map .leaflet-control-container { z-index: 2 !important; }
+
+  /* ─── Top chrome ─── */
+  .topbar {
+    position: absolute; top: 14px; left: 14px; right: 14px; z-index: 30;
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 9px 14px; background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-weight: 700; letter-spacing: -0.02em; font-size: 14px;
+  }
+  .brand svg { color: var(--fire); --mark-dot: var(--aqua); }
+
+  .tabs {
+    display: inline-flex; gap: 2px;
+    padding: 4px; background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  .tab {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border-radius: 7px;
+    font-size: 13px; font-weight: 500; color: var(--fg-2);
+  }
+  .tab.on { background: var(--bg-3); color: var(--fg); }
+  .tab:hover:not(.on) { color: var(--fg); }
+  .tab svg { opacity: 0.85; }
+
+  .search-wrap {
+    position: relative; flex: 1; max-width: 480px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px;
+  }
+  .search-wrap:focus-within { border-color: var(--aqua); }
+  .search-wrap svg { color: var(--muted); flex-shrink: 0; }
+  .search-wrap input {
+    flex: 1; background: transparent; border: none; outline: none;
+    padding: 10px 0; color: var(--fg); font-family: inherit; font-size: 13.5px;
+  }
+  .search-wrap input::placeholder { color: var(--muted); }
+  .search-kbd {
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+    color: var(--muted); padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px;
+  }
+
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); color: var(--fg);
+    display: grid; place-items: center;
+  }
+  .icon-btn:hover { border-color: var(--border-2); }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--aqua), var(--fire));
+    display: grid; place-items: center; font-family: 'Geist Mono', monospace;
+    font-size: 11px; font-weight: 600; color: oklch(0.14 0.02 230); letter-spacing: 0.04em;
+    border: 1px solid var(--border-2);
+  }
+
+  /* ─── Region chips (below top bar) ─── */
+  .region-bar {
+    position: absolute; top: 72px; left: 14px; z-index: 25;
+    display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 28px);
+    pointer-events: none;
+  }
+  .region-bar > * { pointer-events: auto; }
+  .region-chip {
+    padding: 7px 12px; border-radius: 20px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); color: var(--fg-2);
+    font-size: 12px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .region-chip:hover { color: var(--fg); border-color: var(--border-2); }
+  .region-chip.on { background: var(--aqua); color: oklch(0.14 0.02 230); border-color: var(--aqua); font-weight: 600; }
+  .region-chip .ct { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); }
+  .region-chip.on .ct { color: oklch(0.14 0.02 230); opacity: 0.7; }
+
+  /* ─── Left filter rail + legend ─── */
+  .left-rail {
+    position: absolute; top: 130px; left: 14px; z-index: 24;
+    width: 240px;
+    display: flex; flex-direction: column; gap: 10px;
+    pointer-events: none;
+  }
+  .left-rail > * { pointer-events: auto; }
+  .rail-card {
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .rail-title { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; font-weight: 500; }
+  .legend-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 5px 0; font-size: 12px; color: var(--fg-2); }
+  .legend-row .icon-slot { display: grid; place-items: center; }
+  .legend-row .ct { font-family: 'Geist Mono', monospace; color: var(--muted); font-size: 10px; }
+
+  .filter-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 6px 0; font-size: 12px; color: var(--fg-2);
+  }
+  .toggle {
+    width: 32px; height: 18px; border-radius: 10px;
+    background: var(--bg-3); border: 1px solid var(--border); position: relative;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .toggle::after {
+    content: ''; position: absolute; left: 2px; top: 1px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--muted); transition: all 0.15s;
+  }
+  .toggle.on { background: oklch(0.82 0.16 195 / 0.25); border-color: var(--aqua); }
+  .toggle.on::after { left: 15px; background: var(--aqua); }
+
+  /* ─── Zoom controls ─── */
+  .zoom-controls {
+    position: absolute; right: 14px; bottom: 120px; z-index: 25;
+    display: flex; flex-direction: column;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden;
+  }
+  .zoom-controls button {
+    width: 38px; height: 38px; display: grid; place-items: center;
+    color: var(--fg); border-bottom: 1px solid var(--border);
+  }
+  .zoom-controls button:last-child { border-bottom: none; }
+  .zoom-controls button:hover { background: var(--bg-3); }
+
+  /* ─── Bottom status bar ─── */
+  .status-bar {
+    position: absolute; bottom: 14px; left: 14px; right: 14px; z-index: 20;
+    display: flex; gap: 10px; align-items: flex-end;
+    pointer-events: none;
+  }
+  .status-bar > * { pointer-events: auto; }
+  .status-card {
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px;
+    display: inline-flex; align-items: center; gap: 14px;
+    font-size: 12px; color: var(--fg-2);
+  }
+  .status-card .k { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+  .status-card .v { font-weight: 600; color: var(--fg); }
+  .status-card .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); animation: blink 2.4s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+  .status-sep { width: 1px; height: 14px; background: var(--border-2); }
+
+  .spot-count { margin-left: auto; }
+
+  /* ─── Spot preview card ─── */
+  .preview-card {
+    position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 26; width: 360px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(16px);
+    border: 1px solid var(--border-2); border-radius: 14px;
+    padding: 14px 16px 16px;
+    box-shadow: 0 24px 60px oklch(0 0 0 / 0.55);
+    opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s ease;
+    transform: translateX(-50%) translateY(10px);
+  }
+  .preview-card.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+  .preview-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px;
+  }
+  .preview-head .title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .preview-head .title .region { display: block; font-size: 11px; color: var(--fg-2); font-weight: 400; margin-top: 2px; }
+  .preview-close { color: var(--muted); padding: 4px; }
+  .preview-close:hover { color: var(--fg); }
+
+  .rating-strip {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .rating-strip .pill {
+    padding: 3px 8px; border-radius: 4px;
+    font-weight: 600; color: oklch(0.14 0.02 230);
+  }
+  .preview-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .preview-metrics .m { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .preview-metrics .m .k { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+  .preview-metrics .m .v { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .preview-metrics .m .v .u { font-size: 10px; color: var(--muted); font-weight: 400; }
+  .preview-open {
+    width: 100%; padding: 10px;
+    background: var(--aqua); color: oklch(0.14 0.02 230); border-radius: 8px;
+    font-weight: 600; font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .preview-open:hover { background: oklch(0.88 0.16 195); }
+
+  /* Storm preview variant */
+  .storm-preview .preview-open:hover { background: oklch(0.78 0.18 20) !important; }
+  .storm-preview .preview-head .title { color: oklch(0.94 0.03 25); }
+
+  /* ─── Marker styling (rendered by MapLibre as HTML) ─── */
+  .marker { cursor: pointer; pointer-events: auto; }
+  .marker-spot {
+    position: relative;
+    width: 38px; height: 38px;
+    transform: translate(-50%, -50%);
+  }
+  .marker-spot .halo {
+    position: absolute; inset: -2px; border-radius: 50%;
+    border: 2px solid currentColor;
+    box-shadow: 0 0 12px currentColor, 0 0 0 3px oklch(0.14 0.02 230 / 0.8);
+    transition: transform 0.15s;
+  }
+  .marker-spot:hover .halo { transform: scale(1.1); }
+  .marker-spot .inner {
+    position: absolute; inset: 4px; border-radius: 50%;
+    background: oklch(0.14 0.02 230);
+    display: grid; place-items: center;
+    color: var(--fg);
+    border: 1px solid oklch(1 0 0 / 0.15);
+  }
+  .marker-spot.firing { color: var(--coral); }
+  .marker-spot.solid { color: var(--gold); }
+  .marker-spot.good { color: var(--good); }
+  .marker-spot.fair { color: var(--aqua); }
+  .marker-spot.flat { color: var(--muted); }
+  .marker-spot .rating-num {
+    position: absolute; top: -8px; right: -8px;
+    background-color: currentColor;
+    font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 700;
+    padding: 2px 5px; border-radius: 4px;
+    line-height: 1; min-width: 18px; text-align: center;
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.4);
+  }
+  .marker-spot .rating-num::before {
+    content: attr(data-rating);
+    color: oklch(0.14 0.02 230);
+  }
+
+  .marker-buoy {
+    width: 22px; height: 22px;
+    transform: translate(-50%, -50%);
+    position: relative;
+    color: var(--aqua);
+  }
+  .marker-buoy .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1.5px dashed currentColor; opacity: 0.5;
+  }
+  .marker-buoy .dot {
+    position: absolute; inset: 6px; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .marker-buoy:hover .ring { opacity: 1; }
+
+  .marker-cluster {
+    width: 44px; height: 44px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel); backdrop-filter: saturate(180%) blur(10px);
+    border: 1.5px solid var(--aqua);
+    display: grid; place-items: center;
+    font-family: 'Geist Mono', monospace; font-weight: 700; font-size: 13px; color: var(--fg);
+    box-shadow: 0 4px 14px oklch(0 0 0 / 0.5), 0 0 0 4px oklch(0.82 0.16 195 / 0.12);
+    cursor: pointer;
+  }
+  .marker-cluster:hover { border-color: oklch(0.9 0.18 195); }
+  .marker-cluster .sub { font-size: 8px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; margin-top: -2px; }
+
+  /* Storm / swell origin */
+  .marker-storm {
+    position: absolute;
+    width: 120px; height: 120px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .marker-storm .ring {
+    position: absolute; inset: 50%; width: 0; height: 0;
+    border-radius: 50%; border: 1.5px solid var(--storm);
+    animation: stormPulse 4s ease-out infinite;
+  }
+  .marker-storm .ring:nth-child(2) { animation-delay: 1.3s; }
+  .marker-storm .ring:nth-child(3) { animation-delay: 2.6s; }
+  @keyframes stormPulse {
+    0% { width: 0; height: 0; inset: 50%; opacity: 0.7; border-width: 2px; }
+    100% { width: 120px; height: 120px; inset: 0; opacity: 0; border-width: 0.5px; }
+  }
+  .marker-storm .core {
+    position: absolute; inset: 50%; width: 0; height: 0;
+    transform: translate(-4px, -4px);
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--storm); box-shadow: 0 0 10px var(--storm);
+    pointer-events: auto; cursor: pointer;
+  }
+  .marker-storm .core::after {
+    /* invisible hit area for easier clicking */
+    content: ''; position: absolute; inset: -14px; border-radius: 50%;
+  }
+  .marker-storm .core:hover { box-shadow: 0 0 14px var(--storm), 0 0 0 4px oklch(0.72 0.16 20 / 0.25); }
+
+  /* Leaflet overrides */
+  .leaflet-container { background: #0a1018 !important; font-family: inherit !important; outline: none; }
+  .leaflet-control-attribution {
+    background: var(--panel) !important; backdrop-filter: saturate(180%) blur(10px);
+    border: 1px solid var(--border) !important; border-radius: 6px 0 0 0 !important;
+    color: var(--muted) !important; font-size: 10px !important;
+    margin: 0 60px 60px 0 !important; padding: 3px 8px !important;
+  }
+  .leaflet-control-attribution a { color: var(--fg-2) !important; }
+  .leaflet-control-zoom { display: none !important; } /* we use our custom ones */
+  .leaflet-marker-icon, .leaflet-marker-shadow { background: transparent !important; border: none !important; }
+  .leaflet-tile-pane { filter: saturate(0.85) contrast(1.05); }
+  .leaflet-tile { opacity: 1 !important; }
+  .leaflet-fade-anim .leaflet-tile { will-change: auto; }
+
+  /* ── Mobile menu button (hidden on desktop) ── */
+  .menu-btn { display: none; }
+  .drawer-backdrop { display: none; }
+
+  @media (max-width: 900px) {
+    /* Show hamburger, hide desktop-only things */
+    .menu-btn {
+      display: grid; place-items: center;
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, oklch(0.20 0.03 230), oklch(0.16 0.025 230));
+      border: 1px solid var(--aqua);
+      color: var(--aqua);
+      cursor: pointer;
+      backdrop-filter: saturate(180%) blur(14px);
+      box-shadow: 0 0 0 1px oklch(0.55 0.14 200 / 0.15), 0 4px 16px oklch(0.55 0.14 200 / 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .menu-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 1px oklch(0.55 0.14 200 / 0.25), 0 6px 20px oklch(0.55 0.14 200 / 0.35);
+    }
+    .menu-btn:active { transform: translateY(0); }
+    .tabs { display: none; }
+    .search-kbd { display: none; }
+
+    /* Left rail becomes a slide-in drawer */
+    .left-rail {
+      display: flex; flex-direction: column;
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      width: min(300px, 85vw);
+      padding: 64px 14px 14px;
+      background: rgba(7,9,12,0.96);
+      backdrop-filter: saturate(180%) blur(20px);
+      border-right: 1px solid var(--border);
+      transform: translateX(-100%);
+      transition: transform 0.22s ease;
+      z-index: 60;
+      overflow-y: auto;
+      pointer-events: auto;
+      gap: 10px;
+    }
+    body.menu-open .left-rail { transform: translateX(0); }
+
+    /* Mini-tabs inside the drawer */
+    .drawer-tabs {
+      display: flex; flex-direction: column; gap: 2px;
+      margin-bottom: 4px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .drawer-tab {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      background: transparent;
+      border: 0;
+      color: var(--fg-2);
+      font-size: 13px;
+      font-weight: 500;
+      text-align: left;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .drawer-tab.on { background: var(--panel-2); color: var(--fg); }
+    .drawer-tab svg { opacity: 0.8; flex-shrink: 0; }
+
+    /* Backdrop */
+    .drawer-backdrop {
+      display: block;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(2px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 55;
+    }
+    body.menu-open .drawer-backdrop { opacity: 1; pointer-events: auto; }
+    .drawer-close, .drawer-tabs { display: flex !important; }
+    .drawer-tabs { flex-direction: column; }
+
+    /* Close (X) inside drawer */
+    .drawer-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--fg-2);
+      cursor: pointer;
+    }
+    .search-wrap { max-width: none; }
+    .search-wrap input { font-size: 13px; padding: 9px 0; }
+    .brand { padding: 8px 12px; font-size: 13px; }
+    .icon-btn { width: 36px; height: 36px; }
+    .avatar { width: 32px; height: 32px; }
+    .topbar { gap: 8px; top: 10px; left: 10px; right: 10px; padding-left: 6px; }
+    .topbar-right { gap: 6px; }
+    .region-bar {
+      top: 62px; left: 10px;
+      right: auto;
+      max-width: none;
+      flex-wrap: nowrap;
+      position: absolute;
+    }
+    /* Collapse chips into a dropdown — show only selected, the rest hidden until open */
+    .region-bar .region-chip { display: none; }
+    .region-bar .region-chip.on {
+      display: inline-flex;
+      padding-right: 30px;
+      position: relative;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    }
+    .region-bar .region-chip.on::after {
+      content: '';
+      position: absolute; right: 10px; top: 50%;
+      width: 7px; height: 7px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: translateY(-70%) rotate(45deg);
+      opacity: 0.7;
+      transition: transform 0.18s;
+    }
+    .region-bar.open .region-chip.on::after {
+      transform: translateY(-20%) rotate(-135deg);
+    }
+    /* When open, show ALL chips stacked below the trigger */
+    .region-bar.open {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      background: rgba(7,9,12,0.96);
+      backdrop-filter: saturate(180%) blur(20px);
+      padding: 6px;
+      border: 1px solid var(--border-2);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .region-bar.open .region-chip {
+      display: inline-flex;
+      width: 100%;
+      border-radius: 8px;
+      border: 0;
+      background: transparent;
+      padding: 9px 12px;
+      justify-content: space-between;
+    }
+    .region-bar.open .region-chip:hover { background: var(--panel-2); }
+    .region-bar.open .region-chip.on {
+      background: var(--aqua);
+      color: oklch(0.14 0.02 230);
+      box-shadow: none;
+      padding-right: 30px;
+    }
+    .region-bar.open .region-chip.on::after {
+      right: 10px;
+      width: 6px; height: 10px;
+      border: 0;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      border-top: 0; border-left: 0;
+      transform: translateY(-70%) rotate(45deg) scale(0.7);
+      opacity: 1;
+    }
+    .preview-card { left: 10px; right: 10px; width: auto; transform: none; bottom: 104px; padding: 12px; }
+    .preview-card.show { transform: none; }
+    .preview-metrics { grid-template-columns: repeat(2, 1fr); }
+    .zoom-controls { right: 10px; bottom: 160px; }
+    .status-bar {
+      left: 10px; right: 10px; bottom: 10px; gap: 6px;
+      flex-direction: column; align-items: stretch;
+    }
+    .status-card { font-size: 11px; padding: 8px 10px; }
+  }
+
+  @media (max-width: 420px) {
+    .brand span, .brand .subtitle { display: none; }
+    .brand { padding: 8px 10px; }
+    .search-wrap input { font-size: 12.5px; }
+    .search-wrap input::placeholder { font-size: 12px; }
+    .region-chip { padding: 6px 10px; font-size: 11.5px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.55"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.28"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--mark-dot, currentColor)"/>
+  </symbol>
+  <symbol id="surfer" viewBox="0 0 24 24">
+    <!-- simple stylized surfer on board -->
+    <path d="M4 17c3-1 6-2 9-2s5 1 7 2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M12 4.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10.5 8.5c0.5 2 2 3 3 3l2.5-1.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10.5 8.5l-1 4 1 3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="buoy-i" viewBox="0 0 24 24">
+    <path d="M12 4l-3 7h6l-3-7zm-3 7l-2 5h10l-2-5M7 16q2 1 5 1t5-1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<div id="app">
+  <div id="map"></div>
+
+  <!-- Top chrome -->
+  <nav class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a href="mysurflife.html" class="brand">
+      <svg width="22" height="22" viewBox="0 0 64 64"><use href="#mark"/></svg>
+      mysurflife
+    </a>
+    <div class="tabs">
+      <button class="tab on">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v16l7-3 8 3 7-3V3l-7 3-8-3-7 3z"/><path d="M8 3v16M16 6v16"/></svg>
+        Map
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Dashboard
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        Journal
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9zM10 21a2 2 0 004 0"/></svg>
+        Alerts
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+        Copilot
+      </button>
+    </div>
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="searchInput" type="text" placeholder="Search spots, regions, buoys, or storms…" />
+      <span class="search-kbd">⌘K</span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" title="Layers">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      </button>
+      <div class="avatar">DS</div>
+    </div>
+  </nav>
+
+  <!-- Region chips -->
+  <div class="region-bar" id="regionBar"></div>
+
+  <!-- Mobile drawer backdrop -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+  <!-- Left rail — legend + filters (doubles as mobile drawer) -->
+  <aside class="left-rail">
+    <button class="drawer-close" id="drawerClose" aria-label="Close menu" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="drawer-tabs" style="display:none">
+      <button class="drawer-tab on"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v16l7-3 8 3 7-3V3l-7 3-8-3-7 3z"/><path d="M8 3v16M16 6v16"/></svg>Map</button>
+      <button class="drawer-tab" onclick="location.href='mysurflife-home.html'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</button>
+      <button class="drawer-tab"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Journal</button>
+      <button class="drawer-tab"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9zM10 21a2 2 0 004 0"/></svg>Alerts</button>
+      <button class="drawer-tab" onclick="location.href='mysurflife-copilot-session.html'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>Copilot</button>
+    </div>
+    <div class="rail-card">
+      <div class="rail-title">Markers</div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--coral); background: oklch(0.14 0.02 230); box-shadow: 0 0 8px var(--coral);"></div>
+        </div>
+        <span>Firing · 4.5+</span>
+        <span class="ct" id="ctFiring">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--gold); background: oklch(0.14 0.02 230); box-shadow: 0 0 8px var(--gold);"></div>
+        </div>
+        <span>Solid · 3.5–4.5</span>
+        <span class="ct" id="ctSolid">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--good); background: oklch(0.14 0.02 230);"></div>
+        </div>
+        <span>Fun · 2.5–3.5</span>
+        <span class="ct" id="ctGood">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--aqua); background: oklch(0.14 0.02 230);"></div>
+        </div>
+        <span>Fair · 1.5–2.5</span>
+        <span class="ct" id="ctFair">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--muted); background: oklch(0.14 0.02 230);"></div>
+        </div>
+        <span>Flat</span>
+        <span class="ct" id="ctFlat">—</span>
+      </div>
+      <div class="legend-row" style="margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border);">
+        <div class="icon-slot">
+          <div style="width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--aqua); position: relative;">
+            <div style="position:absolute; inset: 5px; background: var(--aqua); border-radius: 50%; box-shadow: 0 0 6px var(--aqua);"></div>
+          </div>
+        </div>
+        <span>NOAA buoy</span>
+        <span class="ct">62</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width: 16px; height: 16px; border-radius: 50%; background: var(--storm); box-shadow: 0 0 10px var(--storm);"></div>
+        </div>
+        <span>Active storm</span>
+        <span class="ct">3</span>
+      </div>
+    </div>
+
+    <div class="rail-card">
+      <div class="rail-title">Layers</div>
+      <div class="filter-toggle">
+        <span>Surf spots</span>
+        <div class="toggle on" id="togSpots"></div>
+      </div>
+      <div class="filter-toggle">
+        <span>NOAA buoys</span>
+        <div class="toggle on" id="togBuoys"></div>
+      </div>
+      <div class="filter-toggle">
+        <span>Storm systems</span>
+        <div class="toggle on" id="togStorms"></div>
+      </div>
+      <div class="filter-toggle">
+        <span>Favorites only</span>
+        <div class="toggle" id="togFavs"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Zoom controls -->
+  <div class="zoom-controls">
+    <button id="zoomIn" title="Zoom in">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button id="zoomOut" title="Zoom out">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+    </button>
+    <button id="locateMe" title="My location">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    </button>
+  </div>
+
+  <!-- Bottom status bar -->
+  <div class="status-bar">
+    <div class="status-card">
+      <span class="dot"></span>
+      <span class="k">Live</span>
+      <span class="v">NOAA · WW3</span>
+      <div class="status-sep"></div>
+      <span class="k">Updated</span>
+      <span class="v">2m ago</span>
+    </div>
+    <div class="status-card spot-count">
+      <span class="k">In view</span>
+      <span class="v" id="inViewCount">—</span>
+      <div class="status-sep"></div>
+      <span class="k">Total</span>
+      <span class="v" id="totalCount">—</span>
+    </div>
+  </div>
+
+  <!-- Spot preview card (hover / click) -->
+  <div class="preview-card" id="previewCard">
+    <div class="preview-head">
+      <div class="title">
+        <span id="pvName">—</span>
+        <span class="region" id="pvRegion">—</span>
+      </div>
+      <button class="preview-close" id="pvClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="rating-strip">
+      <span class="pill" id="pvPill" style="background: var(--aqua);">—</span>
+      <span id="pvTag" style="color: var(--muted);">—</span>
+    </div>
+    <div class="preview-metrics">
+      <div class="m"><div class="k">Swell</div><div class="v"><span id="pvSwell">—</span><span class="u">ft</span></div></div>
+      <div class="m"><div class="k">Period</div><div class="v"><span id="pvPer">—</span><span class="u">s</span></div></div>
+      <div class="m"><div class="k">Wind</div><div class="v"><span id="pvWind">—</span><span class="u">mph</span></div></div>
+      <div class="m"><div class="k">Water</div><div class="v"><span id="pvTemp">—</span><span class="u">°F</span></div></div>
+    </div>
+    <a class="preview-open" href="mysurflife-spot-detail.html">
+      Open spot
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+
+  <!-- Storm preview card (click storm marker) -->
+  <div class="preview-card storm-preview" id="stormPreviewCard">
+    <div class="preview-head">
+      <div class="title">
+        <span id="spName">—</span>
+        <span class="region" id="spRegion">—</span>
+      </div>
+      <button class="preview-close" id="spClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="rating-strip">
+      <span class="pill" id="spPill" style="background: oklch(0.72 0.16 20); color: oklch(0.98 0.01 230);">—</span>
+      <span id="spTag" style="color: var(--muted);">—</span>
+    </div>
+    <div class="preview-metrics">
+      <div class="m"><div class="k">Pressure</div><div class="v"><span id="spPres">—</span><span class="u">mb</span></div></div>
+      <div class="m"><div class="k">Max winds</div><div class="v"><span id="spWind">—</span><span class="u">kt</span></div></div>
+      <div class="m"><div class="k">Max seas</div><div class="v"><span id="spSeas">—</span><span class="u">ft</span></div></div>
+      <div class="m"><div class="k">Fetch</div><div class="v" style="font-size: 12px;"><span id="spFetch" style="font-weight: 600;">—</span></div></div>
+    </div>
+    <a class="preview-open" id="spOpen" href="mysurflife-storm-card.html" style="background: oklch(0.72 0.16 20); color: oklch(0.98 0.01 230);">
+      See storm detail
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="map-view.js?v=5"></script>
+<script>
+  // Mobile drawer toggle
+  (function() {
+    const body = document.body;
+    const btn = document.getElementById('menuBtn');
+    const closeBtn = document.getElementById('drawerClose');
+    const backdrop = document.getElementById('drawerBackdrop');
+    const open = () => body.classList.add('menu-open');
+    const close = () => body.classList.remove('menu-open');
+    btn && btn.addEventListener('click', open);
+    closeBtn && closeBtn.addEventListener('click', close);
+    backdrop && backdrop.addEventListener('click', close);
+    // close when a drawer-tab or region-chip is clicked
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.drawer-tab')) close();
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  })();
+
+  // Mobile region dropdown
+  (function() {
+    const bar = document.getElementById('regionBar');
+    if (!bar) return;
+    const mq = window.matchMedia('(max-width: 900px)');
+    const handleClick = (e) => {
+      if (!mq.matches) return;
+      const chip = e.target.closest('.region-chip');
+      if (!chip) return;
+      if (!bar.classList.contains('open')) {
+        // Closed — any tap on the visible chip opens the menu instead of re-selecting
+        e.preventDefault();
+        e.stopPropagation();
+        bar.classList.add('open');
+      } else {
+        // Open — if tapping the already-selected chip, just close
+        if (chip.classList.contains('on')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        bar.classList.remove('open');
+      }
+    };
+    // capture phase so we can intercept BEFORE selectRegion runs
+    bar.addEventListener('click', handleClick, true);
+    // Tap outside to close
+    document.addEventListener('click', (e) => {
+      if (!mq.matches) return;
+      if (!bar.contains(e.target)) bar.classList.remove('open');
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') bar.classList.remove('open'); });
+    // Reset on resize above breakpoint
+    mq.addEventListener('change', () => bar.classList.remove('open'));
+  })();
+</script>
+
+</body>
+</html>

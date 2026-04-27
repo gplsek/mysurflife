@@ -1,0 +1,574 @@
+WannaSurf Spot List — Geocoded Spots Only
+Scraped: 2026-04-27  |  Total geocoded: 526
+======================================================================
+
+Name                                                 Lat          Lon  URL
+----------------------------------------------------------------------
+
+## California/Del Norte
+Crescent City South Beach                      41.741859  -124.170570  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Crescent_City_South_Beach/index.html
+Enderts Beach                                  41.705248  -124.144092  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Enderts_Beach/index.html
+Garth S Reef                                   41.770672  -124.244256  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Garth_s_Reef/index.html
+Klamath Rivermouth                             41.548929  -124.086285  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Klamath_Rivermouth/index.html
+Point Saint George                             41.786137  -124.255076  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Point_Saint_George/index.html
+Saint George Reef Lighthouse                   41.841432  -124.375191  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Saint_George_Reef_Lighthouse/index.html
+Smithh River   Kellog Road                     41.828514  -124.228592  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Smithh_River_-_Kellog_Road/index.html
+Whaler Island                                  41.739185  -124.183896  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Whaler_Island/index.html
+Wilson Creek                                   41.603474  -124.101734  https://wannasurf.com/spot/North_America/USA/California/Del_Norte/Wilson_Creek/index.html
+
+## California/Humboldt
+Big Lagoon                                     41.160046  -124.135723  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Big_Lagoon/index.html
+Bunkers                                        40.774290  -124.225497  https://wannasurf.com/spot/North_America/USA/California/Humboldt/bunkers/index.html
+Camel Rock                                     41.035220  -124.123455  https://wannasurf.com/spot/North_America/USA/California/Humboldt/camel_rock/index.html
+Cape Mendocino                                 40.411143  -124.393902  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Cape_Mendocino/index.html
+Deadman S                                      40.023589  -124.057478  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Deadman_s/index.html
+Dry Lagoon                                     41.224376  -124.109373  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Dry_Lagoon/index.html
+Gale Point                                     40.015422  -124.041899  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Gale_Point/index.html
+Gold Bluffs Beach                              41.384279  -124.071693  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Gold_Bluffs_Beach/index.html
+Harbor  Entrance                               40.767152  -124.240780  https://wannasurf.com/spot/North_America/USA/California/Humboldt/harbor__entrance/index.html
+Little River   Clam Beach                      41.010734  -124.115982  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Little_river_-_Clam_Beach/index.html
+Mckee S Creek                                  39.964359  -123.985627  https://wannasurf.com/spot/North_America/USA/California/Humboldt/McKee_s_Creek/index.html
+Moonstone                                      41.031311  -124.117012  https://wannasurf.com/spot/North_America/USA/California/Humboldt/moonstone/index.html
+No Pass                                        40.019739  -124.048889  https://wannasurf.com/spot/North_America/USA/California/Humboldt/No_Pass/index.html
+North Jetty                                    40.767737  -124.235287  https://wannasurf.com/spot/North_America/USA/California/Humboldt/north_jetty/index.html
+Redwood Creek                                  41.290706  -124.092894  https://wannasurf.com/spot/North_America/USA/California/Humboldt/redwood_creek/index.html
+South Jetty   Table Bluff                      40.752589  -124.240093  https://wannasurf.com/spot/North_America/USA/California/Humboldt/South_Jetty_-_Table_Bluff/index.html
+Stone Lagoon                                   41.252903  -124.102077  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Stone_Lagoon/index.html
+Third Reef                                     40.021510  -124.053594  https://wannasurf.com/spot/North_America/USA/California/Humboldt/Third_Reef/index.html
+Trinidad State Beach                           41.058191  -124.150572  https://wannasurf.com/spot/North_America/USA/California/Humboldt/trinidad_state_beach/index.html
+
+## California/LA County
+Abalone Cove                                   33.737773  -118.376023  https://wannasurf.com/spot/North_America/USA/California/LA_County/abalone_cove/index.html
+Ba S                                           33.736617  -118.398457  https://wannasurf.com/spot/North_America/USA/California/LA_County/BA_s/index.html
+Bay Street Santa Monica                        34.004431  -118.492978  https://wannasurf.com/spot/North_America/USA/California/LA_County/bay_street_santa_monica/index.html
+Bluff Cove                                     33.792558  -118.410473  https://wannasurf.com/spot/North_America/USA/California/LA_County/bluff_cove/index.html
+Burnout                                        33.815742  -118.391547  https://wannasurf.com/spot/North_America/USA/California/LA_County/Burnout/index.html
+Cabrillo Beach                                 33.708477  -118.282735  https://wannasurf.com/spot/North_America/USA/California/LA_County/cabrillo_beach/index.html
+Cabrillo Point                                 33.704224  -118.290702  https://wannasurf.com/spot/North_America/USA/California/LA_County/cabrillo_point/index.html
+Dockweiler Beach                               33.930070  -118.436630  https://wannasurf.com/spot/North_America/USA/California/LA_County/dockweiler_beach/index.html
+Dominators                                      0.000000    -0.000000  https://wannasurf.com/spot/North_America/USA/California/LA_County/dominators/index.html
+El Porto                                       33.904117  -118.424892  https://wannasurf.com/spot/North_America/USA/California/LA_County/el_porto/index.html
+El Segundo                                     33.911633  -118.427339  https://wannasurf.com/spot/North_America/USA/California/LA_County/el_segundo/index.html
+Exiles                                         33.800494  -118.404679  https://wannasurf.com/spot/North_America/USA/California/LA_County/exiles/index.html
+Gillis                                         33.950180  -118.448845  https://wannasurf.com/spot/North_America/USA/California/LA_County/Gillis/index.html
+Haggartys                                      33.802330  -118.399208  https://wannasurf.com/spot/North_America/USA/California/LA_County/haggartys/index.html
+Hammerland                                     33.905079  -118.423133  https://wannasurf.com/spot/North_America/USA/California/LA_County/hammerland/index.html
+Heavens                                        34.045447  -118.944967  https://wannasurf.com/spot/North_America/USA/California/LA_County/heavens/index.html
+Hermosa Beach Pier                             33.859369  -118.403435  https://wannasurf.com/spot/North_America/USA/California/LA_County/hermosa_beach_pier/index.html
+Indicators                                     33.787877  -118.416567  https://wannasurf.com/spot/North_America/USA/California/LA_County/indicators/index.html
+Japs Cove                                      33.722359  -118.337350  https://wannasurf.com/spot/North_America/USA/California/LA_County/japs_cove/index.html
+Latigo Point                                   34.026166  -118.754461  https://wannasurf.com/spot/North_America/USA/California/LA_County/latigo_point/index.html
+Leo Carillo                                    34.045583  -118.930757  https://wannasurf.com/spot/North_America/USA/California/LA_County/leo_carillo/index.html
+Long Beach                                     33.743630  -118.118284  https://wannasurf.com/spot/North_America/USA/California/LA_County/Long_Beach/index.html
+Lunada Bay                                     33.771335  -118.426030  https://wannasurf.com/spot/North_America/USA/California/LA_County/lunada_bay/index.html
+Malibu                                         34.032746  -118.678694  https://wannasurf.com/spot/North_America/USA/California/LA_County/malibu/index.html
+Manhattan 26Th Street                          33.884382  -118.412361  https://wannasurf.com/spot/North_America/USA/California/LA_County/manhattan_26th_street/index.html
+Manhattan Beach Pier                           33.883225  -118.414271  https://wannasurf.com/spot/North_America/USA/California/LA_County/manhattan_beach_pier/index.html
+Marshalls                                      34.038987  -118.895459  https://wannasurf.com/spot/North_America/USA/California/LA_County/Marshalls/index.html
+Ocean Park  Santa Monica                       33.998632  -118.487484  https://wannasurf.com/spot/North_America/USA/California/LA_County/Ocean_Park__Santa_Monica/index.html
+Pickles                                        33.713881  -118.314557  https://wannasurf.com/spot/North_America/USA/California/LA_County/Pickles/index.html
+Pipe                                           33.923082  -118.433969  https://wannasurf.com/spot/North_America/USA/California/LA_County/pipe/index.html
+Pipes And Turbos                               33.782634  -118.422972  https://wannasurf.com/spot/North_America/USA/California/LA_County/pipes_and_turbos/index.html
+Point Dume                                     34.010826  -118.792484  https://wannasurf.com/spot/North_America/USA/California/LA_County/point_dume/index.html
+Rat Beach                                      33.805268  -118.394868  https://wannasurf.com/spot/North_America/USA/California/LA_County/rat_beach/index.html
+Redondo Beach                                  33.827254  -118.391976  https://wannasurf.com/spot/North_America/USA/California/LA_County/redondo_beach/index.html
+San Clemente Island                            32.811872  -118.411385  https://wannasurf.com/spot/North_America/USA/California/LA_County/San-Clemente-Island/index.html
+Santa Monica   Samo 20                         34.004574  -118.492355  https://wannasurf.com/spot/North_America/USA/California/LA_County/santa_monica_-_samo_20/index.html
+Shark Harbor                                   33.383185  -118.472528  https://wannasurf.com/spot/North_America/USA/California/LA_County/shark_harbor/index.html
+Staircases                                     34.046010  -118.952065  https://wannasurf.com/spot/North_America/USA/California/LA_County/Staircases/index.html
+Sunset                                         34.038542  -118.552780  https://wannasurf.com/spot/North_America/USA/California/LA_County/sunset/index.html
+T C S                                          33.719946  -118.330826  https://wannasurf.com/spot/North_America/USA/California/LA_County/T_C_s/index.html
+Tcs                                            33.717433  -118.323526  https://wannasurf.com/spot/North_America/USA/California/LA_County/tcs/index.html
+The Hut   Paradise Cove                        34.017949  -118.786325  https://wannasurf.com/spot/North_America/USA/California/LA_County/the_hut_-_paradise_cove/index.html
+Topanga Point                                  34.037369  -118.583078  https://wannasurf.com/spot/North_America/USA/California/LA_County/topanga_point/index.html
+Torrance Beach                                 33.823421  -118.389906  https://wannasurf.com/spot/North_America/USA/California/LA_County/torrance_beach/index.html
+Venice   Rose Avenue                           33.993971  -118.480940  https://wannasurf.com/spot/North_America/USA/California/LA_County/venice_-_rose_avenue/index.html
+Venice Breakwater                              33.984933  -118.476820  https://wannasurf.com/spot/North_America/USA/California/LA_County/venice_breakwater/index.html
+Venice Pier                                    33.978065  -118.468924  https://wannasurf.com/spot/North_America/USA/California/LA_County/venice_pier/index.html
+Wallys                                         33.765877  -118.423519  https://wannasurf.com/spot/North_America/USA/California/LA_County/wallys/index.html
+Westward Beach                                 34.003417  -118.811581  https://wannasurf.com/spot/North_America/USA/California/LA_County/westward_beach/index.html
+Will Rodgers                                   34.030458  -118.527350  https://wannasurf.com/spot/North_America/USA/California/LA_County/Will_Rodgers/index.html
+Zeroes                                         34.041956  -118.915930  https://wannasurf.com/spot/North_America/USA/California/LA_County/zeroes/index.html
+Zuma Beach                                     34.027766  -118.841085  https://wannasurf.com/spot/North_America/USA/California/LA_County/zuma_beach/index.html
+
+## California/Mendocino
+Big River                                      39.301594  -123.797808  https://wannasurf.com/spot/North_America/USA/California/Mendocino/big_river/index.html
+Caspar                                         39.360648  -123.816605  https://wannasurf.com/spot/North_America/USA/California/Mendocino/Caspar/index.html
+Hare Creek                                     39.418292  -123.813858  https://wannasurf.com/spot/North_America/USA/California/Mendocino/hare_creek/index.html
+Jug Handle State Beach                         39.377260  -123.820032  https://wannasurf.com/spot/North_America/USA/California/Mendocino/Jug_Handle_State_Beach/index.html
+Manchester Beach                               38.966883  -123.720474  https://wannasurf.com/spot/North_America/USA/California/Mendocino/manchester_beach/index.html
+Point Arena Cove                               38.914486  -123.711001  https://wannasurf.com/spot/North_America/USA/California/Mendocino/point_arena_cove/index.html
+Usal Beach                                     39.830660  -123.850100  https://wannasurf.com/spot/North_America/USA/California/Mendocino/Usal_Beach/index.html
+
+## California/Monterey
+Andrew Molara State Beach                      36.281082  -121.857787  https://wannasurf.com/spot/North_America/USA/California/Monterey/andrew_molara_state_beach/index.html
+Asilomar                                       36.618016  -121.942754  https://wannasurf.com/spot/North_America/USA/California/Monterey/asilomar/index.html
+Carmel                                         36.549087  -121.929359  https://wannasurf.com/spot/North_America/USA/California/Monterey/carmel/index.html
+Del Monte Beach                                36.605451  -121.869299  https://wannasurf.com/spot/North_America/USA/California/Monterey/del_monte_beach/index.html
+Fullers                                        36.207589  -121.744534  https://wannasurf.com/spot/North_America/USA/California/Monterey/fullers/index.html
+Garrapata                                      36.421628  -121.918974  https://wannasurf.com/spot/North_America/USA/California/Monterey/garrapata/index.html
+Ghost Tree                                     36.561876  -121.951547  https://wannasurf.com/spot/North_America/USA/California/Monterey/ghost_tree/index.html
+Lovers Point                                   36.626343  -121.914897  https://wannasurf.com/spot/North_America/USA/California/Monterey/lovers_point/index.html
+Marina                                         36.699135  -121.809937  https://wannasurf.com/spot/North_America/USA/California/Monterey/marina/index.html
+Moss Landing                                   36.817427  -121.793361  https://wannasurf.com/spot/North_America/USA/California/Monterey/moss_landing/index.html
+Sand Dollar Beach                              35.923671  -121.472826  https://wannasurf.com/spot/North_America/USA/California/Monterey/Sand_Dollar_Beach/index.html
+Seaside                                        36.612755  -121.858635  https://wannasurf.com/spot/North_America/USA/California/Monterey/Seaside/index.html
+The Wharf                                      36.602127  -121.888011  https://wannasurf.com/spot/North_America/USA/California/Monterey/the_wharf/index.html
+
+## California/Orange County
+17Th Street                                    33.663425  -118.014321  https://wannasurf.com/spot/North_America/USA/California/Orange_County/17th_street/index.html
+36Th Street                                    33.615155  -117.937224  https://wannasurf.com/spot/North_America/USA/California/Orange_County/36th_street/index.html
+40Th Street                                    33.617300  -117.938898  https://wannasurf.com/spot/North_America/USA/California/Orange_County/40th_street/index.html
+56Th St                                        33.623223  -117.945185  https://wannasurf.com/spot/North_America/USA/California/Orange_County/56th_st/index.html
+Anderson Street                                33.722858  -118.080872  https://wannasurf.com/spot/North_America/USA/California/Orange_County/anderson_street/index.html
+Ben Weston  Catalina Island                    33.376242  -118.479148  https://wannasurf.com/spot/North_America/USA/California/Orange_County/ben_weston__catalina_island_/index.html
+Blackies                                       33.609044  -117.932053  https://wannasurf.com/spot/North_America/USA/California/Orange_County/blackies/index.html
+Bolsa Chica                                    33.696637  -118.049469  https://wannasurf.com/spot/North_America/USA/California/Orange_County/bolsa_chica/index.html
+Boxcars                                         0.000000    -0.000000  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Boxcars_/index.html
+Brooks Street                                  33.532861  -117.777343  https://wannasurf.com/spot/North_America/USA/California/Orange_County/brooks_street/index.html
+Camp Pendelton                                 33.215999  -117.405803  https://wannasurf.com/spot/North_America/USA/California/Orange_County/camp_pendelton/index.html
+Churches                                       33.380139  -117.579889  https://wannasurf.com/spot/North_America/USA/California/Orange_County/churches/index.html
+Cottons                                        33.390737  -117.598633  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Cottons/index.html
+Crescent Bay                                   33.546295  -117.802019  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Crescent_bay/index.html
+Cylinders                                      33.595247  -117.889223  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Cylinders/index.html
+Dana Point                                     33.463060  -117.713485  https://wannasurf.com/spot/North_America/USA/California/Orange_County/dana_point/index.html
+Doheney                                        33.460160  -117.688943  https://wannasurf.com/spot/North_America/USA/California/Orange_County/doheney/index.html
+Huntington Beach                               33.655638  -118.003421  https://wannasurf.com/spot/North_America/USA/California/Orange_County/huntington_beach/index.html
+Linda Lane Beach                               33.422523  -117.623663  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Linda_Lane_Beach/index.html
+Lower Trestles                                 33.382791  -117.588687  https://wannasurf.com/spot/North_America/USA/California/Orange_County/lower_trestles/index.html
+Middles                                        33.602414  -117.913063  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Middles/index.html
+Newport   15Th Street                          33.604460  -117.918867  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Newport_-_15th_Street/index.html
+Newport Beach                                  33.620051  -117.940292  https://wannasurf.com/spot/North_America/USA/California/Orange_County/newport_beach/index.html
+Newport Beach River Jetties                    33.619247  -117.940249  https://wannasurf.com/spot/North_America/USA/California/Orange_County/newport_beach_river_jetties/index.html
+Ray Bay                                        33.739294  -118.117404  https://wannasurf.com/spot/North_America/USA/California/Orange_County/ray_bay/index.html
+Riviera                                        33.405794  -117.608407  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Riviera/index.html
+Salt Creek                                     33.473558  -117.721521  https://wannasurf.com/spot/North_America/USA/California/Orange_County/salt_creek/index.html
+Salt Creek  Middles                            33.475357  -117.723720  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Salt_Creek-_Middles/index.html
+Salt Creek Heroins                             33.483447  -117.729235  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Salt_Creek_Heroins/index.html
+Salt Creek Point                               33.473639  -117.722197  https://wannasurf.com/spot/North_America/USA/California/Orange_County/salt_creek_point/index.html
+San Clemente Pier                              33.419787  -117.621490  https://wannasurf.com/spot/North_America/USA/California/Orange_County/san_clemente_pier/index.html
+San Onofre                                     33.372506  -117.565770  https://wannasurf.com/spot/North_America/USA/California/Orange_County/san_onofre/index.html
+Scotchmans Cove                                33.553412  -117.827682  https://wannasurf.com/spot/North_America/USA/California/Orange_County/scotchmans_cove/index.html
+Seal Beach                                     33.738348  -118.110130  https://wannasurf.com/spot/North_America/USA/California/Orange_County/seal_beach/index.html
+Seal Beach Pier Northside                      33.737991  -118.108974  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Seal_Beach_Pier_Northside/index.html
+State Park                                     33.400671  -117.604008  https://wannasurf.com/spot/North_America/USA/California/Orange_County/state_park/index.html
+Sunset Beach Usa North Oc                      33.714706  -118.070294  https://wannasurf.com/spot/North_America/USA/California/Orange_County/Sunset_Beach_usa_north_OC/index.html
+T Street                                       33.415243  -117.618510  https://wannasurf.com/spot/North_America/USA/California/Orange_County/T_street/index.html
+Thaila                                         33.535922  -117.778566  https://wannasurf.com/spot/North_America/USA/California/Orange_County/thaila/index.html
+The Wedge                                      33.593960  -117.882400  https://wannasurf.com/spot/North_America/USA/California/Orange_County/the_wedge/index.html
+Thousand Steps                                 33.498282  -117.741578  https://wannasurf.com/spot/North_America/USA/California/Orange_County/thousand_steps/index.html
+Three Arch Bay                                 33.492738  -117.734867  https://wannasurf.com/spot/North_America/USA/California/Orange_County/three_arch_bay/index.html
+Upper Trestles                                 33.385563  -117.594381  https://wannasurf.com/spot/North_America/USA/California/Orange_County/upper_trestles/index.html
+
+## California/SF Marin
+Bolinas                                        37.903803  -122.683725  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/bolinas/index.html
+Dillon Beach                                   38.251628  -122.970228  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/dillon_beach/index.html
+Double Point                                   37.942878  -122.776766  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/double_point/index.html
+Drakes Bay                                     38.030786  -122.934265  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/Drakes_Bay/index.html
+Fort Cronkite  Rodeo Beach                     37.830870  -122.539701  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/fort_cronkite__rodeo_beach_/index.html
+Fort Point                                     37.810665  -122.476358  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/fort_point/index.html
+North Beach Pt Reyes                           38.078011  -122.975357  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/north_beach_pt_reyes/index.html
+Ocean Beach                                    37.753548  -122.511892  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/ocean_beach/index.html
+Pacifica                                       37.599000  -122.501850  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/pacifica/index.html
+Pedro Point                                    37.599136  -122.517815  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/pedro_point/index.html
+Rca                                            37.895393  -122.700462  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/rca/index.html
+Stinson Beach                                  37.897750  -122.652912  https://wannasurf.com/spot/North_America/USA/California/SF_Marin/Stinson_Beach/index.html
+
+## California/San Diego County
+15Th Street                                    32.958806  -117.269611  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/15th_street/index.html
+Abs                                            32.713913  -117.257000  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/abs/index.html
+Avalanche                                      32.752127  -117.255299  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/avalanche/index.html
+Beacons                                        33.065102  -117.304738  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/beacons/index.html
+Big Rock                                       32.825059  -117.281520  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/big_rock/index.html
+Bird Shit                                      32.729467  -117.256592  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/bird_shit/index.html
+Birdrock                                       32.814275  -117.274997  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/birdrock/index.html
+Blacks Beach                                   32.879587  -117.253829  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/blacks_beach/index.html
+Boneyards                                      33.037219  -117.297732  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/boneyards/index.html
+Campgrounds                                    33.100741  -117.320225  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Campgrounds/index.html
+Cardiff Reef                                   33.015159  -117.283387  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/cardiff_reef/index.html
+Cherry Hill                                    32.981974  -117.273967  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Cherry_Hill/index.html
+Coronado                                       32.684031  -117.191505  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/coronado/index.html
+Coronado Silver Strand State Beach             32.624963  -117.138702  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Coronado_Silver_Strand_State_Beach/index.html
+Cortez Banks                                   32.396197  -119.116516  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/cortez_banks/index.html
+Crystal Pier                                   32.830558  -117.218628  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/crystal_pier/index.html
+D Street                                       33.045494  -117.298300  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/d_street/index.html
+Del Mar                                        32.963955  -117.269397  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/del_mar/index.html
+Del Mar Jetties                                33.217696  -117.406919  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/del_mar_jetties/index.html
+Diamond Street                                 32.798783  -117.259912  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Diamond_Street/index.html
+Donuts                                         32.666978  -117.245517  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/donuts/index.html
+Dutches A Frame                                33.166021  -117.361464  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Dutches_A-Frame/index.html
+El Carmel Point                                32.778218  -117.253432  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/El_Carmel_Point/index.html
+Emery S Left                                   32.829620  -117.282400  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Emery_s_Left/index.html
+Encinatas   D Street                           33.045760  -117.296863  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/encinatas_-_d_street/index.html
+Fletchers Cove                                 32.990963  -117.275426  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/fletchers_cove/index.html
+Garbage                                        32.719629  -117.256876  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/garbage/index.html
+Grandview                                      33.076134  -117.311915  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/grandview/index.html
+Hennemans                                      32.807584  -117.269944  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Hennemans/index.html
+Hogans                                         32.820790  -117.280504  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Hogans/index.html
+Horseshoe                                      32.838707  -117.282282  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/horseshoe/index.html
+Imperial Beach                                 32.578425  -117.134256  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/imperial_beach/index.html
+La Jolla Cove                                  32.854463  -117.277744  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/la_jolla_cove/index.html
+La Jolla Shores                                32.858618  -117.258346  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/la_jolla_shores/index.html
+Law Street                                     32.801326  -117.261136  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/law_street/index.html
+Little Point                                   32.832938  -117.282979  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/little_point/index.html
+Little Waimea                                  32.690556  -117.288056  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/little_waimea/index.html
+Luecadia                                       33.075495  -117.310263  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/luecadia/index.html
+Marine Street  Shorebreak                      32.836850  -117.280877  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/marine_street__shorebreak_/index.html
+Mission Beach                                  32.760158  -117.256222  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Mission_Beach/index.html
+No Surf                                        32.727373  -117.256104  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/no_surf/index.html
+North Scripps                                  32.867720  -117.255310  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/north_scripps/index.html
+North Torrey Pines                             32.935937  -117.262927  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/north_torrey_pines/index.html
+O D  Jetty                                     32.754509  -117.255020  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/O_D__Jetty/index.html
+Ocean Beach                                    32.749023  -117.255342  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/ocean_beach/index.html
+Ocean Beach Pier                               32.747801  -117.253926  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/ocean_beach_pier/index.html
+Oceanside Pier                                 33.193341  -117.387671  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/oceanside_pier/index.html
+Pb Pier                                        32.795762  -117.259161  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/pb_pier/index.html
+Pescedero  Pesky                               32.739936  -117.255481  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/pescedero__pesky_/index.html
+Pianos                                         32.706927  -117.255783  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/pianos/index.html
+Point Loma                                     32.668100  -117.236609  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/point_loma/index.html
+Ponto                                          33.096665  -117.315938  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/ponto/index.html
+San Elijo State Beach                          33.025801  -117.287883  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/san_elijo_state_beach/index.html
+Santa Clara Court                              32.782296  -117.255878  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/santa_clara_court/index.html
+Scripps                                        32.865665  -117.256361  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/scripps/index.html
+Seaside Reef                                   33.001902  -117.278162  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/seaside_reef/index.html
+Sloughs                                        32.554554  -117.130029  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/sloughs/index.html
+South Mission Beach                            32.759706  -117.253883  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/south_mission_beach/index.html
+Suckouts                                       33.020462  -117.286301  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/suckouts/index.html
+Sunset Cliffs Osprey                           32.719313  -117.257745  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/sunset_cliffs_osprey/index.html
+Swamis                                         33.034470  -117.292324  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/swamis/index.html
+Tabletops  Playgrounds                         32.997560  -117.279310  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/tabletops__playgrounds/index.html
+Tamarack St                                    33.146184  -117.346280  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/tamarack_st/index.html
+Terra Mar Cove Point                           33.128650  -117.333606  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/terra_mar_cove_point/index.html
+Tippers                                        33.017318  -117.283988  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Tippers/index.html
+Torrey Pines State Beach                       32.930066  -117.262852  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/torrey_pines_state_beach/index.html
+Tourmaline                                     32.804599  -117.263807  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/tourmaline/index.html
+Trails                                         33.334858  -117.507952  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/trails/index.html
+Turtles                                        33.021942  -117.288473  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/turtles/index.html
+Warm Water Jetties                             33.137587  -117.340229  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/Warm_Water_Jetties/index.html
+Windansea                                      32.829429  -117.282663  https://wannasurf.com/spot/North_America/USA/California/San_Diego_County/windansea/index.html
+
+## California/San Luis Obispo
+Atascadero Beach                               35.403166  -120.869554  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/atascadero_beach/index.html
+Boners                                         35.608871  -121.145478  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/Boners/index.html
+Cayacos                                        35.445568  -120.904155  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/cayacos/index.html
+Hazard Canyon                                  35.290013  -120.885057  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/hazard_canyon/index.html
+Hippo Rock                                     35.082270  -120.637608  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/Hippo_Rock/index.html
+Left Spot                                      35.282097  -120.888022  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/left_spot/index.html
+Moonstones                                     35.569290  -121.112085  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/moonstones/index.html
+Morro Bay                                      35.371642  -120.866743  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/morro_bay/index.html
+Mouse Rock                                     35.444869  -120.906698  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/mouse_rock/index.html
+Oceano                                         35.101321  -120.632750  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/oceano/index.html
+Pismo Beach                                    35.138265  -120.644689  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/pismo_beach/index.html
+Ponytails                                      35.598414  -121.132003  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/Ponytails/index.html
+San Simeon Point                               35.635167  -121.193875  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/San_Simeon_Point/index.html
+Sand Spit                                      35.303936  -120.876694  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/sand_spit/index.html
+Sand Spit   Port San Luis                      35.172206  -120.754955  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/Sand_Spit_-_Port_San_Luis/index.html
+Sewers                                         35.159727  -120.687245  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/Sewers/index.html
+Widdows                                        35.363809  -120.868492  https://wannasurf.com/spot/North_America/USA/California/San_Luis_Obispo/Widdows/index.html
+
+## California/San Mateo
+Francis Beach                                  37.464572  -122.447004  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/francis_beach/index.html
+Gray Whale Cove                                37.565331  -122.515368  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/gray_whale_cove/index.html
+Linda Mar                                      37.598252  -122.503127  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/linda_mar/index.html
+Martins Beach                                   0.000000    -0.000000  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/martins_beach/index.html
+Mavericks                                      37.493043  -122.499490  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/mavericks/index.html
+Montara                                        37.552267  -122.514060  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/montara/index.html
+Princeton Breakwater                           37.500691  -122.471032  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/princeton_breakwater/index.html
+Raging Waters                                  37.336137  -121.813831  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/Raging_Waters/index.html
+Rockaway Beach                                 37.609778  -122.497387  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/rockaway_beach/index.html
+Sharp Park                                     37.633092  -122.494850  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/Sharp_Park/index.html
+Tunitas Creek                                  37.357605  -122.400527  https://wannasurf.com/spot/North_America/USA/California/San_Mateo/Tunitas_Creek/index.html
+
+## California/Santa Barbara
+Boat House                                     34.555531  -120.606623  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Boat_House/index.html
+Campus Point                                   34.406857  -119.843180  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/campus_point/index.html
+Carpinteria Beach                              34.391577  -119.521980  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/carpinteria_beach/index.html
+Del Morida                                     34.541361  -120.552555  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Del_Morida/index.html
+Depressions                                    34.406024  -119.850197  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/depressions/index.html
+Deverauxs                                      34.407901  -119.874841  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/deverauxs/index.html
+Driftwoods                                     34.435186  -119.928678  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/driftwoods/index.html
+Ed S                                           34.449069  -119.987783  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/ed_s/index.html
+El Capitan                                     34.457774  -120.022309  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/el_capitan/index.html
+Fernald Point                                  34.419390  -119.619634  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Fernald_Point/index.html
+Goleta Rock                                    34.415235  -119.836107  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Goleta_Rock/index.html
+Hammonds Reef                                  34.415602  -119.637659  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/hammonds_reef/index.html
+Hendry S Beach   Arroyo Burro                  34.403055  -119.743600  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/hendry_s_beach_-_arroyo_burro/index.html
+Jalama                                         34.506203  -120.498862  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/jalama/index.html
+Jelly Bowl                                     34.387149  -119.513913  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Jelly_Bowl/index.html
+Ledbetter                                      34.399191  -119.701688  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/ledbetter/index.html
+Main Street                                    34.966383  -120.655321  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/main_street/index.html
+Mesa                                           34.396559  -119.731281  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/mesa/index.html
+More Mesa                                      34.416994  -119.787932  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/More_Mesa/index.html
+Purisima Point Peak                            34.750252  -120.633042  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/purisima_point_peak/index.html
+Refugio                                        34.460773  -120.073153  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/refugio/index.html
+Rincon                                         34.373036  -119.478089  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/rincon/index.html
+Rockpile                                       34.420310  -119.900212  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/rockpile/index.html
+Sands                                          34.407724  -119.880731  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/sands/index.html
+Sandspit                                       34.404962  -119.688299  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/sandspit/index.html
+Santa Clause                                   34.408060  -119.551613  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/santa_clause/index.html
+Seals                                          34.434726  -119.944364  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Seals/index.html
+Serena S                                       34.413474  -119.569119  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Serena_s/index.html
+Shark Park                                     34.057064  -120.452737  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/shark_park/index.html
+Shelves                                        34.417825  -119.797902  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Shelves/index.html
+Silos                                          34.880976  -120.644989  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Silos/index.html
+Skunk Point                                    33.982015  -119.983492  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Skunk_Point/index.html
+St Augustine Point                              0.000000    -0.000000  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/st_augustine_point/index.html
+Surf Beach                                     34.682946  -120.605955  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/surf_beach/index.html
+Tajuigas Ranch                                 34.463582  -120.101434  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/tajuigas_ranch/index.html
+Tarantulas                                     34.495328  -120.496062  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/tarantulas/index.html
+Whitey S                                       34.445090  -120.459647  https://wannasurf.com/spot/North_America/USA/California/Santa_Barbara/Whitey_s/index.html
+
+## California/Santa Cruz
+3 Mile                                         36.961500  -122.117329  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/3_mile/index.html
+4 Mile                                         36.965564  -122.125053  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/4_mile/index.html
+Ano Nuevo                                      37.114473  -122.311306  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/ano_nuevo/index.html
+Blacks                                         36.958834  -121.993110  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/Blacks_/index.html
+Capitola Jetty                                 36.971170  -121.947695  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/capitola_jetty/index.html
+Cowells Cove                                   36.957878  -122.024328  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/cowells_cove/index.html
+Davenport                                      37.009407  -122.191658  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/davenport/index.html
+Greyhound Rock                                 37.077839  -122.267664  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/greyhound_rock/index.html
+Laguna Creek                                   36.982372  -122.156403  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/laguna_creek/index.html
+Manreasa                                       36.931661  -121.863484  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/manreasa/index.html
+Mitchell S Cove                                36.950059  -122.042989  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/mitchell_s_cove/index.html
+Murph Bar                                      36.960660  -122.000513  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/murph_bar/index.html
+Natural Bridges                                36.948589  -122.061024  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/Natural_Bridges/index.html
+Pleasure Point                                 36.956614  -121.970901  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/pleasure_point/index.html
+Santa Cruz   26Th                              36.956129  -121.980708  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/santa_cruz_-_26th/index.html
+Santa Cruz   41St Privates                     36.964342  -121.958773  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/santa_cruz_-_41st_privates/index.html
+Santa Cruz   Rockview St                       36.953716  -121.975901  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/santa_cruz_-_rockview_st/index.html
+Santa Cruz   Sunny Cove                        36.960033  -121.989481  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/santa_cruz_-_sunny_cove/index.html
+Santa Maria S                                  36.959983  -121.987317  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/Santa_Maria_s/index.html
+Scott S Creek                                  37.041100  -122.233329  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/Scott_s_Creek/index.html
+Seacliff Beach                                 36.971514  -121.913910  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/seacliff_beach/index.html
+Shaks                                          36.996658  -122.178140  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/Shaks/index.html
+The Hook                                       36.959869  -121.964765  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/the_hook/index.html
+The Lane                                       36.951506  -122.025611  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/the_lane/index.html
+The Wedge                                      36.951100  -122.028349  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/the_wedge/index.html
+Waddell Creek                                  37.096622  -122.280874  https://wannasurf.com/spot/North_America/USA/California/Santa_Cruz/Waddell_Creek/index.html
+
+## California/Sonoma
+Bill S Bowls                                   38.525070  -123.268876  https://wannasurf.com/spot/North_America/USA/California/Sonoma/Bill_s_Bowls/index.html
+Doran Beach                                    38.311383  -123.044815  https://wannasurf.com/spot/North_America/USA/California/Sonoma/doran_beach/index.html
+Russian Rivermouth                             38.450761  -123.131209  https://wannasurf.com/spot/North_America/USA/California/Sonoma/Russian_Rivermouth/index.html
+Salmon Creek                                   38.355800  -123.069599  https://wannasurf.com/spot/North_America/USA/California/Sonoma/salmon_creek/index.html
+
+## California/Ventura
+Arnold                                         34.120723  -119.159217  https://wannasurf.com/spot/North_America/USA/California/Ventura/arnold/index.html
+County Line                                    34.051975  -118.960868  https://wannasurf.com/spot/North_America/USA/California/Ventura/county_line/index.html
+Deadman S                                      34.065850  -119.004550  https://wannasurf.com/spot/North_America/USA/California/Ventura/Deadman_s/index.html
+Deer Creek                                     34.062344  -118.989701  https://wannasurf.com/spot/North_America/USA/California/Ventura/deer_creek/index.html
+Emma Wood                                      34.286510  -119.328690  https://wannasurf.com/spot/North_America/USA/California/Ventura/emma_wood/index.html
+Faria                                          34.319918  -119.377602  https://wannasurf.com/spot/North_America/USA/California/Ventura/faria/index.html
+Hobson S                                       34.338014  -119.412546  https://wannasurf.com/spot/North_America/USA/California/Ventura/Hobson_s/index.html
+Hollywood                                      34.170163  -119.233589  https://wannasurf.com/spot/North_America/USA/California/Ventura/hollywood/index.html
+Little Rincon                                  34.351089  -119.441900  https://wannasurf.com/spot/North_America/USA/California/Ventura/little_rincon/index.html
+Mondos                                         34.321477  -119.375006  https://wannasurf.com/spot/North_America/USA/California/Ventura/Mondos/index.html
+Murphy S                                       34.085118  -119.059683  https://wannasurf.com/spot/North_America/USA/California/Ventura/Murphy_s/index.html
+Oxnard Shores                                  34.189952  -119.244618  https://wannasurf.com/spot/North_America/USA/California/Ventura/oxnard_shores/index.html
+Pitas Point                                    34.317268  -119.389908  https://wannasurf.com/spot/North_America/USA/California/Ventura/Pitas_Point/index.html
+Point Mugu                                     34.096137  -119.113501  https://wannasurf.com/spot/North_America/USA/California/Ventura/point_mugu/index.html
+Rincon                                         34.373904  -119.474301  https://wannasurf.com/spot/North_America/USA/California/Ventura/rincon/index.html
+Santa Cruze Island                             33.979809  -119.635620  https://wannasurf.com/spot/North_America/USA/California/Ventura/santa_cruze_island/index.html
+Silverstrand                                   34.154485  -119.218869  https://wannasurf.com/spot/North_America/USA/California/Ventura/silverstrand/index.html
+Super Tubes                                    34.084605  -119.049466  https://wannasurf.com/spot/North_America/USA/California/Ventura/super_tubes/index.html
+Ventura Point                                  34.273407  -119.304743  https://wannasurf.com/spot/North_America/USA/California/Ventura/ventura_point/index.html
+
+## Hawaii/Kauai
+Anahola Bay                                    22.147612  -159.305019  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/anahola_bay/index.html
+Anini Beach  Wires                             22.227783  -159.448671  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/anini_beach-_wires/index.html
+Bobo S Haena                                   22.225230  -159.577789  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/bobo_s_haena/index.html
+Cannons                                        22.224535  -159.571245  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/cannons/index.html
+Flags   Aliomanu                               22.164937  -159.308200  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/flags_-_aliomanu/index.html
+Gillin S                                       21.888461  -159.415097  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/Gillin_s/index.html
+Hanalei Bay                                    22.209617  -159.507451  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/hanalei_bay/index.html
+Inside Poipu                                   21.874921  -159.459450  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/inside_poipu/index.html
+Kalapaki Beach                                 21.957634  -159.350059  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/kalapaki_beach/index.html
+Kalihiwai Point                                22.220100  -159.426196  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/kalihiwai_point/index.html
+Kealia                                         22.099458  -159.304097  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/kealia/index.html
+Kilauea Bay Beach  Rock Quarry                 22.218218  -159.384885  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/kilauea_bay_beach__rock_quarry/index.html
+Pakala                                         21.933850  -159.651003  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/pakala/index.html
+Pks                                            21.880765  -159.475629  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/pks/index.html
+Polihale                                       22.075618  -159.769449  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/Polihale/index.html
+Pu U Poa                                       22.223164  -159.496036  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/pu_u_poa/index.html
+Shipwrecks   Hyatt Beach                       21.873447  -159.435611  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/shipwrecks_-_hyatt_beach/index.html
+Tunnels                                        22.228398  -159.563134  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/tunnels/index.html
+Waikokos                                       22.212994  -159.517150  https://wannasurf.com/spot/North_America/USA/Hawaii/Kauai/waikokos/index.html
+
+## Hawaii/Maui
+Baldwin Beach                                  20.914705  -156.393042  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Baldwin_beach/index.html
+Big Beach                                      20.632353  -156.448413  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Big_Beach/index.html
+Big Eds                                        20.900182  -156.476780  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Big_Eds/index.html
+Boneyard                                       20.867223  -156.677967  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Boneyard/index.html
+Break Wall                                     20.869519  -156.679330  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/break_wall/index.html
+Churches                                       20.908110  -156.482466  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Churches/index.html
+Dumps                                          20.611387  -156.440216  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Dumps/index.html
+Grandma S                                      20.789017  -156.556978  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Grandma_s/index.html
+Harbors                                        20.871907  -156.680043  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Harbors/index.html
+Honolua Bay                                    21.015111  -156.639794  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/honolua_bay/index.html
+Honomanu Bay                                   20.862541  -156.165504  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/honomanu_bay/index.html
+Hookipa                                        20.933149  -156.358221  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/hookipa/index.html
+Hookipa Beach                                  20.933374  -156.358843  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/hookipa_beach/index.html
+Ironwood Beach                                 21.005676  -156.660404  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Ironwood_Beach/index.html
+Jaws                                           20.938610  -156.260830  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/jaws/index.html
+Jt Flemming                                    21.005676  -156.651810  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/JT_Flemming/index.html
+Kaanapali Coast                                20.829293  -156.367035  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/kaanapali_coast/index.html
+Kahului Harbor                                 20.899355  -156.475203  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/kahului_harbor/index.html
+Kanaha                                         20.905805  -156.440163  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Kanaha/index.html
+Kepuhi Beach   Molokai                         21.188913  -157.250855  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Kepuhi_Beach_-_Molokai/index.html
+Kihei Cove                                     20.727759  -156.450398  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/kihei_cove/index.html
+La Perouse Bay                                 20.593219  -156.414456  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/la_perouse_bay/index.html
+Little Beach                                   20.634341  -156.451825  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/little_beach/index.html
+Loniopokoh                                     20.843091  -156.653023  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/loniopokoh/index.html
+Maalaea                                        20.791324  -156.509042  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/maalaea/index.html
+Mala Wharf                                     20.883633  -156.689088  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/mala_wharf/index.html
+Mushrooms                                      20.969384  -156.681229  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Mushrooms/index.html
+Olowalu                                        20.809237  -156.615193  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/olowalu/index.html
+Paia Bay                                       20.916508  -156.384743  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Paia_bay/index.html
+Pali Kaholo                                    20.767821  -156.986641  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Pali_Kaholo/index.html
+Puamana                                        20.858676  -156.669888  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/puamana/index.html
+Slaughterhouse                                 21.012126  -156.642712  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Slaughterhouse/index.html
+Windmills                                      21.025386  -156.626244  https://wannasurf.com/spot/North_America/USA/Hawaii/Maui/Windmills/index.html
+
+## Hawaii/Oahu
+Abalolo Reef                                   21.302227  -157.898222  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Abalolo_Reef/index.html
+Ala Moana Bowls                                21.280877  -157.843891  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/ala_moana_bowls/index.html
+Ala Moana Courts                               21.290654  -157.854100  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Ala_Moana_Courts/index.html
+Avalanche Oahu                                 21.595268  -158.114726  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Avalanche_Oahu/index.html
+Avalanche Walls    Right                       21.594557  -158.114698  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Avalanche_WALLS__-_right/index.html
+Baby Haleiwa S                                 21.284616  -157.849556  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Baby_Haleiwa_s/index.html
+Baby Makapuu                                   21.315821  -157.665447  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/baby_makapuu/index.html
+Backdoor                                       21.667678  -158.052106  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/backdoor/index.html
+Barber S Point   Coast Guard Jetty             21.296192  -158.073370  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/barber_s_point_-_coast_guard_jetty/index.html
+Bellows                                        21.362532  -157.709341  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/bellows/index.html
+Bumburas                                       21.282756  -157.848730  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/bumburas/index.html
+Canoes                                         21.276258  -157.829247  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/canoes/index.html
+China Walls                                    21.263831  -157.711755  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/china_walls/index.html
+Chuns Reef                                     21.624199  -158.081514  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/chuns_reef/index.html
+Cliffs                                         21.252532  -157.804109  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/cliffs/index.html
+Daves Backyard                                 21.306468  -158.020177  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Daves_Backyard/index.html
+Dune Circle                                    21.406838  -157.739081  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Dune_Circle/index.html
+Ehukai                                         21.666073  -158.051033  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/ehukai/index.html
+Flies Incinerators                             21.292663  -157.865660  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/flies_incinerators/index.html
+Graters                                        21.710447  -157.985051  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Graters/index.html
+Haleiwa                                        21.594145  -158.108148  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/haleiwa/index.html
+In Betweens                                    21.279187  -157.842513  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/in_betweens/index.html
+Jockos Point                                   21.621676  -158.083831  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Jockos_Point/index.html
+Kaisers                                        21.280057  -157.840791  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/kaisers/index.html
+Kalama                                         21.405720  -157.738896  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Kalama/index.html
+Kammieland                                     21.673461  -158.043909  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Kammieland/index.html
+Kewala Basin                                   21.290113  -157.859301  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/kewala_basin/index.html
+Ko Olinas                                      21.324878  -158.134246  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/ko_olinas/index.html
+Kualoa Point                                   21.535067  -157.838586  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/kualoa_point/index.html
+Laneakea                                       21.618484  -158.087415  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/laneakea/index.html
+Log Cabins                                     21.652402  -158.062963  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Log_Cabins/index.html
+Makaha                                         21.477858  -158.223048  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/makaha/index.html
+Makapuu                                        21.310246  -157.656212  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/makapuu/index.html
+Makapuu Beach                                  21.310086  -157.658701  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Makapuu_Beach/index.html
+Nanakuli Blackrocks                            21.368644  -158.135989  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Nanakuli_Blackrocks/index.html
+Nanakuli Tracks                                21.361493  -158.132744  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/nanakuli_tracks/index.html
+North Beach                                    21.454307  -157.748523  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/north_beach/index.html
+Paradise                                       21.272979  -157.835652  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Paradise/index.html
+Pierson S                                      21.583940  -158.198748  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Pierson_s/index.html
+Pipeline                                       21.667848  -158.050572  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/pipeline/index.html
+Popoia Island                                  21.399922  -157.720205  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Popoia_Island/index.html
+Pounders                                       21.630303  -157.920973  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/pounders/index.html
+Power Plant                                    21.355937  -158.129504  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Power_Plant/index.html
+Puaena Point                                   21.601532  -158.105112  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/puaena_point/index.html
+Pyramid Rock                                   21.461541  -157.763377  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Pyramid_Rock/index.html
+Queens                                         21.274219  -157.827208  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/queens/index.html
+Radz                                           21.703409  -158.010542  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Radz/index.html
+Rec Center                                     21.445320  -158.189848  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/rec_center/index.html
+Reef Runway                                    21.310566  -157.953873  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Reef_Runway/index.html
+Ripps Reef                                     21.451950  -157.790794  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Ripps_Reef/index.html
+Sand Island                                    21.300100  -157.874812  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Sand_Island/index.html
+Sandy Beach                                    21.287255  -157.669247  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/sandy_beach/index.html
+Shorebreaks                                    21.405849  -157.738910  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Shorebreaks/index.html
+Sunset Beach                                   21.676104  -158.040433  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/sunset_beach/index.html
+Threes                                         21.273179  -157.837315  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/threes/index.html
+Turtle Bay                                     21.704286  -157.999674  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/turtle_bay/index.html
+Turtles                                        21.273939  -157.719855  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Turtles/index.html
+Turtles Reef                                   21.347711  -158.129386  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/Turtles_reef/index.html
+Velzy Land                                     21.684289  -158.032333  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/velzy_land/index.html
+Waimea Bay                                     21.641770  -158.062998  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/waimea_bay/index.html
+Walls                                          21.271759  -157.823303  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/walls/index.html
+White Plains Beach                             21.303569  -158.045304  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/white_plains_beach/index.html
+Yokohama Bay                                   21.546695  -158.240475  https://wannasurf.com/spot/North_America/USA/Hawaii/Oahu/yokohama_bay/index.html
+
+## North West/Oregon Central
+Avalanche                                      44.678831  -124.079053  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/Avalanche/index.html
+Florence North Jetty                           44.024668  -124.139671  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/florence_north_jetty/index.html
+Florence South Jetty                           44.013065  -124.140015  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/Florence_South_jetty/index.html
+Moolack                                        44.699898  -124.064870  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/Moolack/index.html
+North Agate Beach                              44.672269  -124.068024  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/North_Agate_Beach/index.html
+South Beach  Newport                           44.601228  -124.067195  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/South_Beach__Newport/index.html
+South Side Of Agate Beach                      44.653635  -124.062939  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/south_side_of_agate_beach/index.html
+The Box                                        44.610635  -124.075556  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/the_box/index.html
+Winchester Bay   South Umpqua Jetty            43.663122  -124.212327  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/Winchester_Bay_-_South_Umpqua_Jetty/index.html
+Yachats                                        44.308188  -124.108686  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_Central/yachats/index.html
+
+## North West/Oregon North
+Arcadia                                        45.846888  -123.962088  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/Arcadia/index.html
+Boilers Bay                                    44.830765  -124.062595  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/boilers_bay/index.html
+Cannon Beach                                   45.910585  -123.969254  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/cannon_beach/index.html
+Cape Lookout                                   45.335058  -123.973739  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/cape_lookout/index.html
+Devil S Punch   Beverly Beach                  44.742283  -124.060535  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/Devil_s_Punch_-_Beverly_Beach/index.html
+Gas Chambers                                   45.215022  -123.973171  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/gas_chambers/index.html
+Indian Head                                    45.943720  -123.991313  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/indian_head/index.html
+Lincoln City                                   44.973785  -124.017191  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/lincoln_city/index.html
+Lincoln City   Canyons                         44.959089  -124.021740  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/Lincoln_City_-_Canyons/index.html
+Lincoln City   Gleneden                        44.873207  -124.038949  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/Lincoln_City_-_Gleneden/index.html
+Lincoln City   Roads End                       45.022067  -124.010968  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/Lincoln_City_-_Roads_End/index.html
+Neakahine Point                                45.732921  -123.949513  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/neakahine_point/index.html
+Needles                                        45.882092  -123.967109  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/needles/index.html
+Nelscott Reef                                  44.949674  -124.026332  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/nelscott_reef/index.html
+Otter Rock                                     44.775925  -124.073539  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/otter_rock/index.html
+Pacific City                                   45.218627  -123.972473  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/pacific_city/index.html
+Seaside                                        45.961532  -123.975906  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/seaside/index.html
+Seaside Cove                                   45.977967  -123.941145  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/Seaside_Cove/index.html
+Short Sands                                    45.759919  -123.966637  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/short_sands/index.html
+Smugglers Cove                                 45.760338  -123.969383  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_North/smugglers_cove/index.html
+
+## North West/Oregon South
+Bandon Beaches                                 43.092710  -124.434671  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Bandon_Beaches/index.html
+Cape Sebastian                                 42.319415  -124.424093  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Cape_Sebastian/index.html
+Coos Bay   Bastendorf Beach                    43.346029  -124.350386  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Coos_Bay_-_Bastendorf_Beach/index.html
+Coos Bay North                                 43.366436  -124.332190  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Coos_Bay_North/index.html
+Frankport                                      42.578714  -124.394889  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Frankport/index.html
+Gold Beach South Jetty                         42.418479  -124.430004  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Gold_Beach_South_Jetty/index.html
+Nesika Beach                                   42.550804  -124.396133  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Nesika_Beach/index.html
+Port Orford                                    42.741589  -124.492240  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Port_Orford/index.html
+Rainbow Rock                                   42.077903  -124.323177  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/rainbow_rock/index.html
+Simpson Reef                                   43.317684  -124.406605  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/Simpson_Reef/index.html
+Sporthaven Beach                               42.043875  -124.269533  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/sporthaven_beach/index.html
+State Line                                     41.998954  -124.211597  https://wannasurf.com/spot/North_America/USA/North_West/Oregon_South/State_Line/index.html
+
+## North West/Washington
+A Jeatey                                       46.275739  -124.044614  https://wannasurf.com/spot/North_America/USA/North_West/Washington/A_jeatey/index.html
+Bellingham Bay                                 48.719409  -122.516506  https://wannasurf.com/spot/North_America/USA/North_West/Washington/Bellingham_Bay/index.html
+Cape Elizabeth                                 47.353042  -124.313414  https://wannasurf.com/spot/North_America/USA/North_West/Washington/Cape_Elizabeth/index.html
+Crescent                                       48.163738  -123.708286  https://wannasurf.com/spot/North_America/USA/North_West/Washington/crescent/index.html
+Damon Point                                    46.937488  -124.134007  https://wannasurf.com/spot/North_America/USA/North_West/Washington/damon_point/index.html
+Deep Creek                                     48.172497  -124.024658  https://wannasurf.com/spot/North_America/USA/North_West/Washington/deep_creek/index.html
+Elwa                                           48.147949  -123.566601  https://wannasurf.com/spot/North_America/USA/North_West/Washington/elwa/index.html
+Fort Ebey                                      48.224509  -122.770912  https://wannasurf.com/spot/North_America/USA/North_West/Washington/fort_ebey/index.html
+Half Moon Bay                                  46.905524  -124.123374  https://wannasurf.com/spot/North_America/USA/North_West/Washington/half_moon_bay/index.html
+Hoko River  Kydaka                             48.256798  -124.247818  https://wannasurf.com/spot/North_America/USA/North_West/Washington/hoko_river__kydaka/index.html
+La Push                                        47.901211  -124.632082  https://wannasurf.com/spot/North_America/USA/North_West/Washington/la_push/index.html
+Long Beach                                     46.351358  -124.067917  https://wannasurf.com/spot/North_America/USA/North_West/Washington/long_beach/index.html
+Lyre  River                                    48.160124  -123.828444  https://wannasurf.com/spot/North_America/USA/North_West/Washington/lyre__river/index.html
+Neah Bay   Hobebuck                            48.328159  -124.661356  https://wannasurf.com/spot/North_America/USA/North_West/Washington/neah_bay_-_hobebuck/index.html
+Neah Bay  3Rd Beach                            48.367690  -124.573615  https://wannasurf.com/spot/North_America/USA/North_West/Washington/neah_bay_-3rd_beach/index.html
+Ocean Park                                     46.491302  -124.059677  https://wannasurf.com/spot/North_America/USA/North_West/Washington/ocean_park/index.html
+Ocean Shores                                   46.972991  -124.174347  https://wannasurf.com/spot/North_America/USA/North_West/Washington/ocean_shores/index.html
+Pillar Point                                   48.202596  -124.096069  https://wannasurf.com/spot/North_America/USA/North_West/Washington/pillar_point/index.html
+Point Grenville                                47.303505  -124.265242  https://wannasurf.com/spot/North_America/USA/North_West/Washington/Point_Grenville/index.html
+Point Roberts                                  48.989680  -123.053055  https://wannasurf.com/spot/North_America/USA/North_West/Washington/point_roberts/index.html
+Sand Point                                     48.127837  -124.714490  https://wannasurf.com/spot/North_America/USA/North_West/Washington/Sand_Point/index.html
+Seaman Spit                                    48.908172  -122.766037  https://wannasurf.com/spot/North_America/USA/North_West/Washington/Seaman_Spit/index.html
+Super Green                                    48.119329  -123.282641  https://wannasurf.com/spot/North_America/USA/North_West/Washington/super_green/index.html
+The Cape                                       47.443995  -124.337082  https://wannasurf.com/spot/North_America/USA/North_West/Washington/The_Cape/index.html
+The Dump                                       48.389268  -124.663818  https://wannasurf.com/spot/North_America/USA/North_West/Washington/the_dump/index.html
+The Groins                                     46.911344  -124.115124  https://wannasurf.com/spot/North_America/USA/North_West/Washington/the_groins/index.html
+Twins                                          48.165538  -123.950345  https://wannasurf.com/spot/North_America/USA/North_West/Washington/twins/index.html
+Westport                                       46.900554  -124.132891  https://wannasurf.com/spot/North_America/USA/North_West/Washington/westport/index.html
+Whiskey Creek                                  48.155837  -123.780642  https://wannasurf.com/spot/North_America/USA/North_West/Washington/Whiskey_Creek/index.html

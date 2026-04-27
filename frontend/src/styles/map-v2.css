@@ -128,30 +128,61 @@
   color: var(--fg-2);
 }
 
+/* Mini spot marker: dark fill + colored border — matches the actual .mv-spot marker shape */
 .mv-legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
+  background: oklch(0.16 0.018 230 / 0.85);
+  border: 2px solid transparent; /* color set via inline borderColor */
   flex-shrink: 0;
+  display: inline-block;
 }
 
+/* Mini buoy: dashed ring + center dot — matches .mv-buoy-ring + .mv-buoy-dot */
 .mv-buoy-swatch {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 1.5px dashed var(--accent);
+  border: 1.5px dashed oklch(0.82 0.16 195 / 0.7);
   flex-shrink: 0;
   display: inline-block;
+  position: relative;
+}
+.mv-buoy-swatch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: oklch(0.82 0.16 195);
+  box-shadow: 0 0 4px oklch(0.82 0.16 195 / 0.6);
 }
 
+/* Mini storm: outer ring + inner core — matches .marker-storm ring+core structure */
 .mv-storm-swatch {
-  width: 8px;
-  height: 8px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: oklch(0.70 0.18 35);
-  box-shadow: 0 0 6px oklch(0.70 0.18 35 / 0.5);
+  border: 1.5px solid oklch(0.70 0.18 35 / 0.55);
   flex-shrink: 0;
   display: inline-block;
+  position: relative;
+}
+.mv-storm-swatch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: oklch(0.70 0.18 35);
+  box-shadow: 0 0 5px oklch(0.70 0.18 35 / 0.6);
 }
 
 .mv-legend-label { flex: 1; }

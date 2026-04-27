@@ -14,12 +14,13 @@ export const REGIONS = [
   { id: 'sa',      label: 'S. America', bbox: [[-56,-82],[14,-34]]  },
 ];
 
+// Hardcoded to match .mv-spot.{tier} CSS — legend dots must be identical to markers
 export const TIER_COLORS = {
-  firing: 'var(--fire)',
-  solid:  'var(--gold)',
-  good:   'var(--good)',
-  fair:   'var(--accent)',
-  flat:   'var(--muted)',
+  firing: 'oklch(0.75 0.19 45)',
+  solid:  'oklch(0.82 0.14 85)',
+  good:   'oklch(0.80 0.15 150)',
+  fair:   'oklch(0.82 0.16 195)',
+  flat:   'oklch(0.58 0.014 230)',
 };
 
 export const TIER_LABELS = {

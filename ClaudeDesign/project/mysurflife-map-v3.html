@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ocean">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Map · mysurflife</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.13 0.02 230);
+    --bg-2: oklch(0.17 0.02 230);
+    --bg-3: oklch(0.22 0.022 230);
+    --panel: oklch(0.16 0.018 230 / 0.92);
+    --border: oklch(1 0 0 / 0.08);
+    --border-2: oklch(1 0 0 / 0.14);
+    --fg: oklch(0.96 0.008 90);
+    --fg-2: oklch(0.78 0.012 90);
+    --muted: oklch(0.58 0.014 230);
+    --muted-2: oklch(0.42 0.012 230);
+    --aqua: oklch(0.82 0.16 195);
+    --fire: oklch(0.75 0.19 45);
+    --gold: oklch(0.82 0.14 85);
+    --good: oklch(0.80 0.16 150);
+    --coral: oklch(0.72 0.16 20);
+    --storm: oklch(0.70 0.18 35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--fg); font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+  button { font-family: inherit; cursor: pointer; border: none; background: transparent; color: inherit; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ─── Base layout ─── */
+  #app { position: relative; width: 100%; height: 100%; }
+  #map { position: absolute; inset: 0; background: var(--bg); z-index: 0; }
+  #map .leaflet-pane,
+  #map .leaflet-top,
+  #map .leaflet-bottom { z-index: 1 !important; }
+  #map .leaflet-control-container { z-index: 2 !important; }
+
+  /* ─── Top chrome ─── */
+  .topbar {
+    position: absolute; top: 14px; left: 14px; right: 14px; z-index: 30;
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 9px 14px; background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-weight: 700; letter-spacing: -0.02em; font-size: 14px;
+  }
+  .brand svg { color: var(--fire); --mark-dot: var(--aqua); }
+
+  .tabs {
+    display: inline-flex; gap: 2px;
+    padding: 4px; background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  .tab {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border-radius: 7px;
+    font-size: 13px; font-weight: 500; color: var(--fg-2);
+  }
+  .tab.on { background: var(--bg-3); color: var(--fg); }
+  .tab:hover:not(.on) { color: var(--fg); }
+  .tab svg { opacity: 0.85; }
+
+  .search-wrap {
+    position: relative; flex: 1; max-width: 480px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px;
+  }
+  .search-wrap:focus-within { border-color: var(--aqua); }
+  .search-wrap svg { color: var(--muted); flex-shrink: 0; }
+  .search-wrap input {
+    flex: 1; background: transparent; border: none; outline: none;
+    padding: 10px 0; color: var(--fg); font-family: inherit; font-size: 13.5px;
+  }
+  .search-wrap input::placeholder { color: var(--muted); }
+  .search-kbd {
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em;
+    color: var(--muted); padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px;
+  }
+
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); color: var(--fg);
+    display: grid; place-items: center;
+  }
+  .icon-btn:hover { border-color: var(--border-2); }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--aqua), var(--fire));
+    display: grid; place-items: center; font-family: 'Geist Mono', monospace;
+    font-size: 11px; font-weight: 600; color: oklch(0.14 0.02 230); letter-spacing: 0.04em;
+    border: 1px solid var(--border-2);
+  }
+
+  /* ─── Region chips (below top bar) ─── */
+  .region-bar {
+    position: absolute; top: 72px; left: 14px; z-index: 25;
+    display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 28px);
+    pointer-events: none;
+  }
+  .region-bar > * { pointer-events: auto; }
+  .region-chip {
+    padding: 7px 12px; border-radius: 20px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); color: var(--fg-2);
+    font-size: 12px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .region-chip:hover { color: var(--fg); border-color: var(--border-2); }
+  .region-chip.on { background: var(--aqua); color: oklch(0.14 0.02 230); border-color: var(--aqua); font-weight: 600; }
+  .region-chip .ct { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); }
+  .region-chip.on .ct { color: oklch(0.14 0.02 230); opacity: 0.7; }
+
+  /* ─── Left filter rail + legend ─── */
+  .left-rail {
+    position: absolute; top: 130px; left: 14px; z-index: 24;
+    width: 240px;
+    display: flex; flex-direction: column; gap: 10px;
+    pointer-events: none;
+  }
+  .left-rail > * { pointer-events: auto; }
+  .rail-card {
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .rail-title { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; font-weight: 500; }
+  .legend-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 5px 0; font-size: 12px; color: var(--fg-2); }
+  .legend-row .icon-slot { display: grid; place-items: center; }
+  .legend-row .ct { font-family: 'Geist Mono', monospace; color: var(--muted); font-size: 10px; }
+
+  .filter-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 6px 0; font-size: 12px; color: var(--fg-2);
+  }
+  .toggle {
+    width: 32px; height: 18px; border-radius: 10px;
+    background: var(--bg-3); border: 1px solid var(--border); position: relative;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .toggle::after {
+    content: ''; position: absolute; left: 2px; top: 1px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--muted); transition: all 0.15s;
+  }
+  .toggle.on { background: oklch(0.82 0.16 195 / 0.25); border-color: var(--aqua); }
+  .toggle.on::after { left: 15px; background: var(--aqua); }
+
+  /* ─── Zoom controls ─── */
+  .zoom-controls {
+    position: absolute; right: 14px; bottom: 120px; z-index: 25;
+    display: flex; flex-direction: column;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden;
+  }
+  .zoom-controls button {
+    width: 38px; height: 38px; display: grid; place-items: center;
+    color: var(--fg); border-bottom: 1px solid var(--border);
+  }
+  .zoom-controls button:last-child { border-bottom: none; }
+  .zoom-controls button:hover { background: var(--bg-3); }
+
+  /* ─── Bottom status bar ─── */
+  .status-bar {
+    position: absolute; bottom: 14px; left: 14px; right: 14px; z-index: 20;
+    display: flex; gap: 10px; align-items: flex-end;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  body.tl-open .status-bar { opacity: 0; pointer-events: none; }
+  .status-bar > * { pointer-events: auto; }
+  .status-card {
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px;
+    display: inline-flex; align-items: center; gap: 14px;
+    font-size: 12px; color: var(--fg-2);
+  }
+  .status-card .k { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+  .status-card .v { font-weight: 600; color: var(--fg); }
+  .status-card .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); animation: blink 2.4s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+  .status-sep { width: 1px; height: 14px; background: var(--border-2); }
+
+  .spot-count { margin-left: auto; }
+
+  /* ─── Timeline scrubber ─── */
+  .timeline {
+    position: absolute; left: 14px; right: 14px; bottom: 64px; z-index: 28;
+    pointer-events: none;
+    display: flex;
+  }
+  .timeline > * { pointer-events: auto; }
+  .timeline .tl-compact { margin-right: auto; }
+  .timeline.open { left: 268px; right: 64px; bottom: 14px; }
+  .timeline.open .tl-expanded { width: 100%; }
+
+  /* Compact pill (default) */
+  .tl-compact {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 6px 8px 14px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid var(--border-2); border-radius: 999px;
+    box-shadow: 0 6px 20px oklch(0 0 0 / 0.45);
+    transition: opacity 0.18s, transform 0.18s;
+  }
+  .tl-compact .when {
+    font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.06em;
+    color: var(--fg); display: inline-flex; align-items: center; gap: 8px;
+  }
+  .tl-compact .when .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--aqua);
+    box-shadow: 0 0 8px var(--aqua); animation: blink 2.4s ease-in-out infinite;
+  }
+  .tl-compact .label { font-size: 13px; font-weight: 600; color: var(--fg); }
+  .tl-compact .sub { font-size: 11px; color: var(--muted); margin-left: -4px; }
+  .tl-compact .quick {
+    display: inline-flex; gap: 2px; margin-left: 6px;
+    background: var(--bg-3); border-radius: 999px; padding: 2px;
+  }
+  .tl-compact .quick button {
+    padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; color: var(--fg-2);
+    font-family: 'Geist Mono', monospace; letter-spacing: 0.04em;
+  }
+  .tl-compact .quick button.on { background: var(--aqua); color: oklch(0.14 0.02 230); font-weight: 700; }
+  .tl-compact .expand {
+    width: 30px; height: 30px; margin-left: 4px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--fg-2);
+    background: var(--bg-3); border: 1px solid var(--border);
+  }
+  .tl-compact .expand:hover { color: var(--fg); border-color: var(--border-2); }
+
+  /* Expanded panel */
+  .tl-expanded {
+    background: var(--panel); backdrop-filter: saturate(180%) blur(18px);
+    border: 1px solid var(--border-2); border-radius: 16px;
+    box-shadow: 0 24px 60px oklch(0 0 0 / 0.55);
+    padding: 14px 16px 12px;
+    display: none;
+  }
+  .timeline.open .tl-compact { display: none; }
+  .timeline.open .tl-expanded { display: block; }
+
+  .tl-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  }
+  .tl-head .now-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--bg-3); border: 1px solid var(--border);
+    font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.06em;
+    color: var(--fg);
+  }
+  .tl-head .now-pill .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--aqua);
+    box-shadow: 0 0 8px var(--aqua);
+  }
+  .tl-head .now-pill .day { color: var(--fg-2); font-weight: 500; }
+  .tl-head .now-pill .time { color: var(--fg); font-weight: 600; }
+  .tl-head .now-pill .delta { color: var(--muted); }
+
+  .tl-head .play-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--aqua); color: oklch(0.14 0.02 230);
+    display: grid; place-items: center;
+    box-shadow: 0 4px 12px oklch(0.82 0.16 195 / 0.35);
+  }
+  .tl-head .play-btn:hover { background: oklch(0.88 0.16 195); }
+
+  .tl-head .seg {
+    display: inline-flex; gap: 2px; padding: 2px;
+    background: var(--bg-3); border-radius: 999px; border: 1px solid var(--border);
+    margin-left: auto;
+  }
+  .tl-head .seg button {
+    padding: 5px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 500; color: var(--fg-2);
+    font-family: 'Geist Mono', monospace; letter-spacing: 0.06em;
+  }
+  .tl-head .seg button.on { background: var(--aqua); color: oklch(0.14 0.02 230); font-weight: 700; }
+
+  .tl-head .collapse {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--fg-2);
+    background: var(--bg-3); border: 1px solid var(--border);
+  }
+  .tl-head .collapse:hover { color: var(--fg); border-color: var(--border-2); }
+
+  /* Sparkline + scrubber track */
+  .tl-track-wrap {
+    position: relative;
+    height: 70px;
+    margin: 0 4px;
+  }
+  .tl-spark {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .tl-spark .area { fill: oklch(0.82 0.16 195 / 0.16); }
+  .tl-spark .line { fill: none; stroke: var(--aqua); stroke-width: 1.6; stroke-linejoin: round; }
+  .tl-spark .wind {
+    fill: none; stroke: var(--gold); stroke-width: 1.2; stroke-dasharray: 3 3; opacity: 0.75;
+  }
+  .tl-spark .now-cursor {
+    stroke: var(--fg); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.5;
+  }
+  .tl-spark .sel-cursor { stroke: var(--aqua); stroke-width: 1.6; }
+  .tl-spark .sel-glow { fill: oklch(0.82 0.16 195 / 0.18); }
+
+  /* Day band */
+  .tl-days {
+    position: absolute; top: 0; left: 0; right: 0; height: 16px;
+    display: flex;
+    pointer-events: none;
+  }
+  .tl-days .day {
+    flex: 1 1 0;
+    border-left: 1px solid oklch(1 0 0 / 0.08);
+    padding: 1px 6px;
+    font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .tl-days .day:first-child { border-left: none; }
+  .tl-days .day.today { color: var(--aqua); }
+  .tl-days .day .num { color: var(--fg-2); margin-left: 4px; }
+
+  /* Range slider sits on top of the spark track */
+  .tl-range {
+    position: absolute; left: 0; right: 0; bottom: -2px;
+    width: 100%; height: 24px;
+    -webkit-appearance: none; appearance: none;
+    background: transparent;
+    cursor: ew-resize;
+  }
+  .tl-range::-webkit-slider-runnable-track {
+    height: 24px; background: transparent;
+  }
+  .tl-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 24px;
+    background: var(--aqua);
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px oklch(0.14 0.02 230), 0 0 12px oklch(0.82 0.16 195 / 0.6);
+    cursor: ew-resize;
+    border: none;
+  }
+  .tl-range::-moz-range-thumb {
+    width: 14px; height: 24px;
+    background: var(--aqua);
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px oklch(0.14 0.02 230), 0 0 12px oklch(0.82 0.16 195 / 0.6);
+    cursor: ew-resize;
+    border: none;
+  }
+
+  /* Hour ticks */
+  .tl-ticks {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 8px;
+    display: flex;
+    pointer-events: none;
+  }
+  .tl-ticks .tick {
+    flex: 1 1 0;
+    border-left: 1px solid oklch(1 0 0 / 0.06);
+  }
+  .tl-ticks .tick.major {
+    border-left-color: oklch(1 0 0 / 0.18);
+  }
+
+  /* Conditions readout under track */
+  .tl-readout {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .tl-readout .cell {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .tl-readout .cell .k {
+    font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .tl-readout .cell .v {
+    font-size: 14px; font-weight: 700; letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  .tl-readout .cell .v .u { font-size: 10px; color: var(--muted); font-weight: 400; margin-left: 2px; }
+  .tl-readout .cell .delta { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted); }
+  .tl-readout .cell .delta.up { color: var(--good); }
+  .tl-readout .cell .delta.dn { color: var(--coral); }
+
+  @media (max-width: 900px) {
+    .timeline { left: 10px; right: 10px; bottom: 110px; }
+    .tl-compact .quick { display: none; }
+    .tl-readout { grid-template-columns: repeat(3, 1fr); }
+    .tl-readout .cell:nth-child(4), .tl-readout .cell:nth-child(5) { display: none; }
+  }
+
+  /* ─── Spot preview card ─── */
+  .preview-card {
+    position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 26; width: 360px;
+    background: var(--panel); backdrop-filter: saturate(180%) blur(16px);
+    border: 1px solid var(--border-2); border-radius: 14px;
+    padding: 14px 16px 16px;
+    box-shadow: 0 24px 60px oklch(0 0 0 / 0.55);
+    opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s ease;
+    transform: translateX(-50%) translateY(10px);
+  }
+  .preview-card.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+  .preview-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px;
+  }
+  .preview-head .title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .preview-head .title .region { display: block; font-size: 11px; color: var(--fg-2); font-weight: 400; margin-top: 2px; }
+  .preview-close { color: var(--muted); padding: 4px; }
+  .preview-close:hover { color: var(--fg); }
+
+  .rating-strip {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .rating-strip .pill {
+    padding: 3px 8px; border-radius: 4px;
+    font-weight: 600; color: oklch(0.14 0.02 230);
+  }
+  .preview-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .preview-metrics .m { background: var(--bg-3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .preview-metrics .m .k { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+  .preview-metrics .m .v { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .preview-metrics .m .v .u { font-size: 10px; color: var(--muted); font-weight: 400; }
+  .preview-open {
+    width: 100%; padding: 10px;
+    background: var(--aqua); color: oklch(0.14 0.02 230); border-radius: 8px;
+    font-weight: 600; font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .preview-open:hover { background: oklch(0.88 0.16 195); }
+
+  /* Storm preview variant */
+  .storm-preview .preview-open:hover { background: oklch(0.78 0.18 20) !important; }
+  .storm-preview .preview-head .title { color: oklch(0.94 0.03 25); }
+
+  /* ─── Marker styling (rendered by MapLibre as HTML) ─── */
+  .marker { cursor: pointer; pointer-events: auto; }
+  .marker-spot {
+    position: relative;
+    width: 38px; height: 38px;
+    transform: translate(-50%, -50%);
+  }
+  .marker-spot .halo {
+    position: absolute; inset: -2px; border-radius: 50%;
+    border: 2px solid currentColor;
+    box-shadow: 0 0 12px currentColor, 0 0 0 3px oklch(0.14 0.02 230 / 0.8);
+    transition: transform 0.15s;
+  }
+  .marker-spot:hover .halo { transform: scale(1.1); }
+  .marker-spot .inner {
+    position: absolute; inset: 4px; border-radius: 50%;
+    background: oklch(0.14 0.02 230);
+    display: grid; place-items: center;
+    color: var(--fg);
+    border: 1px solid oklch(1 0 0 / 0.15);
+  }
+  .marker-spot.firing { color: var(--coral); }
+  .marker-spot.solid { color: var(--gold); }
+  .marker-spot.good { color: var(--good); }
+  .marker-spot.fair { color: var(--aqua); }
+  .marker-spot.flat { color: var(--muted); }
+  .marker-spot .rating-num {
+    position: absolute; top: -8px; right: -8px;
+    background-color: currentColor;
+    font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 700;
+    padding: 2px 5px; border-radius: 4px;
+    line-height: 1; min-width: 18px; text-align: center;
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.4);
+  }
+  .marker-spot .rating-num::before {
+    content: attr(data-rating);
+    color: oklch(0.14 0.02 230);
+  }
+
+  .marker-buoy {
+    width: 22px; height: 22px;
+    transform: translate(-50%, -50%);
+    position: relative;
+    color: var(--aqua);
+  }
+  .marker-buoy .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1.5px dashed currentColor; opacity: 0.5;
+  }
+  .marker-buoy .dot {
+    position: absolute; inset: 6px; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .marker-buoy:hover .ring { opacity: 1; }
+
+  .marker-cluster {
+    width: 44px; height: 44px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel); backdrop-filter: saturate(180%) blur(10px);
+    border: 1.5px solid var(--aqua);
+    display: grid; place-items: center;
+    font-family: 'Geist Mono', monospace; font-weight: 700; font-size: 13px; color: var(--fg);
+    box-shadow: 0 4px 14px oklch(0 0 0 / 0.5), 0 0 0 4px oklch(0.82 0.16 195 / 0.12);
+    cursor: pointer;
+  }
+  .marker-cluster:hover { border-color: oklch(0.9 0.18 195); }
+  .marker-cluster .sub { font-size: 8px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; margin-top: -2px; }
+
+  /* Storm / swell origin */
+  .marker-storm {
+    position: absolute;
+    width: 120px; height: 120px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .marker-storm .ring {
+    position: absolute; inset: 50%; width: 0; height: 0;
+    border-radius: 50%; border: 1.5px solid var(--storm);
+    animation: stormPulse 4s ease-out infinite;
+  }
+  .marker-storm .ring:nth-child(2) { animation-delay: 1.3s; }
+  .marker-storm .ring:nth-child(3) { animation-delay: 2.6s; }
+  @keyframes stormPulse {
+    0% { width: 0; height: 0; inset: 50%; opacity: 0.7; border-width: 2px; }
+    100% { width: 120px; height: 120px; inset: 0; opacity: 0; border-width: 0.5px; }
+  }
+  .marker-storm .core {
+    position: absolute; inset: 50%; width: 0; height: 0;
+    transform: translate(-4px, -4px);
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--storm); box-shadow: 0 0 10px var(--storm);
+    pointer-events: auto; cursor: pointer;
+  }
+  .marker-storm .core::after {
+    /* invisible hit area for easier clicking */
+    content: ''; position: absolute; inset: -14px; border-radius: 50%;
+  }
+  .marker-storm .core:hover { box-shadow: 0 0 14px var(--storm), 0 0 0 4px oklch(0.72 0.16 20 / 0.25); }
+
+  /* Leaflet overrides */
+  .leaflet-container { background: #0a1018 !important; font-family: inherit !important; outline: none; }
+  .leaflet-control-attribution {
+    background: var(--panel) !important; backdrop-filter: saturate(180%) blur(10px);
+    border: 1px solid var(--border) !important; border-radius: 6px 0 0 0 !important;
+    color: var(--muted) !important; font-size: 10px !important;
+    margin: 0 60px 60px 0 !important; padding: 3px 8px !important;
+  }
+  .leaflet-control-attribution a { color: var(--fg-2) !important; }
+  .leaflet-control-zoom { display: none !important; } /* we use our custom ones */
+  .leaflet-marker-icon, .leaflet-marker-shadow { background: transparent !important; border: none !important; }
+  .leaflet-tile-pane { filter: saturate(0.85) contrast(1.05); }
+  .leaflet-tile { opacity: 1 !important; }
+  .leaflet-fade-anim .leaflet-tile { will-change: auto; }
+
+  /* ── Mobile menu button (hidden on desktop) ── */
+  .menu-btn { display: none; }
+  .drawer-backdrop { display: none; }
+
+  @media (max-width: 900px) {
+    /* Show hamburger, hide desktop-only things */
+    .menu-btn {
+      display: grid; place-items: center;
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, oklch(0.20 0.03 230), oklch(0.16 0.025 230));
+      border: 1px solid var(--aqua);
+      color: var(--aqua);
+      cursor: pointer;
+      backdrop-filter: saturate(180%) blur(14px);
+      box-shadow: 0 0 0 1px oklch(0.55 0.14 200 / 0.15), 0 4px 16px oklch(0.55 0.14 200 / 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .menu-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 1px oklch(0.55 0.14 200 / 0.25), 0 6px 20px oklch(0.55 0.14 200 / 0.35);
+    }
+    .menu-btn:active { transform: translateY(0); }
+    .tabs { display: none; }
+    .search-kbd { display: none; }
+
+    /* Left rail becomes a slide-in drawer */
+    .left-rail {
+      display: flex; flex-direction: column;
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      width: min(300px, 85vw);
+      padding: 64px 14px 14px;
+      background: rgba(7,9,12,0.96);
+      backdrop-filter: saturate(180%) blur(20px);
+      border-right: 1px solid var(--border);
+      transform: translateX(-100%);
+      transition: transform 0.22s ease;
+      z-index: 60;
+      overflow-y: auto;
+      pointer-events: auto;
+      gap: 10px;
+    }
+    body.menu-open .left-rail { transform: translateX(0); }
+
+    /* Mini-tabs inside the drawer */
+    .drawer-tabs {
+      display: flex; flex-direction: column; gap: 2px;
+      margin-bottom: 4px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .drawer-tab {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      background: transparent;
+      border: 0;
+      color: var(--fg-2);
+      font-size: 13px;
+      font-weight: 500;
+      text-align: left;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .drawer-tab.on { background: var(--panel-2); color: var(--fg); }
+    .drawer-tab svg { opacity: 0.8; flex-shrink: 0; }
+
+    /* Backdrop */
+    .drawer-backdrop {
+      display: block;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(2px);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 55;
+    }
+    body.menu-open .drawer-backdrop { opacity: 1; pointer-events: auto; }
+    .drawer-close, .drawer-tabs { display: flex !important; }
+    .drawer-tabs { flex-direction: column; }
+
+    /* Close (X) inside drawer */
+    .drawer-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 32px; height: 32px;
+      display: grid; place-items: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--fg-2);
+      cursor: pointer;
+    }
+    .search-wrap { max-width: none; }
+    .search-wrap input { font-size: 13px; padding: 9px 0; }
+    .brand { padding: 8px 12px; font-size: 13px; }
+    .icon-btn { width: 36px; height: 36px; }
+    .avatar { width: 32px; height: 32px; }
+    .topbar { gap: 8px; top: 10px; left: 10px; right: 10px; padding-left: 6px; }
+    .topbar-right { gap: 6px; }
+    .region-bar {
+      top: 62px; left: 10px;
+      right: auto;
+      max-width: none;
+      flex-wrap: nowrap;
+      position: absolute;
+    }
+    /* Collapse chips into a dropdown — show only selected, the rest hidden until open */
+    .region-bar .region-chip { display: none; }
+    .region-bar .region-chip.on {
+      display: inline-flex;
+      padding-right: 30px;
+      position: relative;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    }
+    .region-bar .region-chip.on::after {
+      content: '';
+      position: absolute; right: 10px; top: 50%;
+      width: 7px; height: 7px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: translateY(-70%) rotate(45deg);
+      opacity: 0.7;
+      transition: transform 0.18s;
+    }
+    .region-bar.open .region-chip.on::after {
+      transform: translateY(-20%) rotate(-135deg);
+    }
+    /* When open, show ALL chips stacked below the trigger */
+    .region-bar.open {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      background: rgba(7,9,12,0.96);
+      backdrop-filter: saturate(180%) blur(20px);
+      padding: 6px;
+      border: 1px solid var(--border-2);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .region-bar.open .region-chip {
+      display: inline-flex;
+      width: 100%;
+      border-radius: 8px;
+      border: 0;
+      background: transparent;
+      padding: 9px 12px;
+      justify-content: space-between;
+    }
+    .region-bar.open .region-chip:hover { background: var(--panel-2); }
+    .region-bar.open .region-chip.on {
+      background: var(--aqua);
+      color: oklch(0.14 0.02 230);
+      box-shadow: none;
+      padding-right: 30px;
+    }
+    .region-bar.open .region-chip.on::after {
+      right: 10px;
+      width: 6px; height: 10px;
+      border: 0;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      border-top: 0; border-left: 0;
+      transform: translateY(-70%) rotate(45deg) scale(0.7);
+      opacity: 1;
+    }
+    .preview-card { left: 10px; right: 10px; width: auto; transform: none; bottom: 104px; padding: 12px; }
+    .preview-card.show { transform: none; }
+    .preview-metrics { grid-template-columns: repeat(2, 1fr); }
+    .zoom-controls { right: 10px; bottom: 160px; }
+    .status-bar {
+      left: 10px; right: 10px; bottom: 10px; gap: 6px;
+      flex-direction: column; align-items: stretch;
+    }
+    .status-card { font-size: 11px; padding: 8px 10px; }
+  }
+
+  @media (max-width: 420px) {
+    .brand span, .brand .subtitle { display: none; }
+    .brand { padding: 8px 10px; }
+    .search-wrap input { font-size: 12.5px; }
+    .search-wrap input::placeholder { font-size: 12px; }
+    .region-chip { padding: 6px 10px; font-size: 11.5px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 64 64">
+    <g transform="translate(32 40)" stroke="currentColor" fill="none" stroke-linecap="round">
+      <path d="M-14 0 A14 14 0 0 1 14 0" stroke-width="2"/>
+      <path d="M-21 0 A21 21 0 0 1 21 0" stroke-width="1.6" opacity="0.55"/>
+      <path d="M-28 0 A28 28 0 0 1 28 0" stroke-width="1.2" opacity="0.28"/>
+    </g>
+    <circle cx="32" cy="40" r="4" fill="var(--mark-dot, currentColor)"/>
+  </symbol>
+  <symbol id="surfer" viewBox="0 0 24 24">
+    <!-- simple stylized surfer on board -->
+    <path d="M4 17c3-1 6-2 9-2s5 1 7 2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M12 4.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10.5 8.5c0.5 2 2 3 3 3l2.5-1.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10.5 8.5l-1 4 1 3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="buoy-i" viewBox="0 0 24 24">
+    <path d="M12 4l-3 7h6l-3-7zm-3 7l-2 5h10l-2-5M7 16q2 1 5 1t5-1" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<div id="app">
+  <div id="map"></div>
+
+  <!-- Top chrome -->
+  <nav class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a href="mysurflife.html" class="brand">
+      <svg width="22" height="22" viewBox="0 0 64 64"><use href="#mark"/></svg>
+      mysurflife
+    </a>
+    <div class="tabs">
+      <button class="tab on">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v16l7-3 8 3 7-3V3l-7 3-8-3-7 3z"/><path d="M8 3v16M16 6v16"/></svg>
+        Map
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Dashboard
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        Journal
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9zM10 21a2 2 0 004 0"/></svg>
+        Alerts
+      </button>
+      <button class="tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+        Copilot
+      </button>
+    </div>
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="searchInput" type="text" placeholder="Search spots, regions, buoys, or storms…" />
+      <span class="search-kbd">⌘K</span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" title="Layers">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      </button>
+      <div class="avatar">DS</div>
+    </div>
+  </nav>
+
+  <!-- Region chips -->
+  <div class="region-bar" id="regionBar"></div>
+
+  <!-- Mobile drawer backdrop -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+  <!-- Left rail — legend + filters (doubles as mobile drawer) -->
+  <aside class="left-rail">
+    <button class="drawer-close" id="drawerClose" aria-label="Close menu" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="drawer-tabs" style="display:none">
+      <button class="drawer-tab on"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v16l7-3 8 3 7-3V3l-7 3-8-3-7 3z"/><path d="M8 3v16M16 6v16"/></svg>Map</button>
+      <button class="drawer-tab" onclick="location.href='mysurflife-home.html'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</button>
+      <button class="drawer-tab"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Journal</button>
+      <button class="drawer-tab"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9zM10 21a2 2 0 004 0"/></svg>Alerts</button>
+      <button class="drawer-tab" onclick="location.href='mysurflife-copilot-session.html'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>Copilot</button>
+    </div>
+    <div class="rail-card">
+      <div class="rail-title">Markers</div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--coral); background: oklch(0.14 0.02 230); box-shadow: 0 0 8px var(--coral);"></div>
+        </div>
+        <span>Firing · 4.5+</span>
+        <span class="ct" id="ctFiring">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--gold); background: oklch(0.14 0.02 230); box-shadow: 0 0 8px var(--gold);"></div>
+        </div>
+        <span>Solid · 3.5–4.5</span>
+        <span class="ct" id="ctSolid">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--good); background: oklch(0.14 0.02 230);"></div>
+        </div>
+        <span>Fun · 2.5–3.5</span>
+        <span class="ct" id="ctGood">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--aqua); background: oklch(0.14 0.02 230);"></div>
+        </div>
+        <span>Fair · 1.5–2.5</span>
+        <span class="ct" id="ctFair">—</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width:18px; height:18px; border-radius: 50%; border: 2px solid var(--muted); background: oklch(0.14 0.02 230);"></div>
+        </div>
+        <span>Flat</span>
+        <span class="ct" id="ctFlat">—</span>
+      </div>
+      <div class="legend-row" style="margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border);">
+        <div class="icon-slot">
+          <div style="width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--aqua); position: relative;">
+            <div style="position:absolute; inset: 5px; background: var(--aqua); border-radius: 50%; box-shadow: 0 0 6px var(--aqua);"></div>
+          </div>
+        </div>
+        <span>NOAA buoy</span>
+        <span class="ct">62</span>
+      </div>
+      <div class="legend-row">
+        <div class="icon-slot">
+          <div style="width: 16px; height: 16px; border-radius: 50%; background: var(--storm); box-shadow: 0 0 10px var(--storm);"></div>
+        </div>
+        <span>Active storm</span>
+        <span class="ct">3</span>
+      </div>
+    </div>
+
+    <div class="rail-card">
+      <div class="rail-title">Layers</div>
+      <div class="filter-toggle">
+        <span>Surf spots</span>
+        <div class="toggle on" id="togSpots"></div>
+      </div>
+      <div class="filter-toggle">
+        <span>NOAA buoys</span>
+        <div class="toggle on" id="togBuoys"></div>
+      </div>
+      <div class="filter-toggle">
+        <span>Storm systems</span>
+        <div class="toggle on" id="togStorms"></div>
+      </div>
+      <div class="filter-toggle">
+        <span>Favorites only</span>
+        <div class="toggle" id="togFavs"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Zoom controls -->
+  <div class="zoom-controls">
+    <button id="zoomIn" title="Zoom in">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button id="zoomOut" title="Zoom out">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+    </button>
+    <button id="locateMe" title="My location">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    </button>
+  </div>
+
+  <!-- Timeline scrubber -->
+  <div class="timeline" id="timeline">
+    <div class="tl-compact" id="tlCompact">
+      <span class="when">
+        <span class="dot"></span>
+        <span class="label" id="tlcLabel">Now</span>
+        <span class="sub" id="tlcSub">Wed · 2:14 PM</span>
+      </span>
+      <div class="quick">
+        <button data-jump="0" class="on">NOW</button>
+        <button data-jump="6">+6h</button>
+        <button data-jump="24">+1d</button>
+        <button data-jump="72">+3d</button>
+        <button data-jump="168">+7d</button>
+      </div>
+      <button class="expand" id="tlExpand" title="Expand timeline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 14 12 9 17 14"/></svg>
+      </button>
+    </div>
+    <div class="tl-expanded" id="tlExpanded">
+      <div class="tl-head">
+        <button class="play-btn" id="tlPlay" title="Play forecast">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" id="tlPlayIcon"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        </button>
+        <div class="now-pill">
+          <span class="dot"></span>
+          <span class="day" id="tlNowDay">Today</span>
+          <span class="time" id="tlNowTime">2:14 PM</span>
+          <span class="delta" id="tlNowDelta">· now</span>
+        </div>
+        <div class="seg" id="tlSeg">
+          <button data-span="48" class="on">48h</button>
+          <button data-span="72">3d</button>
+          <button data-span="168">7d</button>
+        </div>
+        <button class="collapse" id="tlCollapse" title="Collapse">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 10 12 15 17 10"/></svg>
+        </button>
+      </div>
+      <div class="tl-track-wrap">
+        <div class="tl-days" id="tlDays"></div>
+        <svg class="tl-spark" id="tlSpark" viewBox="0 0 1000 70" preserveAspectRatio="none">
+          <path class="area" id="tlSparkArea" d=""/>
+          <path class="line" id="tlSparkLine" d=""/>
+          <path class="wind" id="tlSparkWind" d=""/>
+          <line class="now-cursor" id="tlNowCursor" x1="0" y1="16" x2="0" y2="62"/>
+          <rect class="sel-glow" id="tlSelGlow" x="0" y="16" width="0" height="46"/>
+          <line class="sel-cursor" id="tlSelCursor" x1="0" y1="16" x2="0" y2="62"/>
+        </svg>
+        <div class="tl-ticks" id="tlTicks"></div>
+        <input class="tl-range" id="tlRange" type="range" min="0" max="48" value="0" step="1" />
+      </div>
+      <div class="tl-readout">
+        <div class="cell"><span class="k">Swell</span><span class="v"><span id="tlrSwell">—</span><span class="u">ft</span></span><span class="delta" id="tlrSwellD"></span></div>
+        <div class="cell"><span class="k">Period</span><span class="v"><span id="tlrPer">—</span><span class="u">s</span></span><span class="delta" id="tlrPerD"></span></div>
+        <div class="cell"><span class="k">Wind</span><span class="v"><span id="tlrWind">—</span><span class="u">mph</span></span><span class="delta" id="tlrWindD"></span></div>
+        <div class="cell"><span class="k">Tide</span><span class="v"><span id="tlrTide">—</span><span class="u">ft</span></span><span class="delta" id="tlrTideD"></span></div>
+        <div class="cell"><span class="k">Avg rating</span><span class="v" id="tlrRating">—</span><span class="delta" id="tlrRatingD"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom status bar -->
+  <div class="status-bar">
+    <div class="status-card">
+      <span class="dot"></span>
+      <span class="k">Live</span>
+      <span class="v">NOAA · WW3</span>
+      <div class="status-sep"></div>
+      <span class="k">Updated</span>
+      <span class="v">2m ago</span>
+    </div>
+    <div class="status-card spot-count">
+      <span class="k">In view</span>
+      <span class="v" id="inViewCount">—</span>
+      <div class="status-sep"></div>
+      <span class="k">Total</span>
+      <span class="v" id="totalCount">—</span>
+    </div>
+  </div>
+
+  <!-- Spot preview card (hover / click) -->
+  <div class="preview-card" id="previewCard">
+    <div class="preview-head">
+      <div class="title">
+        <span id="pvName">—</span>
+        <span class="region" id="pvRegion">—</span>
+      </div>
+      <button class="preview-close" id="pvClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="rating-strip">
+      <span class="pill" id="pvPill" style="background: var(--aqua);">—</span>
+      <span id="pvTag" style="color: var(--muted);">—</span>
+    </div>
+    <div class="preview-metrics">
+      <div class="m"><div class="k">Swell</div><div class="v"><span id="pvSwell">—</span><span class="u">ft</span></div></div>
+      <div class="m"><div class="k">Period</div><div class="v"><span id="pvPer">—</span><span class="u">s</span></div></div>
+      <div class="m"><div class="k">Wind</div><div class="v"><span id="pvWind">—</span><span class="u">mph</span></div></div>
+      <div class="m"><div class="k">Water</div><div class="v"><span id="pvTemp">—</span><span class="u">°F</span></div></div>
+    </div>
+    <a class="preview-open" href="mysurflife-spot-detail.html">
+      Open spot
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+
+  <!-- Storm preview card (click storm marker) -->
+  <div class="preview-card storm-preview" id="stormPreviewCard">
+    <div class="preview-head">
+      <div class="title">
+        <span id="spName">—</span>
+        <span class="region" id="spRegion">—</span>
+      </div>
+      <button class="preview-close" id="spClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="rating-strip">
+      <span class="pill" id="spPill" style="background: oklch(0.72 0.16 20); color: oklch(0.98 0.01 230);">—</span>
+      <span id="spTag" style="color: var(--muted);">—</span>
+    </div>
+    <div class="preview-metrics">
+      <div class="m"><div class="k">Pressure</div><div class="v"><span id="spPres">—</span><span class="u">mb</span></div></div>
+      <div class="m"><div class="k">Max winds</div><div class="v"><span id="spWind">—</span><span class="u">kt</span></div></div>
+      <div class="m"><div class="k">Max seas</div><div class="v"><span id="spSeas">—</span><span class="u">ft</span></div></div>
+      <div class="m"><div class="k">Fetch</div><div class="v" style="font-size: 12px;"><span id="spFetch" style="font-weight: 600;">—</span></div></div>
+    </div>
+    <a class="preview-open" id="spOpen" href="mysurflife-storm-card.html" style="background: oklch(0.72 0.16 20); color: oklch(0.98 0.01 230);">
+      See storm detail
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="map-view.js?v=5"></script>
+<script>
+  // Timeline scrubber
+  (function() {
+    const tl = document.getElementById('timeline');
+    const compact = document.getElementById('tlCompact');
+    const expanded = document.getElementById('tlExpanded');
+    const expandBtn = document.getElementById('tlExpand');
+    const collapseBtn = document.getElementById('tlCollapse');
+    const range = document.getElementById('tlRange');
+    const seg = document.getElementById('tlSeg');
+    const playBtn = document.getElementById('tlPlay');
+    const playIcon = document.getElementById('tlPlayIcon');
+
+    if (!tl) return;
+
+    // Span options (hours)
+    let spanH = 48;
+    let curH = 0; // hours from "now" (0 = now)
+
+    // ── Synthetic forecast data: hourly for 168h ──
+    // Each entry: { swell, period, wind, tide }
+    const NOW = new Date('2026-04-24T14:14:00');
+    const hours = 169;
+    const data = [];
+    for (let h = 0; h < hours; h++) {
+      // Swell: rising morning, peak ~h36, dropping into day 5; long-period rebuild day 6
+      const phase1 = Math.exp(-Math.pow((h - 36) / 22, 2)) * 4.2;
+      const phase2 = Math.exp(-Math.pow((h - 132) / 28, 2)) * 3.0;
+      const baseline = 3.6;
+      const noise = Math.sin(h * 0.7) * 0.15 + Math.sin(h * 0.21) * 0.25;
+      const swell = +(baseline + phase1 + phase2 + noise).toFixed(1);
+
+      // Period tracks longer when swell builds
+      const period = +(11 + (phase1 + phase2) * 0.9 + Math.sin(h * 0.18) * 0.4).toFixed(0);
+
+      // Wind: morning offshore (low), afternoon onshore (high), diurnal cycle
+      const dayHour = (h + 14) % 24; // shift so h=0 ≈ 2pm
+      const diurnal = Math.max(0, Math.sin((dayHour - 6) * Math.PI / 12)) * 12;
+      const synoptic = 4 + Math.sin(h * 0.05) * 3;
+      const wind = +(synoptic + diurnal + (h > 60 && h < 90 ? 6 : 0)).toFixed(0);
+
+      // Tide: 12.4h period, range 4ft
+      const tide = +(2.5 + Math.sin(h * (2 * Math.PI / 12.4)) * 1.8).toFixed(1);
+
+      data.push({ swell, period, wind, tide });
+    }
+
+    function rateAt(h) {
+      const d = data[Math.max(0, Math.min(hours - 1, h))];
+      // crude rating: swell × period bonus, penalize wind
+      const r = Math.max(1.5, Math.min(5, d.swell * 0.45 + (d.period - 10) * 0.18 - d.wind * 0.05));
+      return +r.toFixed(1);
+    }
+
+    function fmtTime(date) {
+      let h = date.getHours(), m = date.getMinutes();
+      const ap = h >= 12 ? 'PM' : 'AM';
+      h = ((h + 11) % 12) + 1;
+      return `${h}:${String(m).padStart(2, '0')} ${ap}`;
+    }
+    function dayLabel(date, idx) {
+      if (idx === 0) return 'Today';
+      if (idx === 1) return 'Tomorrow';
+      return date.toLocaleDateString(undefined, { weekday: 'short' });
+    }
+    function shortDay(date) {
+      return date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+    }
+
+    function getDate(h) {
+      return new Date(NOW.getTime() + h * 3600 * 1000);
+    }
+
+    // ── Render the spark + ticks for a given span ──
+    function renderTrack() {
+      range.max = String(spanH);
+      // clamp curH to range
+      if (curH > spanH) curH = spanH;
+
+      // Spark line + area + wind line — sample every hour from 0..spanH
+      const W = 1000, H = 70;
+      const xAt = (h) => (h / spanH) * W;
+      const swMin = 1, swMax = 16;
+      const yAt = (s) => {
+        const norm = (Math.min(swMax, Math.max(swMin, s)) - swMin) / (swMax - swMin);
+        return 62 - norm * 44; // top=18, bottom=62
+      };
+      const wnMax = 30;
+      const wyAt = (w) => 62 - Math.min(1, w / wnMax) * 44;
+
+      const linePts = [];
+      const windPts = [];
+      const lastIdx = Math.min(spanH, data.length - 1);
+      for (let h = 0; h <= lastIdx; h++) {
+        linePts.push([xAt(h), yAt(data[h].swell)]);
+        windPts.push([xAt(h), wyAt(data[h].wind)]);
+      }
+      const lineD = 'M ' + linePts.map(p => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L ');
+      const areaD = lineD + ` L ${W} 62 L 0 62 Z`;
+      const windD = 'M ' + windPts.map(p => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L ');
+      document.getElementById('tlSparkLine').setAttribute('d', lineD);
+      document.getElementById('tlSparkArea').setAttribute('d', areaD);
+      document.getElementById('tlSparkWind').setAttribute('d', windD);
+
+      // Now cursor sits at h=0
+      const nowX = xAt(0);
+      const nc = document.getElementById('tlNowCursor');
+      nc.setAttribute('x1', nowX); nc.setAttribute('x2', nowX);
+
+      // Ticks — every 6h major, every 1h minor for 48h; every 6h major for 72/168
+      const ticks = document.getElementById('tlTicks');
+      ticks.innerHTML = '';
+      const minor = spanH <= 48 ? 1 : (spanH <= 72 ? 3 : 6);
+      const major = spanH <= 48 ? 6 : (spanH <= 72 ? 12 : 24);
+      for (let h = 0; h < spanH; h += minor) {
+        const div = document.createElement('div');
+        div.className = 'tick' + (h % major === 0 ? ' major' : '');
+        ticks.appendChild(div);
+      }
+
+      // Day band
+      const days = document.getElementById('tlDays');
+      days.innerHTML = '';
+      // Build day spans: from h=0 to h=spanH, group by date
+      const start = NOW;
+      const dayStart = new Date(start); dayStart.setHours(0,0,0,0);
+      let firstHourFromStart = (start.getHours() + start.getMinutes()/60); // 14.23 etc
+      let h = 0;
+      let dayIdx = 0;
+      while (h < spanH) {
+        const remainingInDay = (dayIdx === 0)
+          ? (24 - firstHourFromStart)
+          : 24;
+        const slice = Math.min(remainingInDay, spanH - h);
+        const flex = (slice / spanH) * 100;
+        const d = new Date(start.getTime() + h * 3600 * 1000);
+        const div = document.createElement('div');
+        div.className = 'day' + (dayIdx === 0 ? ' today' : '');
+        div.style.flex = `0 0 ${flex}%`;
+        const lbl = dayIdx === 0 ? 'Today'
+                  : dayIdx === 1 ? 'Tmrw'
+                  : shortDay(d);
+        const num = d.getDate();
+        div.innerHTML = `${lbl} <span class="num">${num}</span>`;
+        days.appendChild(div);
+        h += slice;
+        dayIdx++;
+      }
+
+      updateCursor();
+    }
+
+    function updateCursor() {
+      const W = 1000;
+      const x = (curH / spanH) * W;
+      const sc = document.getElementById('tlSelCursor');
+      const sg = document.getElementById('tlSelGlow');
+      sc.setAttribute('x1', x); sc.setAttribute('x2', x);
+      // Glow: subtle band centered on cursor (±2h equivalent)
+      const halfBand = (W / spanH) * 0.6;
+      sg.setAttribute('x', Math.max(0, x - halfBand));
+      sg.setAttribute('width', halfBand * 2);
+    }
+
+    function updateReadout() {
+      const d = data[curH];
+      const d0 = data[0];
+      const fmtDelta = (cur, base, unit) => {
+        const diff = +(cur - base).toFixed(1);
+        if (Math.abs(diff) < 0.05) return { txt: '·', cls: '' };
+        const sign = diff > 0 ? '+' : '';
+        return { txt: `${sign}${diff}${unit || ''}`, cls: diff > 0 ? 'up' : 'dn' };
+      };
+
+      document.getElementById('tlrSwell').textContent = d.swell.toFixed(1);
+      const ds = fmtDelta(d.swell, d0.swell, 'ft');
+      const elS = document.getElementById('tlrSwellD');
+      elS.textContent = ds.txt; elS.className = 'delta ' + ds.cls;
+
+      document.getElementById('tlrPer').textContent = d.period;
+      const dp = fmtDelta(d.period, d0.period, 's');
+      const elP = document.getElementById('tlrPerD');
+      elP.textContent = dp.txt; elP.className = 'delta ' + dp.cls;
+
+      document.getElementById('tlrWind').textContent = d.wind;
+      const dw = fmtDelta(d.wind, d0.wind, 'mph');
+      const elW = document.getElementById('tlrWindD');
+      // Wind: down is good
+      elW.textContent = dw.txt; elW.className = 'delta ' + (dw.cls === 'up' ? 'dn' : (dw.cls === 'dn' ? 'up' : ''));
+
+      document.getElementById('tlrTide').textContent = d.tide.toFixed(1);
+      const dt = fmtDelta(d.tide, d0.tide, 'ft');
+      const elT = document.getElementById('tlrTideD');
+      elT.textContent = dt.txt; elT.className = 'delta';
+
+      const r = rateAt(curH);
+      document.getElementById('tlrRating').textContent = r.toFixed(1) + ' / 5';
+      const r0 = rateAt(0);
+      const dr = fmtDelta(r, r0, '');
+      const elR = document.getElementById('tlrRatingD');
+      elR.textContent = dr.txt; elR.className = 'delta ' + dr.cls;
+
+      // Now-pill
+      const date = getDate(curH);
+      const dayDiff = Math.floor((date - NOW) / (24*3600*1000) + (NOW.getHours()/24));
+      let dayLbl;
+      if (curH === 0) dayLbl = 'Today';
+      else if (date.toDateString() === NOW.toDateString()) dayLbl = 'Today';
+      else if (date.toDateString() === new Date(NOW.getTime() + 86400000).toDateString()) dayLbl = 'Tomorrow';
+      else dayLbl = date.toLocaleDateString(undefined, { weekday: 'long' });
+      document.getElementById('tlNowDay').textContent = dayLbl;
+      document.getElementById('tlNowTime').textContent = fmtTime(date);
+      document.getElementById('tlNowDelta').textContent = curH === 0 ? '· now' : `· +${curH}h`;
+
+      // Compact mirror
+      document.getElementById('tlcLabel').textContent = curH === 0 ? 'Now' : (curH < 24 ? `+${curH}h` : `+${(curH/24).toFixed(1).replace(/\.0$/,'')}d`);
+      document.getElementById('tlcSub').textContent = `${date.toLocaleDateString(undefined, { weekday: 'short' })} · ${fmtTime(date)}`;
+    }
+
+    // ── Events ──
+    expandBtn.addEventListener('click', () => { tl.classList.add('open'); document.body.classList.add('tl-open'); });
+    collapseBtn.addEventListener('click', () => { tl.classList.remove('open'); document.body.classList.remove('tl-open'); });
+
+    range.addEventListener('input', () => {
+      curH = parseInt(range.value, 10);
+      updateCursor();
+      updateReadout();
+      // mark the closest quick-jump button
+      compact.querySelectorAll('.quick button').forEach(b => {
+        b.classList.toggle('on', parseInt(b.dataset.jump, 10) === curH);
+      });
+    });
+
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-span]');
+      if (!b) return;
+      seg.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      spanH = parseInt(b.dataset.span, 10);
+      renderTrack();
+      updateReadout();
+    });
+
+    compact.querySelector('.quick').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-jump]');
+      if (!b) return;
+      const target = parseInt(b.dataset.jump, 10);
+      // Pick smallest span that contains target
+      const wantSpan = target <= 48 ? 48 : (target <= 72 ? 72 : 168);
+      spanH = wantSpan;
+      seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', parseInt(x.dataset.span, 10) === spanH));
+      curH = target;
+      renderTrack();
+      range.value = String(curH);
+      compact.querySelectorAll('.quick button').forEach(x => x.classList.toggle('on', x === b));
+      updateCursor();
+      updateReadout();
+    });
+
+    // Play / pause animation
+    let playing = false;
+    let rafId = null;
+    let lastT = 0;
+    const playIconHTML = {
+      play: '<polygon points="6 4 20 12 6 20 6 4"/>',
+      pause: '<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>'
+    };
+    function tick(t) {
+      if (!playing) return;
+      if (!lastT) lastT = t;
+      const dt = t - lastT;
+      // 1 hour per ~250ms -> covers 48h in ~12s
+      if (dt > 250) {
+        curH = (curH + 1) % (spanH + 1);
+        range.value = String(curH);
+        updateCursor();
+        updateReadout();
+        lastT = t;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+    playBtn.addEventListener('click', () => {
+      playing = !playing;
+      playIcon.innerHTML = playing ? playIconHTML.pause : playIconHTML.play;
+      if (playing) {
+        lastT = 0;
+        rafId = requestAnimationFrame(tick);
+      } else {
+        cancelAnimationFrame(rafId);
+      }
+    });
+
+    // Keyboard: arrow keys when timeline focused (any input/button inside it)
+    tl.addEventListener('keydown', (e) => {
+      if (e.target.matches('input[type="range"]')) return; // native handles
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        curH = Math.max(0, Math.min(spanH, curH + (e.key === 'ArrowRight' ? 1 : -1)));
+        range.value = String(curH);
+        updateCursor();
+        updateReadout();
+      }
+    });
+
+    // Init
+    renderTrack();
+    updateReadout();
+  })();
+  (function() {
+    const body = document.body;
+    const btn = document.getElementById('menuBtn');
+    const closeBtn = document.getElementById('drawerClose');
+    const backdrop = document.getElementById('drawerBackdrop');
+    const open = () => body.classList.add('menu-open');
+    const close = () => body.classList.remove('menu-open');
+    btn && btn.addEventListener('click', open);
+    closeBtn && closeBtn.addEventListener('click', close);
+    backdrop && backdrop.addEventListener('click', close);
+    // close when a drawer-tab or region-chip is clicked
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.drawer-tab')) close();
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  })();
+
+  // Mobile region dropdown
+  (function() {
+    const bar = document.getElementById('regionBar');
+    if (!bar) return;
+    const mq = window.matchMedia('(max-width: 900px)');
+    const handleClick = (e) => {
+      if (!mq.matches) return;
+      const chip = e.target.closest('.region-chip');
+      if (!chip) return;
+      if (!bar.classList.contains('open')) {
+        // Closed — any tap on the visible chip opens the menu instead of re-selecting
+        e.preventDefault();
+        e.stopPropagation();
+        bar.classList.add('open');
+      } else {
+        // Open — if tapping the already-selected chip, just close
+        if (chip.classList.contains('on')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        bar.classList.remove('open');
+      }
+    };
+    // capture phase so we can intercept BEFORE selectRegion runs
+    bar.addEventListener('click', handleClick, true);
+    // Tap outside to close
+    document.addEventListener('click', (e) => {
+      if (!mq.matches) return;
+      if (!bar.contains(e.target)) bar.classList.remove('open');
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') bar.classList.remove('open'); });
+    // Reset on resize above breakpoint
+    mq.addEventListener('change', () => bar.classList.remove('open'));
+  })();
+</script>
+
+</body>
+</html>

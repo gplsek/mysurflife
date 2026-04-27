@@ -8,7 +8,7 @@ export function LeftRail({ tierCounts, buoyCount, stormCount, state, onToggle, l
         <div className="mv-rail-head">Markers</div>
         {TIER_LEGEND.map(({ tier, range }) => (
           <div key={tier} className="mv-legend-row">
-            <span className="mv-legend-dot" style={{ background: TIER_COLORS[tier] }} />
+            <span className="mv-legend-dot" style={{ borderColor: TIER_COLORS[tier] }} />
             <span className="mv-legend-label">{TIER_LABELS[tier]}</span>
             <span className="mv-legend-range">{range}</span>
             <span className="mv-legend-count">{loading ? '—' : (tierCounts[tier] ?? 0)}</span>

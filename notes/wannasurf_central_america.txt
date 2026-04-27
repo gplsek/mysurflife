@@ -1,0 +1,557 @@
+WannaSurf Spot List — Central America (Geocoded Only)
+Scraped: 2026-04-27  |  Total geocoded: 459
+======================================================================
+
+Name                                                        Lat          Lon  URL
+----------------------------------------------------------------------
+
+## Anguilla
+Junk S Hole                                           18.255111   -62.985134  https://wannasurf.com/spot/Central_America/Anguilla/Junk_s_Hole/index.html
+Dolphins                                              18.179330   -63.145294  https://wannasurf.com/spot/Central_America/Anguilla/dolphins/index.html
+
+## Antigua
+Palmetto Point                                        17.580710   -61.857549  https://wannasurf.com/spot/Central_America/Antigua/Palmetto_Point/index.html
+
+## Aruba
+Muraya                                                12.433695   -69.870751  https://wannasurf.com/spot/Central_America/Aruba/Muraya/index.html
+Rami Beach                                            12.552397   -69.974656  https://wannasurf.com/spot/Central_America/Aruba/Rami_Beach/index.html
+Arashi                                                12.620070   -70.053978  https://wannasurf.com/spot/Central_America/Aruba/arashi/index.html
+Dooms                                                 12.616275   -70.044478  https://wannasurf.com/spot/Central_America/Aruba/dooms/index.html
+Outside Rogers                                        12.415454   -69.889612  https://wannasurf.com/spot/Central_America/Aruba/outside_rogers/index.html
+Wariruri                                              12.559548   -69.987931  https://wannasurf.com/spot/Central_America/Aruba/wariruri/index.html
+West Point                                            12.616741   -70.060244  https://wannasurf.com/spot/Central_America/Aruba/west_point/index.html
+
+## Bahamas
+Hatchet Bay                                           25.365336   -76.484038  https://wannasurf.com/spot/Central_America/Bahamas/Hatchet_Bay/index.html
+Holiday Beach                                         25.401104   -76.541748  https://wannasurf.com/spot/Central_America/Bahamas/Holiday_Beach/index.html
+Paradise Island                                       25.089563   -77.325436  https://wannasurf.com/spot/Central_America/Bahamas/Paradise_Island/index.html
+Smugglers Beach                                       25.340162   -76.434749  https://wannasurf.com/spot/Central_America/Bahamas/Smugglers_Beach/index.html
+Sugar Shack                                           26.520345   -76.967458  https://wannasurf.com/spot/Central_America/Bahamas/Sugar_Shack/index.html
+French Bay                                            23.946508   -74.520392  https://wannasurf.com/spot/Central_America/Bahamas/french_bay/index.html
+Garbanzo                                              26.507471   -76.973079  https://wannasurf.com/spot/Central_America/Bahamas/garbanzo/index.html
+Indicas                                               26.515991   -76.968756  https://wannasurf.com/spot/Central_America/Bahamas/indicas/index.html
+Rights                                                26.514383   -76.970730  https://wannasurf.com/spot/Central_America/Bahamas/rights/index.html
+Rush Reef                                             26.513188   -76.968133  https://wannasurf.com/spot/Central_America/Bahamas/rush_reef/index.html
+Surfers Beach                                         25.382756   -76.525183  https://wannasurf.com/spot/Central_America/Bahamas/surfers_beach/index.html
+
+## Barbados
+Dover Beach                                           13.066227   -59.569287  https://wannasurf.com/spot/Central_America/Barbados/Dover_beach/index.html
+Gibbs                                                 13.231824   -59.643193  https://wannasurf.com/spot/Central_America/Barbados/Gibbs/index.html
+Paradise                                              13.130346   -59.637179  https://wannasurf.com/spot/Central_America/Barbados/Paradise/index.html
+Accra Beach - Rockley Beach                           13.072675   -59.590037  https://wannasurf.com/spot/Central_America/Barbados/accra_beach_-_rockley_beach/index.html
+Batts Rock                                            13.135043   -59.636348  https://wannasurf.com/spot/Central_America/Barbados/batts_rock/index.html
+Brandon                                               13.077200   -59.608367  https://wannasurf.com/spot/Central_America/Barbados/brandon/index.html
+Cattlewash                                            13.218812   -59.529333  https://wannasurf.com/spot/Central_America/Barbados/cattlewash/index.html
+Church Point                                          13.191357   -59.640478  https://wannasurf.com/spot/Central_America/Barbados/church_point/index.html
+Crane Beach                                           13.099751   -59.449929  https://wannasurf.com/spot/Central_America/Barbados/crane_beach/index.html
+Duppies                                               13.315530   -59.644346  https://wannasurf.com/spot/Central_America/Barbados/duppies/index.html
+Foul Bay                                              13.097902   -59.452037  https://wannasurf.com/spot/Central_America/Barbados/foul_bay/index.html
+Freights                                              13.058744   -59.538088  https://wannasurf.com/spot/Central_America/Barbados/freights/index.html
+Fryers Well                                           13.285622   -59.649947  https://wannasurf.com/spot/Central_America/Barbados/fryers_well/index.html
+Maycocks                                              13.282280   -59.649882  https://wannasurf.com/spot/Central_America/Barbados/maycocks/index.html
+Ragged Point                                          13.165596   -59.431840  https://wannasurf.com/spot/Central_America/Barbados/ragged_point/index.html
+Sandy Lane                                            13.172585   -59.637759  https://wannasurf.com/spot/Central_America/Barbados/sandy_lane/index.html
+Silver Sands                                          13.046379   -59.518636  https://wannasurf.com/spot/Central_America/Barbados/silver_sands/index.html
+Soup Bowl                                             13.214373   -59.522579  https://wannasurf.com/spot/Central_America/Barbados/soup_bowl/index.html
+South Point                                           13.045120   -59.528861  https://wannasurf.com/spot/Central_America/Barbados/south_point/index.html
+Surfer S Point                                        13.053309   -59.504099  https://wannasurf.com/spot/Central_America/Barbados/surfer_s_point/index.html
+Tropicana                                             13.219120   -59.642479  https://wannasurf.com/spot/Central_America/Barbados/tropicana/index.html
+
+## Belize
+East Point                                            17.195903   -87.603285  https://wannasurf.com/spot/Central_America/Belize/East_Point/index.html
+
+## Bermuda
+Horseshoe Bay Beach                                   32.251934   -64.821310  https://wannasurf.com/spot/Central_America/Bermuda/Horseshoe_Bay_Beach/index.html
+Tucks                                                 32.335064   -64.680473  https://wannasurf.com/spot/Central_America/Bermuda/Tucks/index.html
+
+## Bonaire
+Chop Chop                                             12.077386   -68.231406  https://wannasurf.com/spot/Central_America/Bonaire/Chop_Chop/index.html
+
+## British Virgin
+Brewers Bay                                           18.442484   -64.651451  https://wannasurf.com/spot/Central_America/British_Virgin/Brewers_Bay/index.html
+Sandy Spit                                            18.449955   -64.708432  https://wannasurf.com/spot/Central_America/British_Virgin/Sandy_Spit/index.html
+Bomba Shack                                           18.398470   -64.689302  https://wannasurf.com/spot/Central_America/British_Virgin/bomba_shack/index.html
+Cane Garden Bay Tortola                               18.429131   -64.661493  https://wannasurf.com/spot/Central_America/British_Virgin/cane_garden_bay_tortola/index.html
+Caro Tbay                                             18.362998   -64.603043  https://wannasurf.com/spot/Central_America/British_Virgin/caro_tbay/index.html
+Josiahs Bay                                           18.454209   -64.577894  https://wannasurf.com/spot/Central_America/British_Virgin/josiahs_bay/index.html
+Lava Flows                                            18.450219   -64.606647  https://wannasurf.com/spot/Central_America/British_Virgin/lava_flows/index.html
+Spanish Town                                          18.451481   -64.438655  https://wannasurf.com/spot/Central_America/British_Virgin/spanish_town/index.html
+
+## Cayman
+Lighthouse Restaurant                                 19.293798   -81.198748  https://wannasurf.com/spot/Central_America/Cayman/Lighthouse_Restaurant/index.html
+Mariner S Cove                                        19.272374   -81.323440  https://wannasurf.com/spot/Central_America/Cayman/mariner_s_cove/index.html
+
+## Clipperton Island
+Ancienne Pass                                         10.289288  -109.206883  https://wannasurf.com/spot/Central_America/Clipperton_Island/Ancienne_pass/index.html
+
+## Costa Rica/Caribbean
+Black Beach                                            9.671154   -82.787476  https://wannasurf.com/spot/Central_America/Costa_Rica/Caribbean/black_beach/index.html
+Manzanillo                                             9.635107   -82.637787  https://wannasurf.com/spot/Central_America/Costa_Rica/Caribbean/manzanillo/index.html
+Playa Cocles                                           9.651580   -82.737951  https://wannasurf.com/spot/Central_America/Costa_Rica/Caribbean/playa_cocles/index.html
+Salsa Brava                                            9.655585   -82.756062  https://wannasurf.com/spot/Central_America/Costa_Rica/Caribbean/salsa_brava/index.html
+
+## Costa Rica/Guanacaste
+Barrigona                                              9.881729   -85.577703  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/Barrigona/index.html
+Islita                                                 9.852166   -85.400612  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/Islita/index.html
+Rivermouth At Avellanas                               10.235944   -85.841160  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/Rivermouth_at_Avellanas/index.html
+Scardog Reef                                          10.847047   -85.856524  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/Scardog_reef/index.html
+Sunset Reef                                            9.596751   -85.145030  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/Sunset_Reef/index.html
+Avellana                                              10.228068   -85.837560  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/avellana/index.html
+Brasilito                                             10.405303   -85.802987  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/brasilito/index.html
+Camaronal                                              9.862193   -85.444182  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/camaronal/index.html
+El Estero                                             10.306918   -85.838778  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/el_estero/index.html
+Flamingo Point                                        10.435988   -85.792537  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/flamingo_point/index.html
+Junquillal                                            10.168323   -85.813533  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/junquillal/index.html
+Laverinto  Laverint                                   10.823759   -85.800669  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/laverinto__laverint/index.html
+Mal Pais                                               9.626815   -85.152111  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/mal_pais/index.html
+Marbella                                              10.073572   -85.772367  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/marbella/index.html
+Nosara                                                 9.982820   -85.695612  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/nosara/index.html
+Ollies Point                                          10.852442   -85.802536  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/ollies_point/index.html
+Ostional                                              10.039683   -85.745544  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/ostional/index.html
+Pelada                                                 9.953211   -85.676188  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/pelada/index.html
+Pico Grande                                           10.302770   -85.841138  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/pico_grande/index.html
+Playa Coyote                                           9.789588   -85.282745  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_coyote/index.html
+Playa Grande                                          10.316355   -85.841589  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_grande/index.html
+Playa Guiones                                          9.947251   -85.673511  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_guiones/index.html
+Playa Lagosta                                         10.286123   -85.851374  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_lagosta/index.html
+Playa Negra                                           10.195874   -85.832287  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_negra/index.html
+Playa Nosara                                           9.944588   -85.672438  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_nosara/index.html
+Playa Samara                                           9.880415   -85.526633  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/playa_samara/index.html
+Raps                                                  10.172684   -85.817642  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/raps/index.html
+Roca Bruja                                            10.780529   -85.683060  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/roca_bruja/index.html
+Santa Teresa                                           9.637223   -85.168161  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/santa_teresa/index.html
+Suizo                                                 10.298199   -85.847683  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/suizo/index.html
+Tamarindo                                             10.301915   -85.842319  https://wannasurf.com/spot/Central_America/Costa_Rica/Guanacaste/tamarindo/index.html
+
+## Costa Rica/Pacific_South
+Gully S                                                9.570621   -84.598846  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/Gully_s/index.html
+Zancudo Beach                                          8.503315   -83.124264  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/Zancudo_Beach/index.html
+Agujas                                                 9.722699   -84.653928  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/agujas/index.html
+Backwash                                               8.391460   -83.279114  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/backwash/index.html
+Bajamar                                                9.858852   -84.701157  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/bajamar/index.html
+Bejuco                                                 9.518100   -84.436122  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/bejuco/index.html
+Boca Baranca                                           9.959213   -84.740295  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/boca_baranca/index.html
+Corralillo                                             9.901385   -84.728451  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/corralillo/index.html
+Dominical                                              9.248599   -83.861732  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/dominical/index.html
+Eserillos Oeste                                        9.527528   -84.499186  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/eserillos_oeste/index.html
+Esterillos                                             9.527030   -84.503231  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/esterillos/index.html
+Jaco Beach                                             9.598550   -84.621592  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/jaco_beach/index.html
+Manuel Antonio                                         9.389452   -84.148579  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/manuel_antonio/index.html
+Matapalo                                               8.384837   -83.279886  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/matapalo/index.html
+Pan Dulce                                              8.395281   -83.277011  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/pan_dulce/index.html
+Pavones                                                8.392850   -83.139371  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/pavones/index.html
+Perro Fino                                             9.590256   -84.626398  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/perro_fino/index.html
+Playa Bejuca                                           9.512386   -84.419117  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/playa_bejuca/index.html
+Playa Escondida                                        9.660492   -84.674292  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/playa_escondida/index.html
+Playa Hermosa                                          9.575191   -84.606571  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/playa_hermosa/index.html
+Playitas                                               9.396290   -84.162145  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/playitas/index.html
+Roca Loca                                              9.589494   -84.625282  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/roca_loca/index.html
+The Tree                                               9.565712   -84.591980  https://wannasurf.com/spot/Central_America/Costa_Rica/Pacific_South/the_tree/index.html
+
+## Curacao
+Playa Kanoa                                           12.176102   -68.864944  https://wannasurf.com/spot/Central_America/Curacao/Playa_Kanoa/index.html
+Klein Curacao Rights                                  11.998773   -68.648294  https://wannasurf.com/spot/Central_America/Curacao/klein_curacao_rights/index.html
+Sint Joris                                            12.175588   -68.858507  https://wannasurf.com/spot/Central_America/Curacao/sint_joris/index.html
+
+## Dominica
+Calibishie                                            15.602206   -61.366882  https://wannasurf.com/spot/Central_America/Dominica/Calibishie/index.html
+L Anse Tortue                                         15.587676   -61.326660  https://wannasurf.com/spot/Central_America/Dominica/L_anse_Tortue/index.html
+Pauga Bay                                             15.521382   -61.273155  https://wannasurf.com/spot/Central_America/Dominica/Pauga_Bay/index.html
+Scotts Head                                           15.209967   -61.367118  https://wannasurf.com/spot/Central_America/Dominica/Scotts_Head/index.html
+Turd Burger S                                         15.557353   -61.295782  https://wannasurf.com/spot/Central_America/Dominica/Turd_Burger_s/index.html
+Philipp S                                             15.373223   -61.251225  https://wannasurf.com/spot/Central_America/Dominica/philipp_s_/index.html
+
+## Dominican Republic
+Coco Nuts                                             18.710328   -68.436434  https://wannasurf.com/spot/Central_America/Dominican_Republic/Coco_nuts/index.html
+El Manda                                              17.988810   -71.162438  https://wannasurf.com/spot/Central_America/Dominican_Republic/El_Manda/index.html
+Guibia                                                18.458361   -69.905700  https://wannasurf.com/spot/Central_America/Dominican_Republic/Guibia/index.html
+La Punta                                              19.678384   -70.016191  https://wannasurf.com/spot/Central_America/Dominican_Republic/La_Punta/index.html
+Patho                                                 18.228964   -70.188829  https://wannasurf.com/spot/Central_America/Dominican_Republic/Patho/index.html
+San Rafael                                            18.029809   -71.137193  https://wannasurf.com/spot/Central_America/Dominican_Republic/San_Rafael/index.html
+Cabarete                                              19.742793   -70.392151  https://wannasurf.com/spot/Central_America/Dominican_Republic/cabarete/index.html
+El Broke                                              19.414954   -69.859657  https://wannasurf.com/spot/Central_America/Dominican_Republic/el_broke/index.html
+El Chinchorro                                         18.419807   -70.011191  https://wannasurf.com/spot/Central_America/Dominican_Republic/el_chinchorro/index.html
+El Coson                                              19.296076   -69.598732  https://wannasurf.com/spot/Central_America/Dominican_Republic/el_coson/index.html
+El Tablon                                             19.752971   -70.526982  https://wannasurf.com/spot/Central_America/Dominican_Republic/el_tablon/index.html
+Encuentro                                             19.782500   -70.447778  https://wannasurf.com/spot/Central_America/Dominican_Republic/encuentro/index.html
+La Boya                                               18.432958   -69.631707  https://wannasurf.com/spot/Central_America/Dominican_Republic/la_boya/index.html
+La Preciosa                                           19.679101   -70.003241  https://wannasurf.com/spot/Central_America/Dominican_Republic/la_preciosa/index.html
+Macao                                                 18.773878   -68.536234  https://wannasurf.com/spot/Central_America/Dominican_Republic/macao/index.html
+Shipwreck                                             20.712446   -69.715118  https://wannasurf.com/spot/Central_America/Dominican_Republic/shipwreck/index.html
+Sosua                                                 19.766704   -70.515747  https://wannasurf.com/spot/Central_America/Dominican_Republic/sosua/index.html
+
+## El Salvador
+Cemetery                                              13.483035   -89.323989  https://wannasurf.com/spot/Central_America/El_Salvador/Cemetery/index.html
+El Pimental                                           13.383102   -89.090310  https://wannasurf.com/spot/Central_America/El_Salvador/El_Pimental/index.html
+El Zonte Rivermouth                                   13.493061   -89.439939  https://wannasurf.com/spot/Central_America/El_Salvador/El_Zonte_Rivermouth/index.html
+Playa El Cocal                                        13.483445   -89.352179  https://wannasurf.com/spot/Central_America/El_Salvador/Playa_El_Cocal/index.html
+Restaurants                                           13.486431   -89.324732  https://wannasurf.com/spot/Central_America/El_Salvador/Restaurants/index.html
+Barra De Santiago                                     13.705955   -90.039359  https://wannasurf.com/spot/Central_America/El_Salvador/barra_de_santiago/index.html
+El Zonte                                              13.494647   -89.438549  https://wannasurf.com/spot/Central_America/El_Salvador/el_zonte/index.html
+K59                                                   13.499123   -89.473590  https://wannasurf.com/spot/Central_America/El_Salvador/k59/index.html
+La Bocana                                             13.492341   -89.381676  https://wannasurf.com/spot/Central_America/El_Salvador/la_bocana/index.html
+La Libertad                                           13.480030   -89.327559  https://wannasurf.com/spot/Central_America/El_Salvador/la_libertad/index.html
+Las Flores                                            13.169963   -88.115330  https://wannasurf.com/spot/Central_America/El_Salvador/las_flores/index.html
+Mizata                                                13.510035   -89.595909  https://wannasurf.com/spot/Central_America/El_Salvador/mizata/index.html
+Palmarcito                                            13.493197   -89.422166  https://wannasurf.com/spot/Central_America/El_Salvador/palmarcito/index.html
+Punta Mango                                           13.160122   -88.208724  https://wannasurf.com/spot/Central_America/El_Salvador/punta_mango/index.html
+Zunzal                                                13.492169   -89.389953  https://wannasurf.com/spot/Central_America/El_Salvador/zunzal/index.html
+
+## Grenada
+Cherry Hill                                           12.061942   -61.756725  https://wannasurf.com/spot/Central_America/Grenada/Cherry_Hill/index.html
+Prickly Point                                         11.989118   -61.762133  https://wannasurf.com/spot/Central_America/Grenada/Prickly_Point/index.html
+
+## Guadeloupe
+Anse Salabouelle                                      16.326811   -61.305288  https://wannasurf.com/spot/Central_America/Guadeloupe/Anse_Salabouelle/index.html
+Le Moule                                              16.337159   -61.361990  https://wannasurf.com/spot/Central_America/Guadeloupe/Le_Moule/index.html
+Le Palais                                             16.416646   -61.534263  https://wannasurf.com/spot/Central_America/Guadeloupe/Le_palais/index.html
+Anse A La Barque                                      16.240716   -61.321135  https://wannasurf.com/spot/Central_America/Guadeloupe/anse_a_la_barque/index.html
+Anse A La Bouelle                                     16.333483   -61.332121  https://wannasurf.com/spot/Central_America/Guadeloupe/anse_a_la_bouelle/index.html
+Anse Bertrand                                         16.472716   -61.511936  https://wannasurf.com/spot/Central_America/Guadeloupe/anse_bertrand/index.html
+Antigues Cape                                         16.434192   -61.539660  https://wannasurf.com/spot/Central_America/Guadeloupe/antigues_cape/index.html
+Bananier                                              15.999662   -61.602139  https://wannasurf.com/spot/Central_America/Guadeloupe/bananier/index.html
+Caravelle                                             16.215783   -61.394669  https://wannasurf.com/spot/Central_America/Guadeloupe/caravelle/index.html
+La Perle                                              16.340876   -61.779578  https://wannasurf.com/spot/Central_America/Guadeloupe/la_perle/index.html
+Le Helleux                                            16.240964   -61.339159  https://wannasurf.com/spot/Central_America/Guadeloupe/le_helleux/index.html
+Petit Havre                                           16.210224   -61.427135  https://wannasurf.com/spot/Central_America/Guadeloupe/petit_havre/index.html
+Port Louis                                            16.429684   -61.539488  https://wannasurf.com/spot/Central_America/Guadeloupe/port_louis/index.html
+St Francois Harbour                                   16.247721   -61.272984  https://wannasurf.com/spot/Central_America/Guadeloupe/st_francois_harbour/index.html
+
+## Guatemala
+Champerico                                            14.292789   -91.915537  https://wannasurf.com/spot/Central_America/Guatemala/champerico/index.html
+El Paredon                                            13.916572   -91.070137  https://wannasurf.com/spot/Central_America/Guatemala/el_paredon/index.html
+Hawaii                                                15.500000   -90.250000  https://wannasurf.com/spot/Central_America/Guatemala/hawaii/index.html
+Iztapa                                                13.925320   -90.721579  https://wannasurf.com/spot/Central_America/Guatemala/iztapa/index.html
+La Barra                                              13.922644   -90.774729  https://wannasurf.com/spot/Central_America/Guatemala/la_barra/index.html
+Monterrico                                            13.889367   -90.482614  https://wannasurf.com/spot/Central_America/Guatemala/monterrico/index.html
+Punta San Jose                                        13.917489   -90.821743  https://wannasurf.com/spot/Central_America/Guatemala/punta_san_jose/index.html
+Zipacate                                              13.922675   -91.146698  https://wannasurf.com/spot/Central_America/Guatemala/zipacate/index.html
+
+## Haiti
+Haiti The Point                                       19.948098   -72.770691  https://wannasurf.com/spot/Central_America/Haiti/Haiti_The_Point/index.html
+Jacmel                                                18.220384   -72.540579  https://wannasurf.com/spot/Central_America/Haiti/Jacmel/index.html
+
+## Honduras
+Palma Real                                            15.814717   -86.510468  https://wannasurf.com/spot/Central_America/Honduras/Palma_Real/index.html
+
+## Jamaica
+Long Bay                                              18.099799   -76.312129  https://wannasurf.com/spot/Central_America/Jamaica/long_bay/index.html
+
+## Martinique
+Basse Pointe Le Chaudron                              14.869976   -61.116598  https://wannasurf.com/spot/Central_America/Martinique/BASSE_POINTE_LE_CHAUDRON/index.html
+Monsieur Slabby                                       14.871299   -61.186423  https://wannasurf.com/spot/Central_America/Martinique/Monsieur_Slabby/index.html
+Tomate                                                14.829813   -61.226606  https://wannasurf.com/spot/Central_America/Martinique/Tomate/index.html
+Anse Charpentier Right                                14.807828   -61.014740  https://wannasurf.com/spot/Central_America/Martinique/anse_charpentier_right/index.html
+Anse Couleuvre                                        14.844004   -61.219468  https://wannasurf.com/spot/Central_America/Martinique/anse_couleuvre/index.html
+Anse Trabaud                                          14.406667   -60.848722  https://wannasurf.com/spot/Central_America/Martinique/anse_trabaud/index.html
+Diams                                                 14.478439   -61.027465  https://wannasurf.com/spot/Central_America/Martinique/diams/index.html
+Pelle A Tarte                                         14.773990   -60.893998  https://wannasurf.com/spot/Central_America/Martinique/pelle_a_tarte/index.html
+Petite Anse                                           14.487207   -61.083641  https://wannasurf.com/spot/Central_America/Martinique/petite_anse/index.html
+Tartane                                               14.770857   -60.899867  https://wannasurf.com/spot/Central_America/Martinique/tartane/index.html
+
+## Mexico/Baja_Norte
+3 Emes                                                31.897257  -116.713713  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/3_emes/index.html
+L 2870                                                28.703600  -114.289434  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/L_2870/index.html
+Salsipuedes                                           31.976829  -116.790590  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/Salsipuedes/index.html
+Spot2                                                 29.195964  -114.783547  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/Spot2/index.html
+Terasa Strailerpark                                   32.260634  -116.991865  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/Terasa_sTrailerPark/index.html
+Alisitos                                              32.119226  -116.882915  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/alisitos/index.html
+Baja Malibu                                           32.419503  -117.095750  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/baja_malibu/index.html
+Calafia                                               32.267666  -117.019329  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/calafia/index.html
+Five Spot                                             29.134482  -114.731223  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/five_spot/index.html
+Four Spot                                             29.181633  -114.752862  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/four_spot/index.html
+K-181                                                 31.258559  -116.374531  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/k-181/index.html
+K38                                                   32.258939  -116.986349  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/k38/index.html
+La Fonda                                              32.165950  -116.904531  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/la_fonda/index.html
+Las Gaviotas                                          32.252447  -116.962337  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/las_gaviotas/index.html
+Las Salinas Marina                                    32.056827  -116.882429  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/las_salinas_marina/index.html
+More                                                  29.110163  -114.713102  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/more/index.html
+Mushrooms                                             32.268086  -117.023390  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/mushrooms/index.html
+Punta Baja                                            29.953001  -115.754700  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/punta_baja/index.html
+Punta Cabras                                          31.347553  -116.457396  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/punta_cabras/index.html
+Punta San Carlos                                      29.614244  -115.499740  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/punta_san_carlos/index.html
+Punta San Jose                                        31.463884  -116.590691  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/punta_san_jose/index.html
+Quatro Casas                                          30.933501  -116.242218  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/quatro_casas/index.html
+Raul S                                                32.247796  -116.948827  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/raul_s/index.html
+San Miguel                                            31.900659  -116.730321  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/san_miguel/index.html
+Stack S                                               31.892671  -116.696681  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/stack_s/index.html
+Staks                                                 31.892553  -116.696659  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/staks/index.html
+Three Spot                                            29.194313  -114.775050  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/three_spot/index.html
+Todos Santos                                          31.808947  -116.809688  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/todos_santos/index.html
+Zpot01                                                29.209360  -114.801155  https://wannasurf.com/spot/Central_America/Mexico/Baja_Norte/zpot01/index.html
+
+## Mexico/Baja_Sur
+La Fortuna                                            23.144148  -109.506311  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/La_Fortuna/index.html
+Punta Conejo                                          24.074296  -111.007780  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/Punta_Conejo/index.html
+Ship Wrecks                                           23.119453  -109.528067  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/Ship_Wrecks/index.html
+Terranova                                             23.155615  -109.493071  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/Terranova/index.html
+The Estuary                                           23.047996  -109.682178  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/The_Estuary/index.html
+Costa Azul                                            23.015126  -109.716940  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/costa_azul/index.html
+Isla Natividad                                        27.857546  -115.160784  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/isla_natividad/index.html
+Los Cerritos                                          23.342571  -110.188408  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/los_cerritos/index.html
+Lovers Shore Break                                    22.875375  -109.897549  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/lovers_shore_break/index.html
+Monuments                                             22.898167  -109.870319  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/monuments/index.html
+Old Men                                               23.023939  -109.715867  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/old_men/index.html
+Punta Abreojos                                        26.709273  -113.575974  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/punta_abreojos/index.html
+Scorpion Bay                                          26.233840  -112.485409  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/scorpion_bay/index.html
+Shipwrecks                                            23.119453  -109.528067  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/shipwrecks/index.html
+The Rock                                              23.024522  -109.713796  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/the_rock/index.html
+Zippers                                               23.029306  -109.714081  https://wannasurf.com/spot/Central_America/Mexico/Baja_Sur/zippers/index.html
+
+## Mexico/Guerrero
+Barra De Coyuca                                       16.916992  -100.010905  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/Barra_de_coyuca/index.html
+La Bonfil                                             16.743638   -99.758649  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/La_Bonfil/index.html
+Revolcadero                                           16.787614   -99.820404  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/Revolcadero/index.html
+Barra Vieja                                           16.688241   -99.629817  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/barra_vieja/index.html
+La Barrita                                            17.415143  -101.185884  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/la_barrita/index.html
+Las Gatas                                             17.620444  -101.553519  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/las_gatas/index.html
+Playa Linda                                           17.663876  -101.653082  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/playa_linda/index.html
+Saladita                                              17.839222  -101.771824  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/saladita/index.html
+The Ranch                                             17.916454  -101.869052  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/the_ranch/index.html
+Troncones Point                                       17.794412  -101.747534  https://wannasurf.com/spot/Central_America/Mexico/Guerrero/troncones_point/index.html
+
+## Mexico/Gulf
+Tampi                                                 19.105057   -96.097927  https://wannasurf.com/spot/Central_America/Mexico/Gulf/Tampi/index.html
+Camaronera                                            18.864707   -95.800781  https://wannasurf.com/spot/Central_America/Mexico/Gulf/camaronera/index.html
+Chacmool                                              21.131212   -86.746631  https://wannasurf.com/spot/Central_America/Mexico/Gulf/chacmool/index.html
+Costalitos                                            19.104621   -96.096725  https://wannasurf.com/spot/Central_America/Mexico/Gulf/costalitos/index.html
+Destapadores                                          19.163249   -96.096039  https://wannasurf.com/spot/Central_America/Mexico/Gulf/destapadores/index.html
+Escolleras                                            22.266063   -97.783298  https://wannasurf.com/spot/Central_America/Mexico/Gulf/escolleras/index.html
+Isla Mujeres                                          21.225062   -86.729851  https://wannasurf.com/spot/Central_America/Mexico/Gulf/isla_mujeres/index.html
+Marti                                                 19.173869   -96.118355  https://wannasurf.com/spot/Central_America/Mexico/Gulf/marti/index.html
+Playa Bagdad                                          25.834196   -97.154846  https://wannasurf.com/spot/Central_America/Mexico/Gulf/playa_bagdad/index.html
+Playa Delphine                                        21.095391   -86.764183  https://wannasurf.com/spot/Central_America/Mexico/Gulf/playa_delphine/index.html
+Playa Norte                                           19.220234   -96.156635  https://wannasurf.com/spot/Central_America/Mexico/Gulf/playa_norte/index.html
+
+## Mexico/Jalisco
+Barra De Navidad                                      19.204673  -104.692669  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/Barra_de_Navidad/index.html
+Paraiso                                               18.874636  -103.989437  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/Paraiso/index.html
+Arroyo Seco                                           19.317224  -104.945714  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/arroyo_seco/index.html
+Chacala                                               21.187563  -105.229889  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/chacala/index.html
+El Tecuan                                             20.237657  -105.573828  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/el_tecuan/index.html
+Pasqwalis                                             18.855285  -103.961048  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/pasqwalis/index.html
+Puerto Vallarta                                       20.738135  -105.402832  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/puerto_vallarta/index.html
+Ranchito                                              19.239677  -104.735329  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/ranchito/index.html
+Sayulita                                              20.874531  -105.451584  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/sayulita/index.html
+Veneros                                               20.788696  -105.506687  https://wannasurf.com/spot/Central_America/Mexico/Jalisco/veneros/index.html
+
+## Mexico/Michoacan
+Boca De Apisa                                         19.163330  -104.414062  https://wannasurf.com/spot/Central_America/Mexico/Michoacan/boca_de_apisa/index.html
+La Ticla                                              18.454148  -103.558567  https://wannasurf.com/spot/Central_America/Mexico/Michoacan/la_ticla/index.html
+Rio Nexpa                                             18.085511  -102.791138  https://wannasurf.com/spot/Central_America/Mexico/Michoacan/rio_nexpa/index.html
+
+## Mexico/Oaxaca-Chiapas
+Puerto Escondido                                      15.847169   -97.055111  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/Puerto_Escondido/index.html
+Puerto Escondido Left                                 15.855168   -97.057976  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/Puerto_Escondido_Left/index.html
+Salina Cruze -Jetty                                   16.153677   -95.237560  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/Salina_Cruze_-Jetty/index.html
+San Agustinillo                                       15.665685   -96.551285  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/San_Agustinillo/index.html
+Carrizalillo                                          15.858677   -97.078993  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/carrizalillo/index.html
+Chacahua                                              15.967559   -97.676858  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/chacahua/index.html
+La Jolla                                              15.875158   -95.777092  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/la_jolla/index.html
+La Punta                                              15.830572   -97.046764  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/la_punta/index.html
+Puerto Arista                                         15.931041   -93.808651  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/puerto_arista/index.html
+Puerto Madero                                         14.721844   -92.428021  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/puerto_madero/index.html
+Zipolite                                              15.657999   -96.526222  https://wannasurf.com/spot/Central_America/Mexico/Oaxaca-Chiapas/zipolite/index.html
+
+## Mexico/Sinaloa-Nayarit
+Anclote                                               20.767872  -105.519991  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/Anclote/index.html
+El Faro                                               21.525520  -105.290549  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/El_Faro/index.html
+El Skupa                                              20.767398  -105.538120  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/El_Skupa/index.html
+Las Barras De Piaxtla                                 23.745754  -106.843414  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/Las_Barras_de_Piaxtla/index.html
+Las Flores                                            23.241731  -106.453485  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/Las_Flores/index.html
+Milagro                                               23.795633  -106.881995  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/Milagro/index.html
+Playa Novillero                                       22.378135  -105.686803  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/Playa_Novillero/index.html
+Tiburon                                               23.802623  -106.883916  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/Tiburon/index.html
+Camerones                                             23.237856  -106.447306  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/camerones/index.html
+Lalancha                                              20.748328  -105.441971  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/lalancha/index.html
+Lola S                                                21.187053  -105.229969  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/lola_s/index.html
+Los Pinos                                             23.208923  -106.428310  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/los_pinos/index.html
+Matanchan Bay                                         21.515799  -105.247044  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/matanchan_bay/index.html
+Patoles                                               23.743476  -106.845303  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/patoles/index.html
+Playa Brueha                                          23.303552  -106.491852  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/playa_brueha/index.html
+Punta Custadio                                        21.346479  -105.246813  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/punta_custadio/index.html
+Punta Mita                                            20.763979  -105.541878  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/punta_mita/index.html
+Rukos                                                 23.442026  -106.581588  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/rukos/index.html
+San Blas                                              21.527616  -105.284311  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/san_blas/index.html
+San Pancho                                            20.900763  -105.417144  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/san_pancho/index.html
+Santa Cruz                                            21.435443  -105.203882  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/santa_cruz/index.html
+Stoners                                               21.513264  -105.261850  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/stoners/index.html
+Valentinos                                            23.237551  -106.446791  https://wannasurf.com/spot/Central_America/Mexico/Sinaloa-Nayarit/valentinos/index.html
+
+## Montserrat
+Belham Valley Rivermouth                              16.741428   -62.233064  https://wannasurf.com/spot/Central_America/Montserrat/Belham_Valley_Rivermouth/index.html
+
+## Nicaragua
+Aserradores                                           12.625095   -87.354441  https://wannasurf.com/spot/Central_America/Nicaragua/Aserradores/index.html
+Astillero                                             11.512407   -86.171694  https://wannasurf.com/spot/Central_America/Nicaragua/Astillero/index.html
+Asuchio                                               11.933989   -86.620797  https://wannasurf.com/spot/Central_America/Nicaragua/Asuchio/index.html
+Cherrio S                                             11.912683   -86.620000  https://wannasurf.com/spot/Central_America/Nicaragua/Cherrio_s/index.html
+Chigga S                                              11.904294   -86.615625  https://wannasurf.com/spot/Central_America/Nicaragua/Chigga_s/index.html
+Colorado                                              11.406264   -86.048012  https://wannasurf.com/spot/Central_America/Nicaragua/Colorado/index.html
+El Bluff                                              12.001628   -83.683891  https://wannasurf.com/spot/Central_America/Nicaragua/El_Bluff/index.html
+Freight Trains                                        12.191972   -86.772864  https://wannasurf.com/spot/Central_America/Nicaragua/Freight_Trains/index.html
+Hemorrhoids                                           11.923981   -86.622592  https://wannasurf.com/spot/Central_America/Nicaragua/Hemorrhoids/index.html
+Hongo Reef                                            11.392533   -86.035223  https://wannasurf.com/spot/Central_America/Nicaragua/Hongo_Reef/index.html
+Miramar                                               12.168750   -86.764478  https://wannasurf.com/spot/Central_America/Nicaragua/Miramar/index.html
+No Names                                              12.155636   -86.757469  https://wannasurf.com/spot/Central_America/Nicaragua/No_Names/index.html
+Padangs                                               12.162222   -86.758833  https://wannasurf.com/spot/Central_America/Nicaragua/Padangs/index.html
+Pie De Gigante Point                                  11.383866   -86.037111  https://wannasurf.com/spot/Central_America/Nicaragua/Pie_De_Gigante_Point/index.html
+Pipes                                                 12.173042   -86.765786  https://wannasurf.com/spot/Central_America/Nicaragua/Pipes/index.html
+Playa Amarillo                                        11.398086   -86.038141  https://wannasurf.com/spot/Central_America/Nicaragua/Playa_Amarillo/index.html
+Playa Maderas                                         11.283299   -85.904117  https://wannasurf.com/spot/Central_America/Nicaragua/Playa_Maderas/index.html
+Playa Remanso                                         11.220837   -85.848713  https://wannasurf.com/spot/Central_America/Nicaragua/Playa_Remanso/index.html
+Pochomil Beach Break                                  11.771741   -86.510403  https://wannasurf.com/spot/Central_America/Nicaragua/Pochomil_Beach_Break/index.html
+Poneloya Beach Las Penitas                            12.370039   -87.036695  https://wannasurf.com/spot/Central_America/Nicaragua/Poneloya_Beach_Las_Penitas/index.html
+Popoyo                                                11.451417   -86.106317  https://wannasurf.com/spot/Central_America/Nicaragua/Popoyo/index.html
+Puerto Sandino                                        12.189704   -86.802979  https://wannasurf.com/spot/Central_America/Nicaragua/Puerto_Sandino/index.html
+Quizala                                               11.920431   -86.617241  https://wannasurf.com/spot/Central_America/Nicaragua/Quizala_/index.html
+Santana                                               11.437292   -86.084490  https://wannasurf.com/spot/Central_America/Nicaragua/Santana/index.html
+Suicides                                              12.182881   -86.772408  https://wannasurf.com/spot/Central_America/Nicaragua/Suicides/index.html
+Tamarindo                                             11.236159   -85.865450  https://wannasurf.com/spot/Central_America/Nicaragua/Tamarindo/index.html
+The Finca                                             13.028642   -87.609100  https://wannasurf.com/spot/Central_America/Nicaragua/The_Finca/index.html
+
+## Panama
+411  Quatro-Once                                       7.238516   -80.519652  https://wannasurf.com/spot/Central_America/Panama/411__quatro-once/index.html
+Chame Banks                                            8.608964   -79.740583  https://wannasurf.com/spot/Central_America/Panama/Chame_Banks/index.html
+Corto Circuito                                         7.241347   -80.565362  https://wannasurf.com/spot/Central_America/Panama/Corto_Circuito/index.html
+Estero Beach                                           7.623291   -81.244669  https://wannasurf.com/spot/Central_America/Panama/Estero_Beach/index.html
+Kuna An                                                9.588690   -78.888574  https://wannasurf.com/spot/Central_America/Panama/Kuna_An/index.html
+Lagart Point                                           7.511013   -79.994717  https://wannasurf.com/spot/Central_America/Panama/Lagart_Point/index.html
+Lajas                                                  8.622902   -79.038434  https://wannasurf.com/spot/Central_America/Panama/Lajas/index.html
+Leftovers                                              8.081267   -81.817685  https://wannasurf.com/spot/Central_America/Panama/Leftovers/index.html
+Maria Chiquita                                         9.451864   -79.747009  https://wannasurf.com/spot/Central_America/Panama/Maria_Chiquita_/index.html
+Rio Tabasara                                           8.015716   -81.696482  https://wannasurf.com/spot/Central_America/Panama/Rio_Tabasara_/index.html
+Roca Chica                                             8.205293   -82.180443  https://wannasurf.com/spot/Central_America/Panama/Roca_Chica/index.html
+Bluff                                                  9.423852   -82.256162  https://wannasurf.com/spot/Central_America/Panama/bluff/index.html
+Cambutal                                               7.249665   -80.488501  https://wannasurf.com/spot/Central_America/Panama/cambutal/index.html
+Carenerro Point Break                                  9.348268   -82.228830  https://wannasurf.com/spot/Central_America/Panama/carenerro_point_break/index.html
+El Palmar Point                                        8.465538   -79.958539  https://wannasurf.com/spot/Central_America/Panama/el_palmar_point/index.html
+El Playon                                              9.618354   -79.538119  https://wannasurf.com/spot/Central_America/Panama/el_playon/index.html
+Isla Grande                                            9.635329   -79.556894  https://wannasurf.com/spot/Central_America/Panama/isla_grande/index.html
+Isla Mamey                                             9.618255   -79.600936  https://wannasurf.com/spot/Central_America/Panama/isla_mamey/index.html
+La Barqueta                                            8.304246   -82.577662  https://wannasurf.com/spot/Central_America/Panama/la_barqueta/index.html
+Las Lajas                                              8.167940   -81.866201  https://wannasurf.com/spot/Central_America/Panama/las_lajas/index.html
+Malibu                                                 8.557087   -79.840736  https://wannasurf.com/spot/Central_America/Panama/malibu/index.html
+Playa Guanico                                          7.272227   -80.420265  https://wannasurf.com/spot/Central_America/Panama/playa_guanico/index.html
+Playa Venao                                            7.427751   -80.196161  https://wannasurf.com/spot/Central_America/Panama/playa_venao/index.html
+Punch Reef                                             9.340984   -82.239280  https://wannasurf.com/spot/Central_America/Panama/punch_reef/index.html
+Punta Brava                                            7.615414   -81.237387  https://wannasurf.com/spot/Central_America/Panama/punta_brava/index.html
+Punta Roca                                             7.634351   -81.279173  https://wannasurf.com/spot/Central_America/Panama/punta_roca/index.html
+Riomar                                                 8.456446   -79.971457  https://wannasurf.com/spot/Central_America/Panama/riomar/index.html
+Santa Catalina                                         7.652810   -81.293421  https://wannasurf.com/spot/Central_America/Panama/santa_catalina/index.html
+Serena                                                 8.548090   -79.868031  https://wannasurf.com/spot/Central_America/Panama/serena/index.html
+Silver Back                                            9.361111   -82.204722  https://wannasurf.com/spot/Central_America/Panama/silver_back/index.html
+Skully S                                               9.361998   -82.239068  https://wannasurf.com/spot/Central_America/Panama/skully_s/index.html
+Tetas                                                  8.506901   -79.917126  https://wannasurf.com/spot/Central_America/Panama/tetas/index.html
+Wizard Beach                                           9.350496   -82.195930  https://wannasurf.com/spot/Central_America/Panama/wizard_Beach_/index.html
+
+## Puerto Rico
+Casa Del Juez                                         18.493508   -66.630943  https://wannasurf.com/spot/Central_America/Puerto_Rico/Casa_del_Juez/index.html
+Channel                                               17.974626   -65.934140  https://wannasurf.com/spot/Central_America/Puerto_Rico/Channel/index.html
+Cueva Del Indio                                       18.491524   -66.643227  https://wannasurf.com/spot/Central_America/Puerto_Rico/Cueva_del_Indio/index.html
+Fiji                                                  18.469260   -66.089780  https://wannasurf.com/spot/Central_America/Puerto_Rico/Fiji/index.html
+La Santa                                              17.952698   -66.828278  https://wannasurf.com/spot/Central_America/Puerto_Rico/La_Santa/index.html
+Los Bohios                                            17.992040   -65.890642  https://wannasurf.com/spot/Central_America/Puerto_Rico/Los_Bohios/index.html
+Pozuelo                                               17.937265   -66.194000  https://wannasurf.com/spot/Central_America/Puerto_Rico/Pozuelo/index.html
+Punta De Brea                                         17.928967   -66.921887  https://wannasurf.com/spot/Central_America/Puerto_Rico/Punta_de_Brea/index.html
+Punta Las Marias                                      18.462452   -66.037595  https://wannasurf.com/spot/Central_America/Puerto_Rico/Punta_las_Marias/index.html
+Rompeolas                                             18.433406   -67.156270  https://wannasurf.com/spot/Central_America/Puerto_Rico/Rompeolas/index.html
+Sal Del Diablo                                        17.953101   -66.829893  https://wannasurf.com/spot/Central_America/Puerto_Rico/Sal_del_Diablo/index.html
+Sea Beach                                             18.331826   -67.253017  https://wannasurf.com/spot/Central_America/Puerto_Rico/Sea_Beach/index.html
+Sharky                                                18.004652   -65.864153  https://wannasurf.com/spot/Central_America/Puerto_Rico/Sharky/index.html
+Sheraton                                              18.457415   -66.070554  https://wannasurf.com/spot/Central_America/Puerto_Rico/Sheraton/index.html
+Surfers Beach                                         18.506796   -67.142258  https://wannasurf.com/spot/Central_America/Puerto_Rico/Surfers_Beach/index.html
+The Reef                                              18.336928   -65.319729  https://wannasurf.com/spot/Central_America/Puerto_Rico/The_Reef/index.html
+Aviones                                               18.452703   -65.956893  https://wannasurf.com/spot/Central_America/Puerto_Rico/aviones/index.html
+Ballenas                                              17.955546   -66.857300  https://wannasurf.com/spot/Central_America/Puerto_Rico/ballenas/index.html
+Bridges                                               18.425843   -67.155883  https://wannasurf.com/spot/Central_America/Puerto_Rico/bridges/index.html
+Caballos                                              18.461862   -66.004658  https://wannasurf.com/spot/Central_America/Puerto_Rico/caballos/index.html
+California                                            17.976804   -65.965701  https://wannasurf.com/spot/Central_America/Puerto_Rico/california/index.html
+Chatarra                                              18.454311   -65.964789  https://wannasurf.com/spot/Central_America/Puerto_Rico/chatarra/index.html
+Cochino                                               18.455506   -66.179790  https://wannasurf.com/spot/Central_America/Puerto_Rico/cochino/index.html
+Crashboats                                            18.457277   -67.164268  https://wannasurf.com/spot/Central_America/Puerto_Rico/crashboats/index.html
+Dirty Bryans                                          18.395253   -67.194110  https://wannasurf.com/spot/Central_America/Puerto_Rico/dirty_bryans/index.html
+Dogmans                                               18.355238   -67.270258  https://wannasurf.com/spot/Central_America/Puerto_Rico/dogmans/index.html
+Domes                                                 18.365268   -67.269673  https://wannasurf.com/spot/Central_America/Puerto_Rico/domes/index.html
+El Cocal                                              18.014753   -65.844508  https://wannasurf.com/spot/Central_America/Puerto_Rico/el_cocal/index.html
+El Penon Amador                                       18.490888   -66.867777  https://wannasurf.com/spot/Central_America/Puerto_Rico/el_penon_amador/index.html
+El Unico                                              18.468324   -66.237077  https://wannasurf.com/spot/Central_America/Puerto_Rico/el_unico/index.html
+Gas Chambers                                          18.459857   -67.165561  https://wannasurf.com/spot/Central_America/Puerto_Rico/gas_chambers/index.html
+Goyu                                                  18.482652   -66.275867  https://wannasurf.com/spot/Central_America/Puerto_Rico/goyu/index.html
+Hollows                                               18.490934   -66.610928  https://wannasurf.com/spot/Central_America/Puerto_Rico/hollows/index.html
+Inches                                                17.970202   -65.961249  https://wannasurf.com/spot/Central_America/Puerto_Rico/inches/index.html
+Indicators                                            18.363003   -67.271562  https://wannasurf.com/spot/Central_America/Puerto_Rico/indicators/index.html
+Isabella                                              18.501546   -67.023897  https://wannasurf.com/spot/Central_America/Puerto_Rico/isabella/index.html
+Islitas                                               18.448693   -66.015322  https://wannasurf.com/spot/Central_America/Puerto_Rico/islitas/index.html
+Jobo S                                                18.514488   -67.077413  https://wannasurf.com/spot/Central_America/Puerto_Rico/jobo_s/index.html
+Kikita Beach                                          18.477610   -66.262461  https://wannasurf.com/spot/Central_America/Puerto_Rico/kikita_beach/index.html
+La Bomba                                              18.456967   -66.063688  https://wannasurf.com/spot/Central_America/Puerto_Rico/la_bomba/index.html
+La Ocho                                               18.468802   -66.092119  https://wannasurf.com/spot/Central_America/Puerto_Rico/la_ocho/index.html
+La Peinilla                                           18.492593   -66.396432  https://wannasurf.com/spot/Central_America/Puerto_Rico/la_peinilla/index.html
+La Selva                                              18.368944   -65.693414  https://wannasurf.com/spot/Central_America/Puerto_Rico/la_selva/index.html
+Las Pasas                                             18.487037   -66.343276  https://wannasurf.com/spot/Central_America/Puerto_Rico/las_pasas/index.html
+Left Indo                                             18.381732   -65.614514  https://wannasurf.com/spot/Central_America/Puerto_Rico/left_indo/index.html
+Little Malibu                                         18.343909   -67.260645  https://wannasurf.com/spot/Central_America/Puerto_Rico/little_malibu/index.html
+Los Tubos                                             18.470369   -66.475654  https://wannasurf.com/spot/Central_America/Puerto_Rico/los_tubos/index.html
+Luquillo                                              18.376372   -65.713670  https://wannasurf.com/spot/Central_America/Puerto_Rico/luquillo/index.html
+Manglito                                              18.464279   -67.168594  https://wannasurf.com/spot/Central_America/Puerto_Rico/manglito/index.html
+Maria S                                               18.357428   -67.269373  https://wannasurf.com/spot/Central_America/Puerto_Rico/maria_s/index.html
+Middles                                               18.250000   -66.500000  https://wannasurf.com/spot/Central_America/Puerto_Rico/middles/index.html
+Pine Grove                                            18.444449   -66.011170  https://wannasurf.com/spot/Central_America/Puerto_Rico/pine_grove/index.html
+Survival                                              18.508505   -67.137022  https://wannasurf.com/spot/Central_America/Puerto_Rico/survival/index.html
+Table Rock                                            18.399070   -67.189883  https://wannasurf.com/spot/Central_America/Puerto_Rico/table_rock/index.html
+The Search                                            18.068238   -65.796111  https://wannasurf.com/spot/Central_America/Puerto_Rico/the_search/index.html
+Tocones                                               18.451390   -65.954629  https://wannasurf.com/spot/Central_America/Puerto_Rico/tocones/index.html
+Tres Palmas                                           18.344912   -67.261927  https://wannasurf.com/spot/Central_America/Puerto_Rico/tres_palmas/index.html
+Wilderness                                            18.476195   -67.169241  https://wannasurf.com/spot/Central_America/Puerto_Rico/wilderness/index.html
+
+## Saba
+Fort Bay                                              17.617736   -63.255458  https://wannasurf.com/spot/Central_America/Saba/Fort_Bay/index.html
+Wells Bay                                             17.642946   -63.252797  https://wannasurf.com/spot/Central_America/Saba/Wells_bay/index.html
+
+## St Barthelemy
+Airpot Left                                           17.907141   -62.839522  https://wannasurf.com/spot/Central_America/St_Barthelemy/Airpot_left/index.html
+Anse Des Cayes                                        17.911398   -62.843235  https://wannasurf.com/spot/Central_America/St_Barthelemy/Anse_des_Cayes/index.html
+Flamand                                               17.919524   -62.859585  https://wannasurf.com/spot/Central_America/St_Barthelemy/Flamand/index.html
+Kawa                                                  17.892929   -62.805217  https://wannasurf.com/spot/Central_America/St_Barthelemy/Kawa/index.html
+La Tortue                                             17.917513   -62.800770  https://wannasurf.com/spot/Central_America/St_Barthelemy/La_Tortue/index.html
+La Passe De Colombier                                 17.920484   -62.874724  https://wannasurf.com/spot/Central_America/St_Barthelemy/La_passe_de_Colombier_/index.html
+Lorient                                               17.908346   -62.825317  https://wannasurf.com/spot/Central_America/St_Barthelemy/Lorient/index.html
+Petite Anse                                           17.922352   -62.864177  https://wannasurf.com/spot/Central_America/St_Barthelemy/Petite_Anse/index.html
+Toiny                                                 17.895380   -62.795277  https://wannasurf.com/spot/Central_America/St_Barthelemy/Toiny/index.html
+Washing Machine                                       17.888452   -62.810045  https://wannasurf.com/spot/Central_America/St_Barthelemy/Washing_Machine/index.html
+Point Milou                                           17.919330   -62.815404  https://wannasurf.com/spot/Central_America/St_Barthelemy/point_milou_/index.html
+
+## St Kitts
+St  Kitts Marriott Reef                               17.308688   -62.731934  https://wannasurf.com/spot/Central_America/St_Kitts/St__Kitts_Marriott_Reef/index.html
+
+## St Lucia
+Marigot Bay                                           13.967829   -61.027443  https://wannasurf.com/spot/Central_America/St_Lucia/Marigot_Bay/index.html
+Rabbit Beach                                          14.077906   -60.913154  https://wannasurf.com/spot/Central_America/St_Lucia/Rabbit_Beach/index.html
+Rodny Bay                                             14.093801   -60.960077  https://wannasurf.com/spot/Central_America/St_Lucia/Rodny_Bay/index.html
+Winjammer                                             14.057940   -60.976278  https://wannasurf.com/spot/Central_America/St_Lucia/Winjammer/index.html
+
+## St Martin
+Blake S Break                                         18.089728   -63.009338  https://wannasurf.com/spot/Central_America/St_Martin/Blake_s_break/index.html
+Cupecoy                                               18.049602   -63.135080  https://wannasurf.com/spot/Central_America/St_Martin/Cupecoy/index.html
+Garbage Heap                                          18.122034   -63.019466  https://wannasurf.com/spot/Central_America/St_Martin/Garbage_Heap/index.html
+Mullet Bay                                            18.044096   -63.125912  https://wannasurf.com/spot/Central_America/St_Martin/Mullet_bay/index.html
+North Dump                                            18.124167   -63.027222  https://wannasurf.com/spot/Central_America/St_Martin/North_Dump/index.html
+Galion                                                18.074674   -63.015261  https://wannasurf.com/spot/Central_America/St_Martin/galion/index.html
+
+## St Vincent Grenadines
+Blue Lagoon                                           13.126389   -61.202500  https://wannasurf.com/spot/Central_America/St_Vincent_Grenadines/Blue_Lagoon/index.html
+Ship In Bay                                           13.187528   -61.138519  https://wannasurf.com/spot/Central_America/St_Vincent_Grenadines/Ship_In_Bay/index.html
+
+## Tobago
+Mount Irvine Bay                                      11.196705   -60.797385  https://wannasurf.com/spot/Central_America/Tobago/mount_irvine_bay/index.html
+
+## Turks   Caicos/Pine_Cay
+Pine Cay                                              21.863630   -72.110749  https://wannasurf.com/spot/Central_America/Turks___Caicos/Pine_Cay/Pine_Cay/index.html
+
+## Virgin Islands
+Judiths Fancy                                         17.777806   -64.745736  https://wannasurf.com/spot/Central_America/Virgin_Islands/Judiths_Fancy/index.html
+Turner Bay                                            18.325654   -64.796580  https://wannasurf.com/spot/Central_America/Virgin_Islands/Turner_Bay/index.html
+Carambola                                             17.762688   -64.833992  https://wannasurf.com/spot/Central_America/Virgin_Islands/carambola/index.html
+Hull Bay                                              18.378311   -64.996490  https://wannasurf.com/spot/Central_America/Virgin_Islands/hull_bay/index.html
+Sprat Bay                                             18.319513   -64.945078  https://wannasurf.com/spot/Central_America/Virgin_Islands/sprat_bay/index.html

@@ -159,10 +159,66 @@ Storms render unconditionally as long as the Storms layer toggle is on. The Atla
 
 ---
 
+## Bug 8 — Complex-low fragmentation (one storm narrated as N systems)
+
+**Severity:** Medium (inflates active-storm count, fragments map markers)
+**File:** `backend/high_seas.py`
+**Lines:** 295–442 (parser), 430–436 (dedupe)
+
+**Discovered via** `/api/storms/_debug` on 2026-04-26: HSF/AT1 reported a single Greenland complex low as four separate systems at 63–65°N off the south tip of Greenland with pressures 986 / 978 / 976 / 995 mb. KWBC narrates these as "COMPLEX LOW" in one section with multiple centers; our regex extracts each center as a discrete system, and `_parse_bulletin` dedupe is position-exact:
+
+```python
+# high_seas.py line 430-436
+key = (round(lat, 1), round(lon, 1), sys_type)
+if key in seen:
+    continue
+seen.add(key)
+```
+
+Storm centers spread 50–200 nm apart never collide on a 0.1° grid, so all of them survive. This is the source of George's reported 7 → ~4 inflation in the Atlantic count.
+
+**Fix options:**
+
+(a) **Per-section merge in `_parse_bulletin`** — when a single bulletin section mentions "COMPLEX LOW" or contains multiple center coordinates, emit one synthesized system at the centroid with the strongest pressure as the primary. Annotate `secondary_centers: [...]` for the drawer. Cleanest semantic fix.
+
+(b) **Geographic clustering at output time** — DBSCAN-style cluster on `(lat, lon)` with eps ≈ 3° within each ocean+type, collapse cluster to its strongest member. Naive but works for any future fragmentation case.
+
+(c) **Output-side dedupe in `routes/storms.py`** — collapse `(ocean, sys_type, round(lat/3)*3, round(lon/3)*3)` keys, keep lowest-pressure member. ~10 lines, no parser changes. Good interim if Bug 8 fix is going to lag the GFS detector.
+
+(d) **Wait for `GLOBAL_STORM_DETECTION_PLAN.md` Phase 1+2** — the wind-field detector clusters pressure minima directly from GFS, never sees the bulletin's narrative fragmentation. **Recommended:** George explicitly called this out as the right durable fix. Bulletin parser stays as a fallback / verification source.
+
+**Recommendation:** (d) for the durable fix. Optionally (c) as a 10-line interim if the inflated count bothers users between now and detector ship.
+
+---
+
+## Bug 9 — LLM enhancement value bleed across co-section systems
+
+**Severity:** Medium (silently wrong drawer L1 numbers)
+**File:** `backend/high_seas.py`
+**Lines:** 530–562, function `_enhance`
+
+**Discovered via** `/api/storms/_debug` on 2026-04-26: the four Greenland complex-low fragments above all came back from `/api/storms/active` with **identical** `wind_kts: 65` and `sea_height_ft: 38`. That's not four separate measurements — that's the section-level "WITHIN AN AREA BOUNDED BY..." peak echoed onto every system the parser found in that section.
+
+**Root cause:** `_enhance(system)` calls `parse_bulletin_section(system["raw_text"])` (Claude Haiku) with the full multi-system section text. The LLM dutifully extracts the strongest wind and sea height it sees, but it has no way to know which coordinate that peak belongs to, so the same number gets stamped onto each `system["wind_kts"]` / `system["sea_height_ft"]` for every system whose `raw_text` slice covers the same WITHIN-AREA block.
+
+**Fix options:**
+
+(a) **Skip LLM enhancement when section yields ≥2 systems** — leave `wind_kts` and `sea_height_ft` null rather than stamp the same peak on every center. Drawer already handles missing fields gracefully. 5-line change.
+
+(b) **Per-coordinate sub-block extraction** — split section text on coordinate boundaries before feeding to the LLM, so each system gets only the prose within ±N lines of its own center. More work, only justified if (a) hides too much data.
+
+(c) **Auto-resolves with Bug 8 fix** — once complex lows are merged into a single system, there's no "co-section" anymore and the LLM call gets the right scope. **Recommended** alongside Bug 8 (d).
+
+**Recommendation:** (a) immediately as a safety net (prevents fake-precision in the drawer), then (c) eliminates the class of bug entirely once GFS detector or per-section merge ships.
+
+---
+
 ## Suggested fix order
 
 1. **Bug 2** (forecast track regex) — half-day, immediate win for drawer L1.
-2. **Bug 1** (rename `south-pacific` → `east-pacific`) — half-day, mostly a config + frontend label change.
+2. **Bug 1** (rename `south-pacific` → `east-pacific`) — half-day. **Partial fix already applied** in `routes/storms.py` (`_storm_id` prefix map renames). Verify `high_seas.py` `_OCEAN_PRODUCT_MAP` and frontend labels still need the rename.
 3. **Bug 3** (rename `min_pressure_mb` → `max_pressure_mb`) — bundle with #1, same surface area.
-4. **Bug 4** (storm ID collisions) — half-day, do when convenient.
-5. **Bugs 5/6** — defer to `GLOBAL_STORM_DETECTION_PLAN.md`.
+4. **Bug 9 option (a)** (skip LLM enhancement on multi-system sections) — 5-line safety patch, prevents fake-precision drawer values today.
+5. **Bug 4** (storm ID collisions) — half-day, do when convenient.
+6. **Bug 8 option (c)** (output-side dedupe) — optional 10-line interim if 7→4 inflation bothers users before the detector ships.
+7. **Bugs 5 / 6 / 8 (d) / 9 (c)** — defer to `GLOBAL_STORM_DETECTION_PLAN.md` Phase 1+2 (wind-field detector). Per George: *"Phase 1+2 of the GFS detector is the right call — not a parser fix."*
