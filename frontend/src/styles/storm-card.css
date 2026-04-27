@@ -139,6 +139,19 @@ body.dimmed #dim-layer {
   opacity: 0.7;
   flex-shrink: 0;
 }
+.sc-model-badge.confirmed {
+  color: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.9;
+}
+.sc-bulletin-badge {
+  color: var(--fire);
+  border-color: var(--fire);
+  opacity: 0.85;
+}
+.sc-model-confirmed {
+  color: var(--accent);
+}
 
 .l1-sub {
   font-family: var(--font-mono);

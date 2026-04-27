@@ -60,6 +60,16 @@ function prepareTrack(forecast_track) {
     .slice(0, 3);
 }
 
+const COMPASS_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function degToCompass(deg) {
+  if (deg == null) return null;
+  return COMPASS_DIRS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+}
+function fmtHours(h) {
+  if (h == null) return '—';
+  return h < 48 ? `~${Math.round(h)}h` : `~${Math.round(h / 24)}d`;
+}
+
 export function StormCard({ storm, mapRef, onClose }) {
   const navigate = useNavigate();
   const [l2Status,       setL2Status]       = useState('idle');
@@ -69,6 +79,7 @@ export function StormCard({ storm, mapRef, onClose }) {
   const [highlight,      setHighlight]      = useState(null);
   const [minutesAgoVal,  setMinutesAgoVal]  = useState(() => minutesAgo(storm?.issued_utc));
   const [chipLoading,    setChipLoading]    = useState(false);
+  const [detail,         setDetail]         = useState(null);
   const abortRef = useRef(null);
 
   /* ─── Data prep ───────────────────────────────────────────── */
@@ -96,6 +107,30 @@ export function StormCard({ storm, mapRef, onClose }) {
   const stale = (minutesAgoVal || 0) > 720;
   const isHurricane = type === 'HURRICANE' || type === 'TYPHOON';
 
+  // Phase 8: detail fields (fall back to storm props while loading)
+  const d = detail || storm;
+  const narrative         = d.narrative;
+  const isDeepening       = d.is_deepening;
+  const intensRate        = d.intensification_rate_mb_per_6h;
+  const peakIntensityHour = d.peak_intensity_hour;
+  const willLandfall      = d.will_make_landfall;
+  const landfallEta       = d.landfall_eta_hours;
+  const landfallBeforePeak = d.landfall_before_peak;
+  const peakSeaM          = d.peak_sea_m;
+  const peakPeriodS       = d.peak_period_s;
+  const swellDirDeg       = d.swell_direction_deg;
+  const swellDirCompass   = degToCompass(swellDirDeg);
+  const peakSeaFt         = peakSeaM != null ? Math.round(peakSeaM * 3.281) : null;
+  const confirmStatus     = d.confirmation_status;
+  const regionImpacts     = d.region_impacts;
+  const isModelStorm      = storm.source === 'model' || storm.source === 'reconciled';
+  // For model storms use WW3 peak seas when bulletin sea height is absent
+  const displaySeasFt     = (isModelStorm && !storm.sea_height_ft && peakSeaFt) ? peakSeaFt : seas_ft;
+  const ww3Confirmed      = confirmStatus === 'confirmed';
+  const modelSourceLabel  = isModelStorm
+    ? (ww3Confirmed ? 'GFS + WW3 confirmed' : 'GFS model-derived')
+    : null;
+
   /* ─── Freshness ticker ────────────────────────────────────── */
   useEffect(() => {
     const id = setInterval(() => {
@@ -103,6 +138,17 @@ export function StormCard({ storm, mapRef, onClose }) {
     }, 60000);
     return () => clearInterval(id);
   }, [storm?.issued_utc]);
+
+  /* ─── Detail fetch (Phase 8) ─────────────────────────────── */
+  useEffect(() => {
+    if (!storm?.id) return;
+    let cancelled = false;
+    fetch(`/api/storms/${storm.id}/detail`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled && data && !data.error) setDetail(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [storm?.id]);
 
   /* ─── Arrivals fetch ──────────────────────────────────────── */
   useEffect(() => {
@@ -233,6 +279,11 @@ export function StormCard({ storm, mapRef, onClose }) {
 
       <div className="storm-card-body">
 
+        {/* ─── Narrative headline (Phase 8) ─── */}
+        {narrative && (
+          <div className="sc-narrative">{narrative}</div>
+        )}
+
         {/* ─── L1: Header ─── */}
         <div className="l1-head">
           <div className={`storm-type-badge ${BADGE_CLASS[type] || 'low'}`}>
@@ -241,17 +292,28 @@ export function StormCard({ storm, mapRef, onClose }) {
           <div className="l1-title-block">
             <div className="l1-title" id="sc-title">
               {storm.name}
-              {storm.source === 'model' && (
-                <span className="sc-model-badge" title="Derived from GFS pressure field — not yet confirmed by a NOAA bulletin">
-                  model
+              {isModelStorm ? (
+                <span
+                  className={`sc-model-badge${ww3Confirmed ? ' confirmed' : ''}`}
+                  title={ww3Confirmed
+                    ? 'GFS pressure field + WW3 wave model confirmed'
+                    : storm.source === 'reconciled'
+                      ? 'Matched to NOAA bulletin — GFS + bulletin data merged'
+                      : 'Derived from GFS pressure field — WW3 unconfirmed'}
+                >
+                  {storm.source === 'reconciled' ? 'reconciled' : ww3Confirmed ? 'GFS+WW3' : 'GFS'}
+                </span>
+              ) : (
+                <span className="sc-model-badge sc-bulletin-badge" title="NOAA NWS High Seas Forecast bulletin">
+                  bulletin
                 </span>
               )}
             </div>
             <div className="l1-sub">
               {posLabel}
               {' · '}
-              {storm.source === 'model'
-                ? <span>GFS model-derived</span>
+              {modelSourceLabel
+                ? <span className={ww3Confirmed ? 'sc-model-confirmed' : ''}>{modelSourceLabel}</span>
                 : (
                   <time
                     dateTime={storm.issued_utc || ''}
@@ -297,8 +359,11 @@ export function StormCard({ storm, mapRef, onClose }) {
           </div>
           <div className="cell">
             <div className="k">Max Seas</div>
-            <div className="v">{seas_ft}<span className="u">ft</span></div>
-            <div className="sub">{seas_range} ft range</div>
+            <div className="v">{displaySeasFt}<span className="u">ft</span></div>
+            {isModelStorm && peakSeaFt != null
+              ? <div className="sub">{peakPeriodS != null ? `${peakPeriodS.toFixed(1)}s` : ''}{swellDirCompass ? ` · ${swellDirCompass}` : ''} WW3</div>
+              : <div className="sub">{seas_range} ft range</div>
+            }
           </div>
         </div>
 
@@ -363,6 +428,97 @@ export function StormCard({ storm, mapRef, onClose }) {
           {chipLoading ? 'Opening…' : 'Ask Sione about this storm'}
           {!chipLoading && <span className="spark">Chat ↗</span>}
         </button>
+
+        {/* ─── Storm Dynamics (Phase 8) ─── */}
+        {(isDeepening != null || peakSeaFt != null) && (
+          <div className="sc-section sc-dynamics">
+            <div className="sc-section-head">Storm Dynamics</div>
+            <div className="sc-row-grid">
+              {isDeepening != null && (
+                <div className="sc-cell">
+                  <div className="k">Trend</div>
+                  <div className={`v${isDeepening ? ' deepening' : ''}`}>
+                    {isDeepening ? '↓ Deepening' : '↑ Weakening'}
+                    {intensRate != null && (
+                      <span className="sub">
+                        {Math.abs(intensRate).toFixed(1)} mb / 6h
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {peakIntensityHour != null && (
+                <div className="sc-cell">
+                  <div className="k">Peaks in</div>
+                  <div className="v">{fmtHours(peakIntensityHour)}</div>
+                </div>
+              )}
+              {peakSeaFt != null && (
+                <div className="sc-cell">
+                  <div className="k">WW3 Seas</div>
+                  <div className="v">
+                    {peakSeaFt} ft
+                    {peakPeriodS != null && swellDirCompass != null && (
+                      <span className="sub">{peakPeriodS}s {swellDirCompass}</span>
+                    )}
+                    {peakPeriodS != null && swellDirCompass == null && (
+                      <span className="sub">{peakPeriodS}s</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {confirmStatus && confirmStatus !== 'ww3_unavailable' && (
+                <div className="sc-cell">
+                  <div className="k">Confirm</div>
+                  <div className={`v sc-confirm-${confirmStatus}`}>
+                    {confirmStatus === 'confirmed' ? '✓ WW3' : confirmStatus.replace('_', ' ')}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Landfall (Phase 8) ─── */}
+        {willLandfall === true && (
+          <div className={`sc-section sc-landfall${landfallBeforePeak ? ' before-peak' : ''}`}>
+            <div className="sc-section-head">Landfall</div>
+            <div className="sc-landfall-body">
+              <span>ETA {fmtHours(landfallEta)}</span>
+              {landfallBeforePeak && (
+                <span className="sc-warn">Storm dies before peak — swell window shortened</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Region Impacts (Phase 8) ─── */}
+        {regionImpacts && regionImpacts.length > 0 && (
+          <div className="sc-section sc-regions">
+            <div className="sc-section-head">Regional Impact</div>
+            {regionImpacts
+              .filter(r => r.impact_tier !== 'miss')
+              .slice(0, 6)
+              .map(r => (
+                <div
+                  key={r.region_id}
+                  className={`sc-region-row${r.is_best_exposure ? ' best' : ''}`}
+                >
+                  <div className="sc-region-name">
+                    {r.label}
+                    {r.is_best_exposure && <span className="sc-best-badge">best</span>}
+                  </div>
+                  <div className="sc-region-bar-wrap">
+                    <div
+                      className={`sc-region-bar tier-${r.impact_tier}`}
+                      style={{ width: `${Math.round(r.energy_index * 100)}%` }}
+                    />
+                  </div>
+                  <div className="sc-region-arrival">{fmtHours(r.arrival_hours)}</div>
+                </div>
+              ))}
+          </div>
+        )}
 
         {/* ─── L1: Raw bulletin ─── */}
         {storm.raw_text && (

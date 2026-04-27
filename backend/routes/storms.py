@@ -21,6 +21,39 @@ from pydantic import BaseModel
 from high_seas import get_high_seas, _format_type
 from storm_arrivals import compute_arrivals
 
+# Land-mask backstop for storm centers that fall over a continent.
+# A center-over-land system has no fetch, so we never want to mark it on the
+# surf map — even if a bulletin narrates it (e.g. KWBC inland Canada lows) or
+# the GFS detector locks onto a continental pressure minimum. The dependency
+# is intentionally optional: if the package fails to install in production,
+# we fall through to the legacy behavior rather than hide every storm.
+try:
+    from global_land_mask import globe as _globe_land
+    _LAND_MASK_AVAILABLE = True
+except ImportError:
+    _globe_land = None
+    _LAND_MASK_AVAILABLE = False
+    print("⚠️  storms: global_land_mask not installed — land-centered systems "
+          "will not be filtered. `pip install global-land-mask` to enable.")
+
+
+def _is_over_water(lat: float, lon: float) -> bool:
+    """
+    True if the (lat, lon) is over open water at ~1° resolution.
+
+    Falls back to True (keep the system) when the package is unavailable, so a
+    missing dependency degrades gracefully rather than emptying the storm map.
+    Subsumes itself once GLOBAL_STORM_DETECTION_PLAN.md Phase 4 (WW3 confirmation
+    pass) ships — that filter handles land implicitly via wave response.
+    """
+    if not _LAND_MASK_AVAILABLE or _globe_land is None:
+        return True
+    try:
+        return not bool(_globe_land.is_land(float(lat), float(lon)))
+    except Exception:
+        return True
+
+
 router = APIRouter()
 
 _SURF_TYPES = {"LOW", "TROPICAL STORM", "TROPICAL DEPRESSION", "HURRICANE", "TYPHOON"}
@@ -42,6 +75,71 @@ def load_storms_config() -> dict:
         return json.loads(_CONFIG_PATH.read_text())
     except Exception:
         return _DEFAULT_CONFIG.copy()
+
+
+async def _load_model_storms_from_db() -> List[Dict]:
+    """Read non-expired model/reconciled storms from derived_storms as a cache-miss fallback."""
+    try:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client()
+        if not client:
+            return []
+        from datetime import datetime, timezone
+        now_iso = datetime.now(timezone.utc).isoformat()
+        # Find the most recent detected_at first, then fetch only that run
+        latest_resp = (
+            client.table("derived_storms")
+            .select("detected_at")
+            .gt("expires_at", now_iso)
+            .order("detected_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not latest_resp.data:
+            return []
+        latest_detected_at = latest_resp.data[0]["detected_at"]
+        resp = (
+            client.table("derived_storms")
+            .select("*")
+            .eq("detected_at", latest_detected_at)
+            .execute()
+        )
+        rows = resp.data or []
+        # Shape DB rows back into the storm dict format reconcile expects
+        storms = []
+        for r in rows:
+            storms.append({
+                "id":                           r["storm_id"],
+                "source":                       r["source"],
+                "bulletin_storm_id":            r.get("bulletin_storm_id"),
+                "lat":                          r["current_lat"],
+                "lon":                          r["current_lon"],
+                "pressure_mb":                  r.get("current_pressure_mb"),
+                "wind_kts":                     r.get("peak_wind_kts"),
+                "warning_tier":                 r.get("warning_tier"),
+                "name":                         r.get("basin_label"),
+                "is_deepening":                 r.get("is_deepening"),
+                "intensification_rate_mb_per_6h": r.get("intensification_rate_mb_per_6h"),
+                "peak_intensity_hour":          r.get("peak_intensity_hour"),
+                "will_make_landfall":           r.get("will_make_landfall"),
+                "landfall_eta_hours":           r.get("landfall_eta_hours"),
+                "landfall_before_peak":         r.get("landfall_before_peak"),
+                "forecast_track":               r.get("forecast_track") or [],
+                "peak_sea_m":                   r.get("peak_sea_m"),
+                "peak_period_s":                r.get("peak_period_s"),
+                "swell_direction_deg":          r.get("swell_direction_deg"),
+                "max_cone_hs_m":                r.get("max_cone_hs_m"),
+                "confirmation_status":          r.get("confirmation_status"),
+                "region_impacts":               r.get("region_impacts") or [],
+                "narrative":                    r.get("narrative"),
+                "type":                         "LOW",
+                "ocean":                        "model",
+            })
+        print(f"✅ storms/active: loaded {len(storms)} model storms from derived_storms DB")
+        return storms
+    except Exception as e:
+        print(f"⚠️  storms/active: DB model storm load failed: {e}")
+        return []
 
 
 def save_storms_config(cfg: dict) -> None:
@@ -131,6 +229,16 @@ async def get_active_storms(
     """
     cfg = load_storms_config()
 
+    # Guard against FastAPI Query objects when called programmatically
+    if not isinstance(oceans, str):
+        oceans = None
+    if not isinstance(min_wind_kts, (int, float)):
+        min_wind_kts = None
+    if not isinstance(max_pressure_mb, (int, float)):
+        max_pressure_mb = None
+    if not isinstance(include_highs, bool):
+        include_highs = None
+
     # Query params override config when explicitly provided
     if max_pressure_mb is None:
         max_pressure_mb = cfg.get("max_pressure_mb", 1020)
@@ -198,28 +306,45 @@ async def get_active_storms(
     updated_at = max(freshness) if freshness else None
     out = _dedupe_complex_lows(out)
 
-    # Merge model-derived storms (Bugs 5 & 6 — Southern Hemisphere + weak NH lows).
-    # Bulletin storms take priority: suppress any model storm whose center is within
-    # 400 km of an already-confirmed bulletin storm (avoid double-markers).
+    # Reconcile bulletin + model storms per §8 of GLOBAL_STORM_DETECTION_PLAN.md.
+    # Cache is in-memory (same process); fall back to derived_storms DB when empty.
     try:
         from jobs.detect_storms import get_cached_model_storms
-        model_storms = get_cached_model_storms() or []
-        if model_storms:
-            for ms in model_storms:
-                too_close = any(
-                    _haversine_km(ms["lat"], ms["lon"], bs["lat"], bs["lon"]) < 400
-                    for bs in out
-                )
-                if not too_close:
-                    out.append({**ms, "source": "model"})
-            # Tag bulletin storms with source field for frontend differentiation
-            for s in out:
-                s.setdefault("source", "bulletin")
+        from services.storm_reconciliation import reconcile
+        model_storms = get_cached_model_storms()
+        if not model_storms:
+            model_storms = await _load_model_storms_from_db()
+        out = reconcile(out, model_storms or [])
     except Exception as e:
-        print(f"⚠️  storms/active: model merge failed: {e}")
+        print(f"⚠️  storms/active: reconcile failed: {e}")
+        # Fallback: tag bulletin storms so source field is always present
+        for s in out:
+            s.setdefault("source", "bulletin")
+
+    # Drop systems whose center sits over a continent. Applies to both
+    # bulletin and model storms — a land-centered low has no offshore fetch
+    # and shouldn't appear on the surf map. Subsumed by the WW3 confirmation
+    # pass once GLOBAL_STORM_DETECTION_PLAN.md Phase 4 ships.
+    if _LAND_MASK_AVAILABLE:
+        pre = len(out)
+        out = [s for s in out if _is_over_water(s["lat"], s["lon"])]
+        dropped = pre - len(out)
+        if dropped:
+            print(f"🗺️  storms: dropped {dropped} land-centered system(s) "
+                  f"(kept {len(out)})")
+
+    # Sanitize NaN/Inf from model storm fields before JSON serialization
+    def _san(obj):
+        if isinstance(obj, float):
+            return None if (math.isnan(obj) or math.isinf(obj)) else obj
+        if isinstance(obj, dict):
+            return {k: _san(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_san(v) for v in obj]
+        return obj
 
     return {
-        "storms":     out,
+        "storms":     _san(out),
         "count":      len(out),
         "updated_at": updated_at,
         "cached":     True,
@@ -229,6 +354,64 @@ async def get_active_storms(
 # ── Storm arrivals ────────────────────────────────────────────────────────────
 
 _OCEAN_PREFIX = {"np": "north-pacific", "na": "north-atlantic", "ep": "east-pacific"}
+
+
+@router.get("/api/storms/{storm_id}/detail")
+async def get_storm_detail(storm_id: str):
+    """
+    Full storm record for the drawer — track, region impacts, narrative,
+    WW3 fields, intensification and landfall data.
+
+    Reads from derived_storms (DB) so the drawer survives a backend restart.
+    Falls back to in-memory cache if DB is unavailable.
+    """
+    import math as _math
+
+    def _sanitize(obj):
+        if isinstance(obj, float):
+            return None if (_math.isnan(obj) or _math.isinf(obj)) else obj
+        if isinstance(obj, dict):
+            return {k: _sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_sanitize(v) for v in obj]
+        return obj
+
+    # 1. Try DB lookup
+    storm_row = None
+    try:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client()
+        if client:
+            result = (
+                client.table("derived_storms")
+                .select("*")
+                .eq("storm_id", storm_id)
+                .single()
+                .execute()
+            )
+            storm_row = result.data
+    except Exception as e:
+        print(f"⚠️  storms/detail: DB lookup failed for {storm_id}: {e}")
+
+    if storm_row:
+        return _sanitize(storm_row)
+
+    # 2. Fall back to in-memory cache
+    try:
+        from jobs.detect_storms import get_cached_model_storms
+        cached = get_cached_model_storms() or []
+        for s in cached:
+            if s.get("id") == storm_id:
+                return _sanitize(s)
+    except Exception:
+        pass
+
+    # 3. Try bulletin path
+    storm = await _find_storm(storm_id)
+    if storm:
+        return _sanitize(storm)
+
+    return {"error": "storm_not_found", "storm_id": storm_id}
 
 
 async def _find_storm(storm_id: str) -> Optional[dict]:
@@ -517,7 +700,7 @@ async def storms_debug(
 
         # Mirror the same filter logic /api/storms/active uses
         kept    = 0
-        dropped = {"type": 0, "pressure": 0, "wind": 0}
+        dropped = {"type": 0, "pressure": 0, "wind": 0, "land": 0}
         for s in systems:
             sys_type = (s.get("type") or "").upper()
             if sys_type == "HIGH" and not include_highs:
@@ -531,6 +714,9 @@ async def storms_debug(
                 continue
             if s.get("wind_kts") and s["wind_kts"] < min_wind_kts:
                 dropped["wind"] += 1
+                continue
+            if not _is_over_water(s["lat"], s["lon"]):
+                dropped["land"] += 1
                 continue
             kept += 1
 

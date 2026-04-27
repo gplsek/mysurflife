@@ -3,8 +3,8 @@
   "min_wind_kts": 0,
   "include_highs": true,
   "oceans": [
-    "north-pacific",
+    "east-pacific",
     "north-atlantic",
-    "east-pacific"
+    "north-pacific"
   ]
 }

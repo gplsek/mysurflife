@@ -5,6 +5,7 @@ Returns spots (with pre-baked ratings), buoys, storms, and user favorites
 in one parallel-fetched, 60s-cached response. p95 target: <400ms.
 """
 import asyncio
+import math
 import time
 from typing import Any, Dict, List, Optional
 
@@ -30,15 +31,24 @@ except ImportError:
         return []
 
 try:
-    from high_seas import get_high_seas
-    from routes.storms import load_storms_config, _storm_id, _format_label, _OCEAN_KEYS, _SURF_TYPES
-    from high_seas import _format_type
+    from routes.storms import get_active_storms
     _STORMS_AVAILABLE = True
 except ImportError:
     _STORMS_AVAILABLE = False
 
 _bundle_cache: Dict = {}
 _BUNDLE_TTL = 60  # seconds
+
+
+def _sanitize(obj: Any) -> Any:
+    """Recursively replace NaN/Inf with None for JSON serialization."""
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 
 # ── Component fetchers ────────────────────────────────────────────────────────
@@ -94,57 +104,16 @@ async def _fetch_spots() -> tuple:
 
 
 async def _fetch_storms() -> tuple:
-    """Returns (storm_list, freshness_str)."""
+    """Returns (storm_list, freshness_str) via the shared get_active_storms pipeline."""
     if not _STORMS_AVAILABLE:
         return [], None
     try:
-        cfg = load_storms_config()
-        min_pressure_mb = cfg.get("min_pressure_mb", 1020)
-        min_wind_kts    = cfg.get("min_wind_kts", 0)
-        include_highs   = cfg.get("include_highs", False)
-        ocean_list      = [o for o in cfg.get("oceans", _OCEAN_KEYS) if o in _OCEAN_KEYS]
-
-        out = []
-        freshness = []
-
-        for ocean in ocean_list:
-            hs = await get_high_seas(ocean)
-            if hs.get("issued_utc"):
-                freshness.append(hs["issued_utc"])
-            for s in hs.get("systems", []):
-                sys_type = s.get("type", "").upper()
-                if sys_type == "HIGH" and not include_highs:
-                    continue
-                if sys_type not in _SURF_TYPES and sys_type != "HIGH":
-                    continue
-                if s.get("pressure_mb") and s["pressure_mb"] > min_pressure_mb:
-                    continue
-                if s.get("wind_kts") and s["wind_kts"] < min_wind_kts:
-                    continue
-
-                basin = s.get("basin_label") or hs.get("label", ocean.replace("-", " ").title())
-                out.append({
-                    "id":            _storm_id(ocean, s["lat"], s["lon"]),
-                    "type":          sys_type,
-                    "name":          f"{_format_type(sys_type)} · {basin}",
-                    "lat":           s["lat"],
-                    "lon":           s["lon"],
-                    "pressure_mb":   s.get("pressure_mb"),
-                    "wind_kts":      s.get("wind_kts"),
-                    "sea_height_ft": s.get("sea_height_ft"),
-                    "sea_range_ft":  s.get("sea_range_ft"),
-                    "movement":      s.get("movement"),
-                    "warning_tier":  s.get("warning_tier", "none"),
-                    "fetch":         s.get("fetch"),
-                    "forecast_track": s.get("forecast_track"),
-                    "label":         _format_label(s),
-                    "issued_utc":    hs.get("issued_utc"),
-                    "raw_text":      s.get("raw_text"),
-                    "ocean":         ocean,
-                })
-
-        updated = max(freshness) if freshness else None
-        return out, updated
+        result = await get_active_storms(
+            oceans=None, min_wind_kts=None, max_pressure_mb=None, include_highs=None
+        )
+        storms = result.get("storms", [])
+        updated_at = result.get("updated_at")
+        return storms, updated_at
     except Exception as e:
         print(f"⚠️  map/bundle: storms fetch failed: {e}")
         return [], None
@@ -258,6 +227,7 @@ async def get_map_bundle(
     # Normalize exceptions from gather (if return_exceptions were True)
     if isinstance(spots,  Exception): spots  = []
     if isinstance(storms, Exception): storms = []
+    storms = _sanitize(storms)
     if isinstance(buoys,  Exception): buoys  = []
 
     updated_at = storms_ts or spots_ts or None

@@ -1,0 +1,12 @@
+{
+  "$comment": "Tunables for the GFS+WW3 cyclone detector. See notes/GLOBAL_STORM_DETECTION_PLAN.md §4.4.",
+  "max_pressure_mb":          998,
+  "cluster_radius_km":          200,
+  "track_radius_km":            600,
+  "track_pressure_delta_mb":     20,
+  "hs_confirm_min_m":           3.0,
+  "cone_half_angle_deg":          45,
+  "cone_range_nm":         [100, 800],
+  "confirm_required":          false,
+  "$confirm_required_note": "Set to true to drop unconfirmed model storms. Start false for at least 2 GFS cycles, validate against bulletin storms, then flip on."
+}
