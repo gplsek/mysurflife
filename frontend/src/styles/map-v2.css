@@ -649,6 +649,11 @@
 .marker-storm.wt-storm     { --sc: oklch(0.72 0.16 30); }
 .marker-storm.wt-hurricane { --sc: oklch(0.65 0.22 25); }
 
+/* Model-derived storms: dashed rings + reduced opacity to signal unconfirmed provenance */
+.marker-storm.source-model .ring   { border-style: dashed; opacity: 0.6; }
+.marker-storm.source-model .core   { opacity: 0.7; box-shadow: none; }
+.marker-storm.source-model .core:hover { box-shadow: 0 0 10px var(--sc); }
+
 .marker-storm .ring {
   position: absolute;
   inset: 50%;

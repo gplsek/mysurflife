@@ -121,6 +121,23 @@ body.dimmed #dim-layer {
   letter-spacing: -0.015em;
   line-height: 1.2;
   color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sc-model-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  padding: 1px 5px;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 .l1-sub {

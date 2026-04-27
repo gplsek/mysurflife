@@ -239,17 +239,29 @@ export function StormCard({ storm, mapRef, onClose }) {
             {typeLabel}
           </div>
           <div className="l1-title-block">
-            <div className="l1-title" id="sc-title">{storm.name}</div>
+            <div className="l1-title" id="sc-title">
+              {storm.name}
+              {storm.source === 'model' && (
+                <span className="sc-model-badge" title="Derived from GFS pressure field — not yet confirmed by a NOAA bulletin">
+                  model
+                </span>
+              )}
+            </div>
             <div className="l1-sub">
               {posLabel}
               {' · '}
-              <time
-                dateTime={storm.issued_utc || ''}
-                className={stale ? 'stale' : ''}
-              >
-                {formatFreshness(minutesAgoVal)}
-                {stale ? ' — may be stale' : ''}
-              </time>
+              {storm.source === 'model'
+                ? <span>GFS model-derived</span>
+                : (
+                  <time
+                    dateTime={storm.issued_utc || ''}
+                    className={stale ? 'stale' : ''}
+                  >
+                    {formatFreshness(minutesAgoVal)}
+                    {stale ? ' — may be stale' : ''}
+                  </time>
+                )
+              }
             </div>
           </div>
           <button
