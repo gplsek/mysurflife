@@ -90,12 +90,14 @@ async def _fetch_spots() -> tuple:
                 "region":    region_str,
                 "latitude":  spot["latitude"],
                 "longitude": spot["longitude"],
-                "rating":  r.get("rating"),        # 0-5; None if not yet rated
-                "swell":   r.get("primary_swell_ft"),
-                "period":  r.get("primary_period_s"),
-                "wind":    r.get("wind_mph"),
-                "water":   r.get("water_temp_f"),
-                "rated_at": r.get("computed_at"),
+                "rating":    r.get("rating"),        # 0-5; None if not yet rated
+                "swell":     r.get("primary_swell_ft"),
+                "swell_dir": r.get("primary_swell_dir"),
+                "period":    r.get("primary_period_s"),
+                "wind":      r.get("wind_mph"),
+                "wind_dir":  r.get("wind_dir"),
+                "water":     r.get("water_temp_f"),
+                "rated_at":  r.get("computed_at"),
             })
         return out, spots_freshness
     except Exception as e:

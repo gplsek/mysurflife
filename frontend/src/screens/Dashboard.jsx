@@ -3,13 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { getAuthHeaders } from '../supabaseClient';
 import LogoPulse from '../design/LogoPulse';
+import { StormCard } from '../components/map/StormCard';
 import './Dashboard.css';
+import '../styles/storm-card.css';
 
 const OCEAN_COLS = [
   { key: 'north-pacific',   label: 'North Pacific' },
   { key: 'east-pacific',    label: 'East Pacific'  },
   { key: 'north-atlantic',  label: 'North Atlantic' },
+  { key: 'south-pacific',   label: 'South Pacific' },
 ];
+
+const STORM_LEGEND = [
+  { tier: 'firing', label: 'Hurricane', range: '≥ 64 kts' },
+  { tier: 'solid',  label: 'Storm',     range: '48–63 kts' },
+  { tier: 'good',   label: 'Gale',      range: '34–47 kts' },
+  { tier: 'fair',   label: 'Strong',    range: '22–33 kts' },
+  { tier: 'flat',   label: 'Low',       range: '< 22 kts'  },
+];
+
+const TIDE_LABELS = {
+  low:          { label: 'Low',     arrow: null },
+  rising_low:   { label: 'Rising',  arrow: '↑' },
+  mid:          { label: 'Mid',     arrow: null },
+  rising_high:  { label: 'Rising',  arrow: '↑' },
+  high:         { label: 'High',    arrow: null },
+  falling:      { label: 'Falling', arrow: '↓' },
+};
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +67,12 @@ function ratingTier(r) {
   if (r >= 3) return 'good';
   if (r >= 2) return 'fair';
   return 'flat';
+}
+
+function degToCompass(deg) {
+  if (deg == null) return null;
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
 }
 
 function tierLabel(t) {
@@ -167,13 +193,28 @@ function StreakStrip({ sessions }) {
   );
 }
 
+function WindArrow({ dir }) {
+  if (dir == null) return null;
+  return (
+    <svg
+      width="10" height="10" viewBox="0 0 10 10" aria-hidden
+      style={{ transform: `rotate(${dir}deg)`, flexShrink: 0 }}
+    >
+      <path d="M5 9V1M2 4l3-3 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+}
+
 function OutlookCard({ spot, navigate }) {
-  const score  = spot.rating ?? null;
-  const tier   = score != null ? ratingTier(score * 2) : 'flat'; // rating is 0-5 scale
-  const dots   = score != null ? Math.round(score) : 0;
-  const swellFt = spot.swell != null ? spot.swell.toFixed(1) : null;
-  const period  = spot.period != null ? `${spot.period.toFixed(0)}s` : null;
-  const wind    = spot.wind   != null ? `${Math.round(spot.wind)}mph` : null;
+  const score    = spot.rating ?? null;
+  const tier     = score != null ? ratingTier(score * 2) : 'flat';
+  const dots     = score != null ? Math.round(score) : 0;
+  const swellFt  = spot.swell    != null ? spot.swell.toFixed(1) : null;
+  const period   = spot.period   != null ? `${spot.period.toFixed(0)}s` : null;
+  const windMph  = spot.wind     != null ? `${Math.round(spot.wind)}` : null;
+  const windComp = degToCompass(spot.wind_dir);
+  const tideInfo = spot.tide_state ? (TIDE_LABELS[spot.tide_state] || null) : null;
+  const tideFt   = spot.tide_ft   != null ? spot.tide_ft.toFixed(1) : null;
 
   return (
     <article
@@ -183,7 +224,6 @@ function OutlookCard({ spot, navigate }) {
       tabIndex={0}
     >
       <div className="oc-name">{spot.name}</div>
-      <div className="oc-region">{spot.region || 'Favorite spot'}</div>
       <div className="oc-rating-row">
         <span className="oc-dots">
           {[0,1,2,3,4].map(i => (
@@ -197,21 +237,34 @@ function OutlookCard({ spot, navigate }) {
           }
         </span>
       </div>
-      {(swellFt || wind) && (
+      {(swellFt || windMph) && (
         <div className="oc-line">
           {swellFt && <>{swellFt}<span className="oc-sub">ft</span>{period && <><span className="oc-sep">·</span>{period}</>}</>}
-          {swellFt && wind && <span className="oc-sep">·</span>}
-          {wind && <>{wind}<span className="oc-sub"> wind</span></>}
+          {swellFt && windMph && <span className="oc-sep">·</span>}
+          {windMph && (
+            <span className="oc-wind">
+              <WindArrow dir={spot.wind_dir} />
+              {windComp && <span className="oc-wcomp">{windComp}</span>}
+              {windMph}<span className="oc-sub">mph</span>
+            </span>
+          )}
         </div>
       )}
-      {score == null && (
-        <div className="oc-line" style={{ color: 'var(--muted)' }}>No rating yet</div>
+      {tideInfo && (
+        <div className="oc-tide">
+          {tideInfo.arrow && <span className="oc-tide-arrow">{tideInfo.arrow}</span>}
+          {tideInfo.label}
+          {tideFt && <span className="oc-tide-ft">{tideFt}ft</span>}
+        </div>
+      )}
+      {score == null && !swellFt && (
+        <div className="oc-line oc-no-data">No data yet</div>
       )}
     </article>
   );
 }
 
-function StormCell({ storm, navigate }) {
+function StormCell({ storm, onOpen }) {
   const pressureOk = storm.pressure_mb != null;
   const windOk     = storm.wind_kts    != null;
   const seaOk      = storm.sea_height_ft != null;
@@ -228,7 +281,7 @@ function StormCell({ storm, navigate }) {
   return (
     <div
       className={`storm-cell ${tier}`}
-      onClick={() => navigate(`/map?storm=${storm.id}`)}
+      onClick={() => onOpen(storm)}
       role="button"
       tabIndex={0}
     >
@@ -294,6 +347,7 @@ export default function Dashboard({ onOpenMap }) {
   const [sessions, setSessions] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [storms, setStorms] = useState([]);
+  const [detailStorm, setDetailStorm] = useState(null);
   const alertsRef = useRef([]);
 
   useEffect(() => {
@@ -318,7 +372,32 @@ export default function Dashboard({ onOpenMap }) {
           setFavorites(favSlugs);
           const spotMap = {};
           (bundle?.spots || []).forEach(s => { spotMap[s.slug] = s; });
-          setOutlookSpots(favSlugs.map(slug => spotMap[slug]).filter(Boolean));
+          const favSpots = favSlugs.map(slug => spotMap[slug]).filter(Boolean);
+
+          // Fetch tide for each favorite in parallel (best-effort, non-blocking)
+          const tideResults = await Promise.allSettled(
+            favSpots.map(s =>
+              fetch(`/api/tides/timeline?spot_slug=${encodeURIComponent(s.slug)}&days=1`)
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+            )
+          );
+          const now = new Date();
+          const enriched = favSpots.map((s, i) => {
+            const tideData = tideResults[i].status === 'fulfilled' ? tideResults[i].value : null;
+            if (!tideData?.timeline?.length) return s;
+            // find closest point to now
+            const pts = tideData.timeline;
+            let closest = pts[0];
+            let minDiff = Infinity;
+            for (const pt of pts) {
+              const diff = Math.abs(new Date(pt.t + 'Z') - now);
+              if (diff < minDiff) { minDiff = diff; closest = pt; }
+            }
+            return { ...s, tide_state: closest.state, tide_ft: closest.v };
+          });
+
+          setOutlookSpots(enriched);
           setStorms(bundle?.storms || []);
         }
 
@@ -367,6 +446,17 @@ export default function Dashboard({ onOpenMap }) {
 
   return (
     <div className="screen dashboard">
+
+      {/* Storm detail drawer */}
+      {detailStorm && (
+        <div className="dash-storm-wrap" onClick={e => { if (e.target === e.currentTarget) setDetailStorm(null); }}>
+          <div className="dash-storm-backdrop" onClick={() => setDetailStorm(null)} />
+          <div className="dash-storm-panel">
+            <StormCard storm={detailStorm} mapRef={null} onClose={() => setDetailStorm(null)} />
+          </div>
+        </div>
+      )}
+
       <div className="dash-page">
 
         {/* 1. Greeting */}
@@ -536,6 +626,15 @@ export default function Dashboard({ onOpenMap }) {
                 </button>
               </div>
             </div>
+            <div className="storm-legend-row">
+              {STORM_LEGEND.map(({ tier, label, range }) => (
+                <span key={tier} className={`slr-item ${tier}`}>
+                  <span className="slr-dot" />
+                  <span className="slr-label">{label}</span>
+                  <span className="slr-range">{range}</span>
+                </span>
+              ))}
+            </div>
             <div className="storms-ocean-grid">
               {OCEAN_COLS.map(({ key, label }) => {
                 const col = storms
@@ -549,7 +648,7 @@ export default function Dashboard({ onOpenMap }) {
                       <div className="soc-empty">Quiet</div>
                     ) : (
                       col.map(storm => (
-                        <StormCell key={storm.id} storm={storm} navigate={navigate} />
+                        <StormCell key={storm.id} storm={storm} onOpen={setDetailStorm} />
                       ))
                     )}
                   </div>
