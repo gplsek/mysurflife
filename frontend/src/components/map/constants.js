@@ -1,6 +1,8 @@
-export const CARTO_DARK   = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
-export const CARTO_LABELS = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
-export const CARTO_ATTR   = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+export const CARTO_DARK         = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+export const CARTO_LABELS       = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
+export const CARTO_LIGHT        = 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
+export const CARTO_LIGHT_LABELS = 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
+export const CARTO_ATTR         = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 export const REGIONS = [
   { id: 'all',     label: 'All',        bbox: null },
@@ -16,7 +18,7 @@ export const REGIONS = [
 
 // Hardcoded to match .mv-spot.{tier} CSS — legend dots must be identical to markers
 export const TIER_COLORS = {
-  firing: 'oklch(0.75 0.19 45)',
+  firing: 'oklch(0.72 0.16 20)',
   solid:  'oklch(0.82 0.14 85)',
   good:   'oklch(0.80 0.15 150)',
   fair:   'oklch(0.82 0.16 195)',

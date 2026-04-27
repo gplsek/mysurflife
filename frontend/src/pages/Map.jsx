@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { CARTO_DARK, CARTO_LABELS, CARTO_ATTR, REGIONS } from '../components/map/constants';
+import { CARTO_DARK, CARTO_LABELS, CARTO_LIGHT, CARTO_LIGHT_LABELS, CARTO_ATTR, REGIONS } from '../components/map/constants';
 import { buildClusters }                                  from '../components/map/clusterGrid';
 import { spotMarkerHtml, buoyMarkerHtml, clusterMarkerHtml, userSpotMarkerHtml } from '../components/map/markers';
 import { stormMarkerHtml }                                from '../components/map/StormMarker';
@@ -75,6 +75,8 @@ function celsiusToF(c) {
 export default function Map({ state, stateRef, toggleState, setRegion, setQuery }) {
   const mapContainerRef  = useRef(null);
   const mapRef           = useRef(null);
+  const baseTileRef      = useRef(null);
+  const labelTileRef     = useRef(null);
   const markersRef       = useRef([]);
   const renderTimerRef   = useRef(null);
   const lastRenderKeyRef = useRef('');
@@ -400,13 +402,14 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       attributionControl: true,
     });
 
-    L.tileLayer(CARTO_DARK, {
+    const isDaylight = document.documentElement.dataset.theme === 'daylight';
+    baseTileRef.current = L.tileLayer(isDaylight ? CARTO_LIGHT : CARTO_DARK, {
       attribution: CARTO_ATTR,
       subdomains: 'abcd',
       maxZoom: 19,
     }).addTo(map);
 
-    L.tileLayer(CARTO_LABELS, {
+    labelTileRef.current = L.tileLayer(isDaylight ? CARTO_LIGHT_LABELS : CARTO_LABELS, {
       attribution: '',
       subdomains: 'abcd',
       maxZoom: 19,
@@ -434,6 +437,21 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
       mapRef.current = null;
     };
   }, [scheduleRender]);
+
+  // Swap CARTO tile layers when theme changes (dark ↔ daylight)
+  useEffect(() => {
+    const html = document.documentElement;
+    const swap = () => {
+      const map = mapRef.current;
+      if (!map || !baseTileRef.current || !labelTileRef.current) return;
+      const isDaylight = html.dataset.theme === 'daylight';
+      baseTileRef.current.setUrl(isDaylight ? CARTO_LIGHT : CARTO_DARK);
+      labelTileRef.current.setUrl(isDaylight ? CARTO_LIGHT_LABELS : CARTO_LABELS);
+    };
+    const observer = new MutationObserver(swap);
+    observer.observe(html, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Re-render when data or filter state changes
   useEffect(() => { scheduleRender(); }, [spots, userSpots, buoys, storms, state, scheduleRender]);
