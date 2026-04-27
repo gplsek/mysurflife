@@ -101,6 +101,7 @@ function Shell() {
              : pathname === '/journal' ? 'journal'
              : pathname === '/alerts' ? 'alerts'
              : pathname === '/sione' ? 'sione'
+             : pathname.startsWith('/spots/') ? 'spot'
              : 'dashboard';
 
   const navTo = (v) => {
@@ -113,7 +114,7 @@ function Shell() {
     : '??';
 
   return (
-    <div className="app">
+    <div className={`app${view === 'spot' ? ' app--scroll' : ''}`}>
       {/* ── Background screens ── */}
       {view === 'map' && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
@@ -130,6 +131,7 @@ function Shell() {
       {view === 'journal' && <SessionJournal />}
       {view === 'alerts' && <Alerts />}
       {view === 'sione' && <Sione />}
+      {view === 'spot' && <SpotDetail />}
 
       {/* ── Floating topbar ── */}
       <div className="topbar">
@@ -256,8 +258,8 @@ function App() {
             {/* Old map — available until Phase 5 ships */}
             <Route path="/old-map" element={<RequireAuth><MapOverlay /></RequireAuth>} />
 
-            {/* Spot detail — auth required */}
-            <Route path="/spots/:slug" element={<RequireAuth><SpotDetail /></RequireAuth>} />
+            {/* Spot detail — renders inside Shell so nav is present */}
+            <Route path="/spots/:slug" element={<RequireAuth><Shell /></RequireAuth>} />
 
             {/* Admin — protected */}
             <Route path="/admin/users"    element={<RequireAuth><ManageUsers /></RequireAuth>} />

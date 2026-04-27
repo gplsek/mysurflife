@@ -9,6 +9,9 @@
   background: var(--bg);
   overflow: hidden;
 }
+/* Spot detail needs to scroll within the fixed shell */
+.app--scroll { overflow-y: auto; }
+.app--scroll .topbar { position: fixed; }
 
 /* ─── Floating topbar ─── */
 .topbar {

@@ -30,6 +30,11 @@
   display: flex; align-items: center; gap: 10px; pointer-events: none;
 }
 .sd-topbar > * { pointer-events: auto; }
+
+/* When inside Shell, push below Shell topbar and hide duplicate brand/user menu */
+.app .sd-topbar { top: 72px; }
+.app .sd-brand,
+.app .sd-topbar .sd-menu-container { display: none; }
 .sd-chip {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 14px; border-radius: 10px;

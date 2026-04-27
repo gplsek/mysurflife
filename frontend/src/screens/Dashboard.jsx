@@ -195,11 +195,13 @@ function StreakStrip({ sessions }) {
 
 function DirArrow({ dir, className }) {
   if (dir == null) return null;
+  // Data is FROM-direction; add 180 to flip to direction-of-travel
+  const travelDeg = dir + 180;
   return (
     <svg
       width="9" height="9" viewBox="0 0 10 10" aria-hidden
       className={className}
-      style={{ transform: `rotate(${dir}deg)`, flexShrink: 0, display: 'inline-block' }}
+      style={{ transform: `rotate(${travelDeg}deg)`, flexShrink: 0, display: 'inline-block' }}
     >
       <path d="M5 9V1M2 4l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>

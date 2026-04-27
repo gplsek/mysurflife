@@ -20,6 +20,28 @@
   --tier-flat:      var(--muted);
 }
 
+/* ─── Daylight theme overrides ────────────────────────────────────── */
+[data-theme="daylight"] {
+  --border-3:     oklch(0 0 0 / 0.14);
+  --bg-4:         oklch(0.88 0.008 230);
+  --panel-strong: oklch(0.97 0.005 230 / 0.97);
+}
+
+[data-theme="daylight"] .bulletin-text {
+  background: oklch(0.93 0.008 230);
+  color: var(--fg-2);
+}
+
+[data-theme="daylight"] .l3-section {
+  background: oklch(0.91 0.008 230 / 0.7);
+}
+
+[data-theme="daylight"] .l2-row:hover { background: oklch(0 0 0 / 0.03); }
+
+[data-theme="daylight"] body.dimmed #dim-layer {
+  background: oklch(0.50 0.04 235 / 0.25);
+}
+
 /* ─── Dim overlay ─────────────────────────────────────────────────── */
 #dim-layer {
   position: absolute;
