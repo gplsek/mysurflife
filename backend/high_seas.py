@@ -534,12 +534,24 @@ async def get_high_seas(ocean: str) -> Dict:
         from storm_bulletin_parser import parse_bulletin_section
         import asyncio as _asyncio
 
+        # Count how many systems share each raw_text block.
+        # When ≥2 systems come from the same section the LLM would read the
+        # whole block and stamp the section-level peak onto every system
+        # (Bug 9 — value bleed).  Skip enhancement for those; null beats fake.
+        _raw_counts: Dict[str, int] = {}
+        for s in parsed["systems"]:
+            raw = s.get("raw_text", "")
+            _raw_counts[raw] = _raw_counts.get(raw, 0) + 1
+        _shared_raw: set = {raw for raw, cnt in _raw_counts.items() if cnt >= 2}
+
         async def _enhance(system: Dict) -> None:
             if system.get("sea_height_ft") is not None and system.get("fetch") is not None:
                 return  # regex already got everything
             raw = system.get("raw_text", "")
             if not raw:
                 return
+            if raw in _shared_raw:
+                return  # multi-system section — skip to avoid value bleed
             llm_data = await parse_bulletin_section(raw)
             if not llm_data:
                 return

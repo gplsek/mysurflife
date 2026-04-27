@@ -2,15 +2,19 @@
 /api/storms/active          — live storm positions for the map page.
 /api/storms/{id}/arrivals   — swell arrival forecast per surf region.
 /api/storms/parse-bulletin  — AI-powered structured extraction from raw bulletin text.
+/api/storms/_debug          — per-bulletin pipeline diagnostic.
 
 Wraps high_seas.py bulletin parsing and storm_arrivals.py physics.
 """
 import asyncio
 import hashlib
 import json
+import math
+import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -47,6 +51,55 @@ def save_storms_config(cfg: dict) -> None:
 def _storm_id(ocean: str, lat: float, lon: float) -> str:
     prefix = {"north-pacific": "np", "north-atlantic": "na", "east-pacific": "ep"}.get(ocean, ocean[:2])
     return f"{prefix}-{lat:.1f}-{abs(lon):.1f}"
+
+
+_DEDUPE_RADIUS_KM = 400  # merge complex-low fragments within this radius (Bug 8c)
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def _dedupe_complex_lows(storms: List[Dict]) -> List[Dict]:
+    """
+    Merge LOW systems within _DEDUPE_RADIUS_KM of each other into one record
+    (the strongest center by pressure).  Interim fix for Bug 8 — KWBC complex-low
+    sections produce multiple parsed centers that are fragments of one system.
+    Drops cleanly once the GFS detector replaces the bulletin pipeline.
+    """
+    kept: List[Dict] = []
+    merged = [False] * len(storms)
+
+    for i, s in enumerate(storms):
+        if merged[i] or s.get("type", "").upper() != "LOW":
+            if not merged[i]:
+                kept.append(s)
+            continue
+
+        group = [s]
+        for j in range(i + 1, len(storms)):
+            if merged[j] or storms[j].get("type", "").upper() != "LOW":
+                continue
+            if _haversine_km(s["lat"], s["lon"], storms[j]["lat"], storms[j]["lon"]) <= _DEDUPE_RADIUS_KM:
+                group.append(storms[j])
+                merged[j] = True
+
+        if len(group) == 1:
+            kept.append(s)
+        else:
+            # Keep the strongest center (lowest pressure); fall back to first
+            best = min(group, key=lambda x: x.get("pressure_mb") or 9999)
+            kept.append(best)
+            dropped = [g for g in group if g is not best]
+            best_label = best.get("id") or f"{best['lat']},{best['lon']}"
+            print(f"🔀 dedupe: merged {len(dropped)} fragment(s) into {best_label} "
+                  f"(pressure {best.get('pressure_mb')} mb)")
+
+    return kept
 
 
 def _format_label(s: dict) -> str:
@@ -140,6 +193,7 @@ async def get_active_storms(
             })
 
     updated_at = max(freshness) if freshness else None
+    out = _dedupe_complex_lows(out)
 
     return {
         "storms":     out,
@@ -358,3 +412,159 @@ async def parse_bulletin(req: BulletinParseRequest):
 
     _bulletin_cache_set(cache_key, result)
     return result
+
+
+# ── Pipeline diagnostic ───────────────────────────────────────────────────────
+
+@router.get("/api/storms/_debug")
+async def storms_debug(
+    fresh: bool = Query(False, description="Force-refetch all bulletins, ignoring the 6h cache"),
+):
+    """
+    Per-bulletin diagnostic for the storm pipeline.
+
+    Returns, for each ocean basin we fetch:
+      - bulletin issue/fetch timestamps and cache status
+      - first line of each parsed section (so you can see what KWBC narrated)
+      - keyword occurrence counts (LOW/HIGH/STORM/HURRICANE/etc.) — quick
+        sanity check for "is this basin actually quiet?"
+      - parse counts pre-filter, plus per-reason drop counts post-filter
+      - a summary list of every parsed system
+
+    Use this when the map shows "0 storms" for a basin to diagnose whether:
+      (a) the bulletin is genuinely quiet,
+      (b) the fetch is silently failing,
+      (c) the parser is missing the systems, or
+      (d) the filter thresholds are dropping them.
+
+    Note: this endpoint is unauthenticated to mirror /api/storms/active.
+    Add Depends(require_admin) before exposing publicly.
+    """
+    if fresh:
+        # Bust the in-memory bulletin cache so we re-pull from NWS
+        from high_seas import _hs_cache
+        for k in list(_hs_cache.keys()):
+            _hs_cache.pop(k, None)
+
+    cfg             = load_storms_config()
+    min_pressure_mb = cfg.get("min_pressure_mb", 1020)
+    min_wind_kts    = cfg.get("min_wind_kts", 0)
+    include_highs   = cfg.get("include_highs", False)
+
+    results = await asyncio.gather(
+        *[get_high_seas(o) for o in _OCEAN_KEYS],
+        return_exceptions=True,
+    )
+
+    KEYWORDS = ("LOW", "HIGH", "GALE", "STORM", "HURRICANE", "TROPICAL")
+
+    oceans_out:    List[Dict] = []
+    totals_raw  = 0
+    totals_kept = 0
+    by_ocean:      Dict[str, int] = {}
+
+    for ocean, hs in zip(_OCEAN_KEYS, results):
+        if isinstance(hs, Exception):
+            oceans_out.append({
+                "ocean":   ocean,
+                "fetch":   {"ok": False, "exception": str(hs)},
+                "systems": [],
+            })
+            by_ocean[ocean] = 0
+            continue
+
+        sections = hs.get("sections") or []
+        systems  = hs.get("systems") or []
+        raw_text = "\n".join(sections)
+
+        section_heads = [
+            (sec.split("\n", 1)[0] or "").strip()[:120]
+            for sec in sections[:24]
+        ]
+
+        keyword_counts = {
+            k: len(re.findall(rf"\b{k}\b", raw_text, re.IGNORECASE))
+            for k in KEYWORDS
+        }
+
+        by_type: Dict[str, int] = {}
+        for s in systems:
+            t = (s.get("type") or "").upper()
+            by_type[t] = by_type.get(t, 0) + 1
+
+        # Mirror the same filter logic /api/storms/active uses
+        kept    = 0
+        dropped = {"type": 0, "pressure": 0, "wind": 0}
+        for s in systems:
+            sys_type = (s.get("type") or "").upper()
+            if sys_type == "HIGH" and not include_highs:
+                dropped["type"] += 1
+                continue
+            if sys_type not in _SURF_TYPES and sys_type != "HIGH":
+                dropped["type"] += 1
+                continue
+            if s.get("pressure_mb") and s["pressure_mb"] > min_pressure_mb:
+                dropped["pressure"] += 1
+                continue
+            if s.get("wind_kts") and s["wind_kts"] < min_wind_kts:
+                dropped["wind"] += 1
+                continue
+            kept += 1
+
+        totals_raw      += len(systems)
+        totals_kept     += kept
+        by_ocean[ocean]  = kept
+
+        oceans_out.append({
+            "ocean": ocean,
+            "label": hs.get("label"),
+            "fetch": {
+                "ok":             hs.get("error") is None,
+                "issued_utc":     hs.get("issued_utc"),
+                "fetched_at":     hs.get("fetched_at"),
+                "cached":         hs.get("cached", False),
+                "section_count":  len(sections),
+                "bulletin_chars": len(raw_text),
+                "error":          hs.get("error"),
+            },
+            "section_heads":  section_heads,
+            "keyword_counts": keyword_counts,
+            "parse": {
+                "raw_count": len(systems),
+                "by_type":   by_type,
+            },
+            "filter": {
+                "kept":    kept,
+                "dropped": dropped,
+            },
+            "systems": [
+                {
+                    "type":          s.get("type"),
+                    "lat":           s.get("lat"),
+                    "lon":           s.get("lon"),
+                    "pressure_mb":   s.get("pressure_mb"),
+                    "wind_kts":      s.get("wind_kts"),
+                    "sea_height_ft": s.get("sea_height_ft"),
+                    "basin":         s.get("basin_label"),
+                    "warning_tier":  s.get("warning_tier"),
+                    "track_pts":     len(s.get("forecast_track") or []),
+                }
+                for s in systems
+            ],
+        })
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "config": {
+            "min_pressure_mb": min_pressure_mb,
+            "min_wind_kts":    min_wind_kts,
+            "include_highs":   include_highs,
+            "oceans":          _OCEAN_KEYS,
+        },
+        "oceans": oceans_out,
+        "totals": {
+            "raw":      totals_raw,
+            "kept":     totals_kept,
+            "by_ocean": by_ocean,
+        },
+    }
