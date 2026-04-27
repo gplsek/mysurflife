@@ -30,7 +30,7 @@ _OCEAN_KEYS = ["north-pacific", "north-atlantic", "east-pacific"]
 _CONFIG_PATH = Path(__file__).parent.parent / "config" / "storms_config.json"
 
 _DEFAULT_CONFIG = {
-    "min_pressure_mb": 1020,
+    "max_pressure_mb": 1020,
     "min_wind_kts":    0,
     "include_highs":   False,
     "oceans":          _OCEAN_KEYS,
@@ -48,9 +48,12 @@ def save_storms_config(cfg: dict) -> None:
     _CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
 
 
-def _storm_id(ocean: str, lat: float, lon: float) -> str:
+def _storm_id(ocean: str, lat: float, lon: float, pressure_mb: Optional[int] = None) -> str:
     prefix = {"north-pacific": "np", "north-atlantic": "na", "east-pacific": "ep"}.get(ocean, ocean[:2])
-    return f"{prefix}-{lat:.1f}-{abs(lon):.1f}"
+    base = f"{prefix}-{lat:.1f}-{abs(lon):.1f}"
+    # Include pressure as tiebreaker so two storms at the same rounded position
+    # (e.g. 0.05° apart) get distinct IDs (Bug 4).
+    return f"{base}-{pressure_mb}" if pressure_mb else base
 
 
 _DEDUPE_RADIUS_KM = 400  # merge complex-low fragments within this radius (Bug 8c)
@@ -117,7 +120,7 @@ def _format_label(s: dict) -> str:
 async def get_active_storms(
     oceans: Optional[str]  = Query(None, description="Comma-separated ocean keys (overrides config)"),
     min_wind_kts: Optional[int]  = Query(None, description="Min wind kt (overrides config)"),
-    min_pressure_mb: Optional[int] = Query(None, description="Max central pressure mb (overrides config)"),
+    max_pressure_mb: Optional[int] = Query(None, description="Max central pressure mb (overrides config)"),
     include_highs: Optional[bool]  = Query(None, description="Include HIGH systems (overrides config)"),
 ):
     """
@@ -129,8 +132,8 @@ async def get_active_storms(
     cfg = load_storms_config()
 
     # Query params override config when explicitly provided
-    if min_pressure_mb is None:
-        min_pressure_mb = cfg.get("min_pressure_mb", 1020)
+    if max_pressure_mb is None:
+        max_pressure_mb = cfg.get("max_pressure_mb", 1020)
     if min_wind_kts is None:
         min_wind_kts = cfg.get("min_wind_kts", 0)
     if include_highs is None:
@@ -161,7 +164,7 @@ async def get_active_storms(
                 continue
 
             # Pressure filter (lower pressure = stronger storm)
-            if s.get("pressure_mb") and s["pressure_mb"] > min_pressure_mb:
+            if s.get("pressure_mb") and s["pressure_mb"] > max_pressure_mb:
                 continue
 
             # Wind filter
@@ -170,7 +173,7 @@ async def get_active_storms(
 
             basin  = s.get("basin_label") or hs.get("label", ocean.replace("-", " ").title())
             name   = f"{_format_type(sys_type)} · {basin}"
-            storm_id = _storm_id(ocean, s["lat"], s["lon"])
+            storm_id = _storm_id(ocean, s["lat"], s["lon"], s.get("pressure_mb"))
 
             out.append({
                 "id":             storm_id,
@@ -194,6 +197,26 @@ async def get_active_storms(
 
     updated_at = max(freshness) if freshness else None
     out = _dedupe_complex_lows(out)
+
+    # Merge model-derived storms (Bugs 5 & 6 — Southern Hemisphere + weak NH lows).
+    # Bulletin storms take priority: suppress any model storm whose center is within
+    # 400 km of an already-confirmed bulletin storm (avoid double-markers).
+    try:
+        from jobs.detect_storms import get_cached_model_storms
+        model_storms = get_cached_model_storms() or []
+        if model_storms:
+            for ms in model_storms:
+                too_close = any(
+                    _haversine_km(ms["lat"], ms["lon"], bs["lat"], bs["lon"]) < 400
+                    for bs in out
+                )
+                if not too_close:
+                    out.append({**ms, "source": "model"})
+            # Tag bulletin storms with source field for frontend differentiation
+            for s in out:
+                s.setdefault("source", "bulletin")
+    except Exception as e:
+        print(f"⚠️  storms/active: model merge failed: {e}")
 
     return {
         "storms":     out,
@@ -221,7 +244,7 @@ async def _find_storm(storm_id: str) -> Optional[dict]:
     for o in oceans:
         hs = await get_high_seas(o)
         for s in hs.get("systems", []):
-            if _storm_id(o, s["lat"], s["lon"]) == storm_id:
+            if _storm_id(o, s["lat"], s["lon"], s.get("pressure_mb")) == storm_id:
                 return {**s, "ocean": o, "issued_utc": hs.get("issued_utc")}
     return None
 
@@ -447,7 +470,7 @@ async def storms_debug(
             _hs_cache.pop(k, None)
 
     cfg             = load_storms_config()
-    min_pressure_mb = cfg.get("min_pressure_mb", 1020)
+    max_pressure_mb = cfg.get("max_pressure_mb", 1020)
     min_wind_kts    = cfg.get("min_wind_kts", 0)
     include_highs   = cfg.get("include_highs", False)
 
@@ -503,7 +526,7 @@ async def storms_debug(
             if sys_type not in _SURF_TYPES and sys_type != "HIGH":
                 dropped["type"] += 1
                 continue
-            if s.get("pressure_mb") and s["pressure_mb"] > min_pressure_mb:
+            if s.get("pressure_mb") and s["pressure_mb"] > max_pressure_mb:
                 dropped["pressure"] += 1
                 continue
             if s.get("wind_kts") and s["wind_kts"] < min_wind_kts:
@@ -556,7 +579,7 @@ async def storms_debug(
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "config": {
-            "min_pressure_mb": min_pressure_mb,
+            "max_pressure_mb": max_pressure_mb,
             "min_wind_kts":    min_wind_kts,
             "include_highs":   include_highs,
             "oceans":          _OCEAN_KEYS,

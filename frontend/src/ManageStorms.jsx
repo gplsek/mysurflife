@@ -12,7 +12,7 @@ const OCEAN_OPTIONS = [
 ];
 
 const DEFAULT_CONFIG = {
-  min_pressure_mb: 1020,
+  max_pressure_mb: 1020,
   min_wind_kts:    0,
   include_highs:   false,
   oceans:          ['north-pacific', 'north-atlantic', 'east-pacific'],
@@ -68,7 +68,7 @@ export default function ManageStorms() {
     setPreview(null);
     try {
       const params = new URLSearchParams({
-        min_pressure_mb: draft.min_pressure_mb,
+        max_pressure_mb: draft.max_pressure_mb,
         min_wind_kts:    draft.min_wind_kts,
         include_highs:   draft.include_highs,
         oceans:          draft.oceans.join(','),
@@ -116,7 +116,7 @@ export default function ManageStorms() {
   };
 
   const isDirty = draft && config && (
-    draft.min_pressure_mb !== config.min_pressure_mb ||
+    draft.max_pressure_mb !== config.max_pressure_mb ||
     draft.min_wind_kts    !== config.min_wind_kts    ||
     draft.include_highs   !== config.include_highs   ||
     JSON.stringify(draft.oceans.slice().sort()) !== JSON.stringify((config.oceans || []).slice().sort())
@@ -153,7 +153,7 @@ export default function ManageStorms() {
             <div className="ms-field">
               <label className="ms-label">
                 Max central pressure
-                <span className="ms-value">{draft.min_pressure_mb} mb</span>
+                <span className="ms-value">{draft.max_pressure_mb} mb</span>
               </label>
               <p className="ms-hint">
                 Only show systems with pressure ≤ this value. Lower pressure = stronger storm.
@@ -162,8 +162,8 @@ export default function ManageStorms() {
               <input
                 type="range"
                 min={980} max={1030} step={2}
-                value={draft.min_pressure_mb}
-                onChange={e => setDraft(d => ({ ...d, min_pressure_mb: +e.target.value }))}
+                value={draft.max_pressure_mb}
+                onChange={e => setDraft(d => ({ ...d, max_pressure_mb: +e.target.value }))}
                 className="ms-slider"
               />
               <div className="ms-slider-labels">

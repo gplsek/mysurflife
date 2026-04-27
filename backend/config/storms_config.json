@@ -1,5 +1,5 @@
 {
-  "min_pressure_mb": 1020,
+  "max_pressure_mb": 1020,
   "min_wind_kts": 0,
   "include_highs": true,
   "oceans": [
