@@ -593,7 +593,9 @@ export default function Copilot({ context }) {
   const threadRef = useRef(null);
   const inputRef  = useRef(null);
   // Session context from navigation state (storm card handoff, etc.)
+  // Ref for sendMessage (avoids stale closure); state for right-panel render.
   const sessionContextRef = useRef(null);
+  const [sessionCtxDisplay, setSessionCtxDisplay] = useState(null);
 
   const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   const initials = user?.email ? user.email.slice(0, 2).toUpperCase() : 'JP';
@@ -606,6 +608,7 @@ export default function Copilot({ context }) {
     }
     if (state?.context) {
       sessionContextRef.current = state.context;
+      setSessionCtxDisplay(state.context);
     }
     // Clear state so back-navigation doesn't re-seed
     window.history.replaceState({}, '', window.location.pathname + window.location.search);
@@ -655,7 +658,11 @@ export default function Copilot({ context }) {
     abortRef.current = ctrl;
 
     try {
-      const apiMsgs = next.map(m => ({ role: m.role, content: m.content }));
+      // Anthropic requires messages start with role:user — drop any leading assistant messages
+      // (pre-generated openers are UI-only; storm context is already in system_prompt_override)
+      const firstUserIdx = next.findIndex(m => m.role === 'user');
+      const apiMsgs = (firstUserIdx >= 0 ? next.slice(firstUserIdx) : next)
+        .map(m => ({ role: m.role, content: m.content }));
       const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/sione/chat', {
         method: 'POST',
@@ -891,13 +898,13 @@ export default function Copilot({ context }) {
       {/* ── Right context pane ── */}
       <aside className="cop-ctx-pane">
 
-        {sessionContextRef.current?.storm_id && (
+        {sessionCtxDisplay?.storm_id && (
           <div className="cop-ctx-sec">
             <h5 className="cop-ctx-head">Storm context</h5>
             <div className="cop-ctx-row">
               <span className="cop-ctx-k">Storm</span>
               <span className="cop-ctx-v" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {sessionContextRef.current.storm_id}
+                {sessionCtxDisplay.storm_id}
               </span>
             </div>
             <div className="cop-ctx-row">
