@@ -58,10 +58,11 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 
 ## Phases (one commit each)
 
-### Phase 1 — Schema (migration `019_storm_analysis.sql`)
+### Phase 1 — Schema (migration `019_storm_analysis.sql`) — ✅ written + validated (apply to prod pending)
 - `derived_storms` add: `analysis_text text`, `region_timeline jsonb`, `analysis_generated_at timestamptz`, `analysis_model text`, `analysis_input_hash text`.
-- New `storm_snapshot` (single-row JSONB cache) — or reuse a `kv_cache` row.
-- **Accept:** migration applies in `supabase/migrations/`; columns present.
+- New `storm_snapshot` (single-row JSONB cache, PK `id='current'`).
+- **Accept:** migration applies in `supabase/migrations/`; columns present. ✅ Validated locally (018→019 apply cleanly, 019 idempotent on re-run).
+- **Prod apply:** no DB connection string in env — apply via Supabase dashboard SQL editor or linked `supabase db push` at deploy time (additive + idempotent, safe to re-run).
 
 ### Phase 2 — Deterministic `region_timeline` builder
 - `services/region_impact.py`: `build_region_timeline(region_impacts) -> list` (top-3 by energy, chronological).
@@ -80,7 +81,7 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - Refactor `/api/storms/active` → read snapshot (fallback to current path if snapshot missing/stale).
 - **Accept:** `/active` does no per-request bulletin fetch; latency drops; same response shape.
 
-### Phase 5 — Sione handoff fix (storm_id → DB rebuild) ⚡ can ship standalone first
+### Phase 5 — Sione handoff fix (storm_id → DB rebuild) — ✅ shipped (commit `acab8de`, branch `storm-handoff-fix`)
 - `/api/sione/chat`: on session miss but `ctx.storm_id` present, rebuild `system_prompt_override` from `derived_storms` row (+ analysis + timeline once Phase 3 lands) + user favorites.
 - Cover: bulletin-only storms not in `derived_storms` (fall back to client-passed storm or snapshot-by-id); anonymous users.
 - Optionally repopulate `_sione_sessions` per-worker as a cache.
