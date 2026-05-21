@@ -64,10 +64,10 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - **Accept:** migration applies in `supabase/migrations/`; columns present. ✅ Validated locally (018→019 apply cleanly, 019 idempotent on re-run).
 - **Prod apply:** no DB connection string in env — apply via Supabase dashboard SQL editor or linked `supabase db push` at deploy time (additive + idempotent, safe to re-run).
 
-### Phase 2 — Deterministic `region_timeline` builder
-- `services/region_impact.py`: `build_region_timeline(region_impacts) -> list` (top-3 by energy, chronological).
-- Store on storm record + persist to DB.
-- **Accept:** unit test; `region_timeline` present on `/detail`.
+### Phase 2 — Deterministic `region_timeline` builder — ✅ done
+- `services/region_impact.py`: `build_region_timeline(storm, region_impacts, top_n=3)` — strongest regions by energy, ordered chronologically by peak arrival; emits `{region_id, region, tier, arrival_hours, peak_hours, fade_hours, size_ft, period_s, dir_deg, energy_index}`. Pure, no LLM.
+- Wired into `jobs/detect_storms.py` (alongside `region_impacts`/`narrative`) + persisted via `_storm_to_row` → `region_timeline` column. `/api/storms/{id}/detail` returns it automatically (selects `*`).
+- **Accept:** ✅ `backend/test_region_timeline.py` (7 tests) + full storm suite (23) pass; end-to-end verified against real region config.
 
 ### Phase 3 — LLM analysis (Sonnet, change-gated)
 - New `backend/services/storm_analysis.py`: `generate_analysis(storm, region_timeline) -> str` using Sonnet 4.6.

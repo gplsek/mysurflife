@@ -923,13 +923,18 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
         _annotate_landfall(storm)
 
         # Phase 7: region impact scoring + narrative
+        # Phase 2 (LLM analysis plan): deterministic region_timeline alongside.
         try:
-            from services.region_impact import score_storm_against_regions, compose_narrative
-            storm["region_impacts"] = score_storm_against_regions(storm)
-            storm["narrative"]      = compose_narrative(storm, storm["region_impacts"])
+            from services.region_impact import (
+                score_storm_against_regions, compose_narrative, build_region_timeline,
+            )
+            storm["region_impacts"]  = score_storm_against_regions(storm)
+            storm["region_timeline"] = build_region_timeline(storm, storm["region_impacts"])
+            storm["narrative"]       = compose_narrative(storm, storm["region_impacts"])
         except Exception as e:
             print(f"⚠️  storm {storm['id']}: region impact failed: {e}")
-            storm["region_impacts"] = []
+            storm["region_impacts"]  = []
+            storm["region_timeline"] = []
             storm["narrative"] = None
 
         storms.append(storm)
@@ -969,6 +974,7 @@ def _storm_to_row(storm: Dict, detected_at: datetime, expires_at: str) -> Dict:
         "max_cone_hs_m":                storm.get("max_cone_hs_m"),
         "confirmation_status":          storm.get("confirmation_status"),
         "region_impacts":               storm.get("region_impacts") or [],
+        "region_timeline":              storm.get("region_timeline") or [],
         "narrative":                    storm.get("narrative"),
         "raw_bulletin_text":            storm.get("raw_text"),
         "expires_at":                   expires_at,

@@ -181,6 +181,59 @@ def score_storm_against_regions(storm: Dict) -> List[Dict]:
     return impacts
 
 
+# Tiers worth surfacing in the trajectory timeline (everything but a clean miss).
+_TIMELINE_TIERS = {"direct", "glancing", "partial", "landfall_blocked"}
+
+
+def build_region_timeline(
+    storm: Optional[Dict],
+    region_impacts: List[Dict],
+    top_n: int = 3,
+) -> List[Dict]:
+    """Deterministic top-N region trajectory for a storm, ordered chronologically.
+
+    Picks the strongest impacted regions by ``energy_index``, then orders them by
+    when the swell peaks — so the card / Sione can say "first X, then Y, then Z".
+    Every number comes straight from ``region_impacts`` + the storm's peak period;
+    no LLM, no invented values. The LLM layer (Phase 3) only narrates this list.
+
+    Each entry: ``{region_id, region, tier, arrival_hours, peak_hours, fade_hours,
+    size_ft, period_s, dir_deg, energy_index}``. ``dir_deg`` is the swell's
+    FROM-direction at the region (the impact's arrival bearing).
+    """
+    if not region_impacts:
+        return []
+
+    period_s = (storm or {}).get("peak_period_s")
+    period_out = round(period_s, 1) if isinstance(period_s, (int, float)) else None
+
+    impactful = [
+        r for r in region_impacts
+        if r.get("impact_tier") in _TIMELINE_TIERS and (r.get("energy_index") or 0) >= 0.1
+    ]
+    # region_impacts arrives sorted by energy desc; take the strongest, then
+    # re-order chronologically by peak arrival for display.
+    top = impactful[:top_n]
+    top.sort(key=lambda r: r.get("peak_arrival_hours") if r.get("peak_arrival_hours") is not None else float("inf"))
+
+    timeline: List[Dict] = []
+    for r in top:
+        hs_m = r.get("projected_hs_m")
+        timeline.append({
+            "region_id":     r.get("region_id"),
+            "region":        r.get("label"),
+            "tier":          r.get("impact_tier"),
+            "arrival_hours": r.get("arrival_hours"),
+            "peak_hours":    r.get("peak_arrival_hours"),
+            "fade_hours":    r.get("fade_hours"),
+            "size_ft":       round(hs_m * 3.281, 1) if isinstance(hs_m, (int, float)) else None,
+            "period_s":      period_out,
+            "dir_deg":       r.get("bearing_deg"),
+            "energy_index":  r.get("energy_index"),
+        })
+    return timeline
+
+
 def compose_narrative(storm: Dict, region_impacts: List[Dict]) -> str:
     """Returns prose summary for storm drawer. Pure string assembly, no LLM."""
     storm_lat = storm.get("lat", 0)

@@ -67,6 +67,10 @@ claude-code-workflows-main/
 
 # Test/migration/utility scripts (not needed in production)
 backend/test_*.py
+# ...but DO track the real unit-test suites (negations override the glob above)
+!backend/test_region_timeline.py
+!backend/test_detect_storms_ww3.py
+!backend/test_storm_reconciliation.py
 backend/migrate_*.py
 backend/add_*.py
 backend/fix_*.py
