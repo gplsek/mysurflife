@@ -151,16 +151,36 @@ def _build_storm_session(mode: str, storm: Dict, arrivals: List[Dict],
     }
 
 
+def _merge_storm(primary: Optional[Dict], secondary: Optional[Dict]) -> Optional[Dict]:
+    """Merge two storm objects, preferring ``primary``'s non-null values and filling
+    gaps from ``secondary``. Lets the rebuilt context keep the rich, fresh client
+    storm (type, movement, seas, issued_utc — fields the derived_storms row lacks)
+    while still picking up DB-only fields (region_impacts, peak_period_s, …)."""
+    if not primary:
+        return secondary
+    if not secondary:
+        return primary
+    merged = dict(secondary)
+    for k, v in primary.items():
+        if v is not None:
+            merged[k] = v
+    return merged
+
+
 async def _rebuild_storm_session(ctx: Dict, user: Optional[Dict]) -> Optional[Dict]:
     """Reconstruct a storm_trip session when the in-memory session is missing —
     e.g. the chat request landed on a different uvicorn worker than the one that
-    created the session, or the backend restarted. Resolves the storm by id from the
-    DB/bulletin path (fresh), falling back to the storm object the client carried in
-    context (covers bulletin-only storms not yet in derived_storms)."""
+    created the session, or the backend restarted.
+
+    Prefers the storm object the client carried in context (fresh + full /active
+    object shape) and fills gaps from the DB/bulletin-resolved record. The carried
+    object is richer than a derived_storms row (which lacks type/movement/seas/
+    issued_utc), so preferring it keeps Sione's context complete; the DB resolve
+    still covers deep-links that arrive with only a storm_id."""
     carried  = ctx.get("storm")
     storm_id = ctx.get("storm_id") or (carried or {}).get("id")
     resolved = await _load_storm_object(storm_id) if storm_id else None
-    storm    = resolved or carried
+    storm    = _merge_storm(carried, resolved)
     if not storm or storm.get("lat") is None:
         return None
     arrivals = ctx.get("arrivals") or storm.get("arrivals") or []
