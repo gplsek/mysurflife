@@ -254,7 +254,11 @@ async def fetch_gfs_global_field(
 # ---------------------------------------------------------------------------
 
 _WW3_FILTER   = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfswave.pl"
-_WW3_FILE_PAT = "gfswave.t{HH}z.global.0p16.f{FFF}.grib2"
+# Use the 0p25 global grid: despite its name, gfswave.global.0p16 only covers
+# latitudes ~15°S–52.5°N, so Southern Ocean + high-latitude N. Pacific/Atlantic
+# storms (most swell generators) get NO wave data. 0p25 is truly global (-90..90);
+# 0.25° is plenty for storm-center Hs + cone confirmation.
+_WW3_FILE_PAT = "gfswave.t{HH}z.global.0p25.f{FFF}.grib2"
 _WW3_DIR_PAT  = "%2Fgfs.{DATE}%2F{HH}%2Fwave%2Fgridded"
 
 
@@ -286,7 +290,8 @@ async def fetch_ww3_global_hs(
     forecast_hour: int,
 ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """
-    Download global GFSWave 0.16° GRIB2 for one forecast hour.
+    Download global GFSWave 0.25° GRIB2 for one forecast hour (truly global,
+    -90..90 — unlike the lat-limited 0p16 "global" product).
     Returns (hs_m, period_s, dir_deg, lat_1d, lon_1d) or None on failure.
     lon_1d is 0..360; callers normalise.  Land cells come back as NaN.
     """
