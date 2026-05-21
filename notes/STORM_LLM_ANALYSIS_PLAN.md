@@ -91,9 +91,11 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - **Accept:** handoff works regardless of worker / after restart; verified end-to-end.
 - **Note:** the core fix (context survives workers) works today without the new columns — ship first as a bugfix if quick relief is wanted.
 
-### Phase 6 — Frontend card analysis rendering
-- `StormCard.jsx`: render `analysis_text` + `region_timeline` trajectory list in place of the templated `sc-narrative`. Keep "Ask Sione" CTA. Label as AI-generated.
-- **Accept:** card shows the LLM trajectory; Sione deep-dive still works.
+### Phase 6 — Frontend card analysis rendering — ✅ done (visual check pending data)
+- `StormCard.jsx`: replaced templated `sc-narrative` with an `sc-analysis` block — `analysis_text` (falls back to `narrative`) under a "Sione forecast" eyebrow (D1 `<Logo variant="mark">`), plus an `sc-trajectory` list rendered from `region_timeline` (peak timing · region · size@period · dir, tier-colored left border). "Ask Sione" CTA unchanged.
+- `styles/storm-card.css`: styles for the new classes (existing tokens, no hex).
+- **Accept:** ✅ production build compiles (+498 B JS / +303 B CSS); JSX parses; no hex literals. Visual confirmation pending migration 019 applied + a detection cycle populating `analysis_text` in prod.
+- **Pre-existing gap (not Phase 6):** the other Phase 8 detail sections (`sc-section`, `sc-dynamics`, `sc-landfall`, `sc-regions`, `sc-row-grid`, `sc-cell`, `sc-region-row`) shipped without CSS — the detail panel below the analysis block is largely unstyled. Worth a follow-up styling pass.
 
 ### Phase 7 — Map storm strength filter
 - Frontend control on the storm layer: **All / Gale 34kt+ / Storm 48kt+ / Hurricane 64kt+** (client-side filter on loaded set by `warning_tier` / wind — instant, no refetch).

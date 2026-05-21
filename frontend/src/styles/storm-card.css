@@ -957,3 +957,54 @@ body.dimmed #dim-layer {
   .l1-meta { grid-template-columns: 1fr; }
   .sc-fetch-wedge { display: none; }
 }
+
+/* ─── AI trajectory analysis (Phase 6) ───────────────────────────── */
+.sc-analysis {
+  margin: 10px 0 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+.sc-analysis-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sc-analysis-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+.sc-trajectory {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sc-traj-row {
+  display: grid;
+  grid-template-columns: 42px 1fr auto auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0 4px 8px;
+  font-size: 12px;
+  border-left: 2px solid transparent;
+}
+.sc-traj-row.tier-direct        { border-left-color: var(--accent); }
+.sc-traj-row.tier-glancing      { border-left-color: var(--fire); opacity: 0.92; }
+.sc-traj-row.tier-partial,
+.sc-traj-row.tier-landfall_blocked { border-left-color: var(--muted); opacity: 0.8; }
+.sc-traj-when   { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.sc-traj-region { color: var(--fg); font-weight: 500; }
+.sc-traj-size   { color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.sc-traj-dir    { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
