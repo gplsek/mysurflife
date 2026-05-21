@@ -15,6 +15,7 @@ export default function Chrome({
   state,
   onRegion,
   onToggle,
+  onStormStrength,
   spots,
   buoys,
   storms,
@@ -59,6 +60,7 @@ export default function Chrome({
         stormCount={storms.length}
         state={state}
         onToggle={onToggle}
+        onStormStrength={onStormStrength}
         loading={loading}
       />
       <ZoomControls mapRef={mapRef} addSpotMode={addSpotMode} onAddSpotToggle={onAddSpotToggle} />

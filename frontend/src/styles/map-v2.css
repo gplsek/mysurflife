@@ -1431,3 +1431,29 @@
   .mv-chips { top: 68px; left: 10px; }
   .mv-zoom-ctrl { right: 10px; }
 }
+
+/* ─── Storm strength filter (Phase 7) ────────────────────────────── */
+.mv-strength {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 2px 0 4px 26px;   /* align under the Storms label, past the icon */
+}
+.mv-strength-btn {
+  padding: 4px 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 100ms, color 100ms, border-color 100ms;
+}
+.mv-strength-btn:hover { color: var(--fg); }
+.mv-strength-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: oklch(0.14 0.02 230);   /* dark-on-accent, matches timeline/chip active state */
+}

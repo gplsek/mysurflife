@@ -5,6 +5,7 @@ import { StormFetchWedge }    from './StormFetchWedge';
 import { StormForecastTrack } from './StormForecastTrack';
 import { RegionalScorecard }  from './RegionalScorecard';
 import { ArrivalSpotList }    from './ArrivalSpotList';
+import Logo                   from '../../design/Logo';
 
 const DIR_DEGREES = {
   N: 0, NNE: 22.5, NE: 45, ENE: 67.5,
@@ -123,6 +124,11 @@ export function StormCard({ storm, mapRef, onClose }) {
   const peakSeaFt         = peakSeaM != null ? Math.round(peakSeaM * 3.281) : null;
   const confirmStatus     = d.confirmation_status;
   const regionImpacts     = d.region_impacts;
+  // Phase 6: precomputed LLM trajectory analysis + structured timeline.
+  // analysis_text falls back to the templated narrative when no LLM run is stored.
+  const analysisText      = d.analysis_text || narrative;
+  const analysisModel     = d.analysis_model;          // present only when Sonnet ran
+  const regionTimeline    = d.region_timeline;
   const isModelStorm      = storm.source === 'model' || storm.source === 'reconciled';
   // For model storms use WW3 peak seas when bulletin sea height is absent
   const displaySeasFt     = (isModelStorm && !storm.sea_height_ft && peakSeaFt) ? peakSeaFt : seas_ft;
@@ -209,10 +215,23 @@ export function StormCard({ storm, mapRef, onClose }) {
       if (!res.ok) throw new Error(res.status);
       const { session_id, opening_message } = await res.json();
       const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      // Carry a slim storm + arrivals so Sione can rebuild context if the chat lands
+      // on a different worker than the session was created on (or after a restart).
+      // Drop heavy fields not used by the LLM context block (raw bulletin, spot lists).
+      const { raw_text, ...slimStorm } = storm;
+      const slimArrivals = (arrivals || []).map(a => ({
+        region_id:     a.region_id,
+        name:          a.name,
+        tier:          a.tier,
+        peak_when:     a.peak_when,
+        peak_ft:       a.peak_ft,
+        window_h:      a.window_h,
+        peak_period_s: a.peak_period_s,
+      }));
       navigate('/sione', {
         state: {
           messages: [{ role: 'assistant', content: opening_message, time: t }],
-          context:  { session_id, storm_id: storm.id },
+          context:  { session_id, storm_id: storm.id, storm: slimStorm, arrivals: slimArrivals },
         },
       });
     } catch (_) {
@@ -279,9 +298,37 @@ export function StormCard({ storm, mapRef, onClose }) {
 
       <div className="storm-card-body">
 
-        {/* ─── Narrative headline (Phase 8) ─── */}
-        {narrative && (
-          <div className="sc-narrative">{narrative}</div>
+        {/* ─── AI trajectory analysis (Phase 6) ─── */}
+        {(analysisText || (regionTimeline && regionTimeline.length > 0)) && (
+          <div className="sc-analysis">
+            {analysisText && (
+              <>
+                <div className="sc-analysis-head">
+                  <Logo variant="mark" size={13} />
+                  <span>{analysisModel ? 'Sione forecast' : 'Forecast'}</span>
+                </div>
+                <p className="sc-analysis-body">{analysisText}</p>
+              </>
+            )}
+            {regionTimeline && regionTimeline.length > 0 && (
+              <div className="sc-trajectory">
+                {regionTimeline.map((t) => (
+                  <div
+                    key={t.region_id || t.region}
+                    className={`sc-traj-row tier-${t.tier || 'partial'}`}
+                  >
+                    <span className="sc-traj-when">{fmtHours(t.peak_hours)}</span>
+                    <span className="sc-traj-region">{t.region}</span>
+                    <span className="sc-traj-size">
+                      {t.size_ft != null ? `${t.size_ft}ft` : '—'}
+                      {t.period_s != null ? ` @ ${Math.round(t.period_s)}s` : ''}
+                    </span>
+                    <span className="sc-traj-dir">{degToCompass(t.dir_deg) || ''}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* ─── L1: Header ─── */}

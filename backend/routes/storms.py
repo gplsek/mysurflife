@@ -214,48 +214,31 @@ def _format_label(s: dict) -> str:
     return " · ".join(parts) if parts else "—"
 
 
-@router.get("/api/storms/active")
-async def get_active_storms(
-    oceans: Optional[str]  = Query(None, description="Comma-separated ocean keys (overrides config)"),
-    min_wind_kts: Optional[int]  = Query(None, description="Min wind kt (overrides config)"),
-    max_pressure_mb: Optional[int] = Query(None, description="Max central pressure mb (overrides config)"),
-    include_highs: Optional[bool]  = Query(None, description="Include HIGH systems (overrides config)"),
-):
+def _san_storms(obj):
+    """Recursively replace NaN/Inf with None for JSON serialization."""
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _san_storms(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_san_storms(v) for v in obj]
+    return obj
+
+
+async def assemble_active_storms(
+    ocean_list: List[str],
+    min_wind_kts: int,
+    max_pressure_mb: int,
+    include_highs: bool,
+) -> dict:
+    """Build the merged active-storm list: bulletin extraction + filters + complex-low
+    dedupe + model reconciliation + land-mask. This is the *expensive* path — run in
+    the 6h job to fill storm_snapshot, or live as the /active fallback.
+
+    Returns {"storms", "count", "updated_at"} (NaN/Inf already sanitized).
     """
-    Returns a flat list of active storm/low-pressure systems suitable for
-    map markers and the StormCard. Aggregates from all requested ocean basins.
-    Filters are read from /config/storms_config.json; query params override per-request.
-    Cached at the bulletin level (TTL 3–6h in high_seas.py).
-    """
-    cfg = load_storms_config()
-
-    # Guard against FastAPI Query objects when called programmatically
-    if not isinstance(oceans, str):
-        oceans = None
-    if not isinstance(min_wind_kts, (int, float)):
-        min_wind_kts = None
-    if not isinstance(max_pressure_mb, (int, float)):
-        max_pressure_mb = None
-    if not isinstance(include_highs, bool):
-        include_highs = None
-
-    # Query params override config when explicitly provided
-    if max_pressure_mb is None:
-        max_pressure_mb = cfg.get("max_pressure_mb", 1020)
-    if min_wind_kts is None:
-        min_wind_kts = cfg.get("min_wind_kts", 0)
-    if include_highs is None:
-        include_highs = cfg.get("include_highs", False)
-
-    if oceans is not None:
-        ocean_list = [o.strip() for o in oceans.split(",") if o.strip() in _OCEAN_KEYS]
-    else:
-        ocean_list = [o for o in cfg.get("oceans", _OCEAN_KEYS) if o in _OCEAN_KEYS]
-    if not ocean_list:
-        ocean_list = _OCEAN_KEYS
-
-    out = []
-    freshness = []
+    out: List[dict] = []
+    freshness: List[str] = []
 
     for ocean in ocean_list:
         hs = await get_high_seas(ocean)
@@ -321,34 +304,136 @@ async def get_active_storms(
         for s in out:
             s.setdefault("source", "bulletin")
 
-    # Drop systems whose center sits over a continent. Applies to both
-    # bulletin and model storms — a land-centered low has no offshore fetch
-    # and shouldn't appear on the surf map. Subsumed by the WW3 confirmation
-    # pass once GLOBAL_STORM_DETECTION_PLAN.md Phase 4 ships.
+    # Drop systems whose center sits over a continent — a land-centered low has no
+    # offshore fetch and shouldn't appear on the surf map.
     if _LAND_MASK_AVAILABLE:
         pre = len(out)
         out = [s for s in out if _is_over_water(s["lat"], s["lon"])]
         dropped = pre - len(out)
         if dropped:
-            print(f"🗺️  storms: dropped {dropped} land-centered system(s) "
-                  f"(kept {len(out)})")
+            print(f"🗺️  storms: dropped {dropped} land-centered system(s) (kept {len(out)})")
 
-    # Sanitize NaN/Inf from model storm fields before JSON serialization
-    def _san(obj):
-        if isinstance(obj, float):
-            return None if (math.isnan(obj) or math.isinf(obj)) else obj
-        if isinstance(obj, dict):
-            return {k: _san(v) for k, v in obj.items()}
-        if isinstance(obj, (list, tuple)):
-            return [_san(v) for v in obj]
-        return obj
+    return {"storms": _san_storms(out), "count": len(out), "updated_at": updated_at}
 
-    return {
-        "storms":     _san(out),
-        "count":      len(out),
-        "updated_at": updated_at,
-        "cached":     True,
-    }
+
+# ── Precomputed snapshot (Phase 4) ──────────────────────────────────────────────
+
+_SNAPSHOT_MAX_AGE_H = 8   # job refreshes every 6h; serve snapshot until 8h old
+
+
+async def _read_storm_snapshot() -> Optional[dict]:
+    """Read the precomputed /active snapshot. Returns None if missing or stale."""
+    try:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client()
+        if not client:
+            return None
+        resp = (
+            client.table("storm_snapshot").select("*").eq("id", "current").single().execute()
+        )
+        row = resp.data
+        if not row:
+            return None
+        built = row.get("built_at")
+        if built:
+            from datetime import datetime, timezone
+            bt = datetime.fromisoformat(built.replace("Z", "+00:00")) if isinstance(built, str) else built
+            age_h = (datetime.now(timezone.utc) - bt).total_seconds() / 3600
+            if age_h > _SNAPSHOT_MAX_AGE_H:
+                print(f"⚠️  storm_snapshot stale ({age_h:.1f}h) — falling back to live")
+                return None
+        return {
+            "storms":     row.get("storms") or [],
+            "count":      row.get("count") or 0,
+            "updated_at": row.get("updated_at"),
+        }
+    except Exception as e:
+        print(f"⚠️  _read_storm_snapshot: {e}")
+        return None
+
+
+async def build_and_store_snapshot() -> dict:
+    """Assemble the default-config storm list and upsert it into storm_snapshot.
+    Called by the detection job after each cycle so /active is a pure read."""
+    cfg = load_storms_config()
+    ocean_list = [o for o in cfg.get("oceans", _OCEAN_KEYS) if o in _OCEAN_KEYS] or list(_OCEAN_KEYS)
+    result = await assemble_active_storms(
+        ocean_list,
+        cfg.get("min_wind_kts", 0),
+        cfg.get("max_pressure_mb", 1020),
+        cfg.get("include_highs", False),
+    )
+    try:
+        from database import get_supabase_admin_client
+        from datetime import datetime, timezone
+        client = get_supabase_admin_client()
+        if not client:
+            print("⚠️  build_and_store_snapshot: no DB client; snapshot not written")
+            return result
+        client.table("storm_snapshot").upsert({
+            "id":         "current",
+            "storms":     result["storms"],
+            "count":      result["count"],
+            "updated_at": result["updated_at"],
+            "built_at":   datetime.now(timezone.utc).isoformat(),
+        }, on_conflict="id").execute()
+        print(f"✅ storm_snapshot: wrote {result['count']} storms")
+    except Exception as e:
+        print(f"❌ build_and_store_snapshot: write failed: {e}")
+    return result
+
+
+@router.get("/api/storms/active")
+async def get_active_storms(
+    oceans: Optional[str]  = Query(None, description="Comma-separated ocean keys (overrides config)"),
+    min_wind_kts: Optional[int]  = Query(None, description="Min wind kt (overrides config)"),
+    max_pressure_mb: Optional[int] = Query(None, description="Max central pressure mb (overrides config)"),
+    include_highs: Optional[bool]  = Query(None, description="Include HIGH systems (overrides config)"),
+):
+    """
+    Returns a flat list of active storm/low-pressure systems for map markers + StormCard.
+
+    Default (no query overrides): served from the precomputed storm_snapshot (a pure
+    DB read, built by the 6h detection job). Query overrides, or a missing/stale
+    snapshot, fall back to assembling live from bulletins + model reconciliation.
+    """
+    cfg = load_storms_config()
+
+    # Guard against FastAPI Query objects when called programmatically
+    if not isinstance(oceans, str):
+        oceans = None
+    if not isinstance(min_wind_kts, (int, float)):
+        min_wind_kts = None
+    if not isinstance(max_pressure_mb, (int, float)):
+        max_pressure_mb = None
+    if not isinstance(include_highs, bool):
+        include_highs = None
+
+    # Any explicit filter override bypasses the snapshot (which reflects config defaults).
+    has_overrides = any(v is not None for v in (oceans, min_wind_kts, max_pressure_mb, include_highs))
+
+    if not has_overrides:
+        snap = await _read_storm_snapshot()
+        if snap is not None:
+            return {**snap, "cached": True, "source": "snapshot"}
+
+    # Resolve effective filters (query param → config default) for the live path.
+    if max_pressure_mb is None:
+        max_pressure_mb = cfg.get("max_pressure_mb", 1020)
+    if min_wind_kts is None:
+        min_wind_kts = cfg.get("min_wind_kts", 0)
+    if include_highs is None:
+        include_highs = cfg.get("include_highs", False)
+
+    if oceans is not None:
+        ocean_list = [o.strip() for o in oceans.split(",") if o.strip() in _OCEAN_KEYS]
+    else:
+        ocean_list = [o for o in cfg.get("oceans", _OCEAN_KEYS) if o in _OCEAN_KEYS]
+    if not ocean_list:
+        ocean_list = list(_OCEAN_KEYS)
+
+    result = await assemble_active_storms(ocean_list, min_wind_kts, max_pressure_mb, include_highs)
+    return {**result, "cached": True, "source": "live"}
 
 
 # ── Storm arrivals ────────────────────────────────────────────────────────────
