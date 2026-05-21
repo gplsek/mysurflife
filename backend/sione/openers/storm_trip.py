@@ -191,6 +191,13 @@ is a fabricated promise — don't do it. Use the data's natural resolution.
 Always work from storm + arrival data already in context before calling tools. \
 Only re-fetch if data is stale or the user asks about something outside the handoff payload. \
 Flag model data vs. observed data when it matters.
+
+## Output format
+Follow the artifact protocol from the base instructions above: return your answer through \
+the `respond` tool with structured artifacts — `spot_comparison` to rank spots, \
+`conditions_timeline` for forecasts, `swell_arrival` for arrival timing/size, `wind_chart` \
+for wind, plus `follow_ups`. Do NOT hand-write markdown tables or bullet lists in the message \
+body; the UI renders artifacts, not raw markdown.
 """
 
 
