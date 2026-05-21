@@ -209,10 +209,23 @@ export function StormCard({ storm, mapRef, onClose }) {
       if (!res.ok) throw new Error(res.status);
       const { session_id, opening_message } = await res.json();
       const t = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      // Carry a slim storm + arrivals so Sione can rebuild context if the chat lands
+      // on a different worker than the session was created on (or after a restart).
+      // Drop heavy fields not used by the LLM context block (raw bulletin, spot lists).
+      const { raw_text, ...slimStorm } = storm;
+      const slimArrivals = (arrivals || []).map(a => ({
+        region_id:     a.region_id,
+        name:          a.name,
+        tier:          a.tier,
+        peak_when:     a.peak_when,
+        peak_ft:       a.peak_ft,
+        window_h:      a.window_h,
+        peak_period_s: a.peak_period_s,
+      }));
       navigate('/sione', {
         state: {
           messages: [{ role: 'assistant', content: opening_message, time: t }],
-          context:  { session_id, storm_id: storm.id },
+          context:  { session_id, storm_id: storm.id, storm: slimStorm, arrivals: slimArrivals },
         },
       });
     } catch (_) {
