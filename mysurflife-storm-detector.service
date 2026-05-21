@@ -1,0 +1,27 @@
+# Systemd Service — storm detector (single instance)
+# File location: /etc/systemd/system/mysurflife-storm-detector.service
+#
+# Runs ONE storm detection cycle (GFS+WW3 detect → region timeline → Sonnet
+# analysis → derived_storms + storm_snapshot) and exits. Triggered by
+# mysurflife-storm-detector.timer. Replaces the per-uvicorn-worker in-app loop so
+# detection / LLM / NOMADS work runs once per cycle, not 4×.
+#
+# Commands:
+#   sudo systemctl enable --now mysurflife-storm-detector.timer
+#   sudo systemctl start mysurflife-storm-detector.service   # run once now
+#   sudo journalctl -u mysurflife-storm-detector.service -f
+
+[Unit]
+Description=MySurfLife storm detector (one cycle)
+After=network.target mysurflife-backend.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/mysurflife/backend
+Environment="PATH=/var/www/mysurflife/backend/venv/bin"
+ExecStart=/var/www/mysurflife/backend/venv/bin/python -m jobs.detect_storms
+TimeoutStartSec=1200
+StandardOutput=journal
+StandardError=journal

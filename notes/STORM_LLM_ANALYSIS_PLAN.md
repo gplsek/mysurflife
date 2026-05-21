@@ -82,7 +82,8 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - `jobs/detect_storms.py`: `run_detection()` calls `build_and_store_snapshot()` after persist.
 - `/api/storms/active`: default path (no query overrides) → pure snapshot read (`source: "snapshot"`); query overrides or missing/stale snapshot → live assemble (`source: "live"`). Response shape preserved (+`source`).
 - **Accept:** ✅ no per-request bulletin fetch on the default path; `backend/test_storm_snapshot.py` (3 tests: snapshot served / override bypass / missing→live). Full storm suite 35 green.
-- **Follow-up:** the detection loop runs in all 4 uvicorn workers, so the snapshot is written 4× (harmless last-write-wins) and detection/LLM is duplicated (change-gate dedupes most LLM via DB). Consider moving the detector to a single systemd service like `mysurflife-rate-spots-*`.
+- **Follow-up — ✅ addressed (branch `storm-detector-service`):** the detection loop previously ran in all 4 uvicorn workers (4× GFS/WW3 downloads + LLM spend + DB writes). Now a single-instance systemd oneshot+timer (`mysurflife-storm-detector.{service,timer}`, `python -m jobs.detect_storms`) runs one cycle every 6h. `main.py` startup no longer launches the loop unless `STORM_DETECTOR_IN_APP=1` (dev / fallback escape hatch).
+  - **Deploy requirement:** install + `systemctl enable --now mysurflife-storm-detector.timer`, or set `STORM_DETECTOR_IN_APP=1` on the backend — otherwise **no detection runs** and storms go stale.
 
 ### Phase 5 — Sione handoff fix (storm_id → DB rebuild) — ✅ shipped (commit `acab8de`, branch `storm-handoff-fix`)
 - `/api/sione/chat`: on session miss but `ctx.storm_id` present, rebuild `system_prompt_override` from `derived_storms` row (+ analysis + timeline once Phase 3 lands) + user favorites.

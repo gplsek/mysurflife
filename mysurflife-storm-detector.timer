@@ -1,0 +1,22 @@
+# Systemd Timer — storm detector (every 6h, aligned to GFS cadence)
+# File location: /etc/systemd/system/mysurflife-storm-detector.timer
+#
+# GFS runs every 6h; resolve_latest_gfs_run() picks whatever's newest, so a fixed
+# 6h interval is sufficient. OnBootSec gives a first run shortly after deploy.
+#
+# Commands:
+#   sudo systemctl enable --now mysurflife-storm-detector.timer
+#   sudo systemctl list-timers mysurflife-storm-detector.timer
+#   sudo journalctl -u mysurflife-storm-detector.service -f
+
+[Unit]
+Description=MySurfLife storm detector — every 6 hours
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=6h
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

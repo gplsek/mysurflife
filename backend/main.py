@@ -293,8 +293,15 @@ async def startup():
     from jobs.fetch_forecasts import run_forecast_prebake_loop
     asyncio.create_task(run_forecast_prebake_loop(get_all_spots, _redis_client))
 
-    from jobs.detect_storms import run_storm_detection_loop
-    asyncio.create_task(run_storm_detection_loop())
+    # Storm detection runs as a single-instance systemd service+timer
+    # (mysurflife-storm-detector) so it isn't duplicated across the 4 uvicorn
+    # workers (which caused 4× GFS/WW3 downloads + LLM spend + DB writes).
+    # Set STORM_DETECTOR_IN_APP=1 to fall back to the in-app loop (dev, or before
+    # the timer is installed) — note that runs in every worker.
+    if os.getenv("STORM_DETECTOR_IN_APP", "").lower() in ("1", "true", "yes"):
+        from jobs.detect_storms import run_storm_detection_loop
+        asyncio.create_task(run_storm_detection_loop())
+        print("⚠️  storm detector running IN-APP (every worker) — prefer the systemd timer")
 
 @app.on_event("shutdown")
 async def shutdown():
