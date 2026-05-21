@@ -1,8 +1,8 @@
 # Global Storm Detection Plan
 
 **Owner:** George
-**Status:** Architectural draft — not yet committed to build
-**Last updated:** 2026-04-26
+**Status:** ✅ Built — Phases 1–8 shipped Apr 27 2026 (commits `12318e2`, `fe499f7`). This doc remains the design source of truth; for current implementation state see the audit table in `notes/STORM_DETECTION_EXECUTION_PLAN.md`.
+**Last updated:** 2026-05-21
 **Companions:**
 - `notes/STORM_COVERAGE_BUGS.md` — immediate bugs in the bulletin pipeline
 - `notes/STORM_CARD_DESIGN_BRIEF.md` — what the storm-detail drawer expects

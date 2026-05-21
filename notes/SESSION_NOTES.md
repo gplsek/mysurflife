@@ -2,6 +2,37 @@
 
 ---
 
+## 📍 Current Status (Apr 23–27, 2026) — Session 3
+
+### Session Summary — Design V2 merge, Sione streaming + storm handoff, global storm detector
+
+The biggest stretch of work since the module split. Reconstructed here from git (`32ee1bc`…`6d8f256`) and the storm doc cluster; SESSION_NOTES had skipped it.
+
+**Design V2 + responsive shell (Apr 23)**
+Merged the `design-v2-integration` branch (`32ee1bc`): V2 app shell, theme provider (auto Ocean/Dawn/Daylight), screen-level mobile reflow (Dashboard, Copilot, SpotDetail, Storm card), hamburger drawer + region dropdown. Added `locateMe` geolocation fly-in, region persistence to `localStorage`, private user spots + SpotDetail favorite chip. Removed leftover `overflow:hidden` from html/body/index.html that was blocking homepage scroll (see memory: body-scroll deferred).
+
+**SpotDetail / AI / dashboard / profile (Apr 24–25)**
+AISpotAnalysis V2 refactor + RLS fix + move-pin edit mode; alerts backend (`015_user_alerts.sql`); buoy detail panel + layer exclusivity + storm timeline on the map; full dashboard redesign; profile drawer (identity, preferences, admin links) with empty-string→NULL coercion for constrained columns.
+
+**Sione (Apr 25–26)**
+Renamed Scout → Sione throughout (trademark-cleared, see memory). Streaming chat via SSE (token-by-token + live tool events); typing-dots fixes; `storm_trip` handoff — `/api/sione/sessions` endpoint + server-side opener templater + storm context in chat. Backend refactor Phase 1+2 (`1d6ea84`): `services/` foundation + extracted Sione/AI/Copilot route modules. Several `http_client` name-binding / config-dedup fixes.
+
+**Storm detection — bulletin fixes then the model detector (Apr 26–27)**
+Bulletin pipeline fixes first: parse sea heights / fetch / max winds; forecast-track regex (Bug 2); `east-pacific` rename (Bug 1); `max_pressure_mb` rename + storm-ID collision (Bugs 3, 4); complex-low dedupe + LLM value-bleed guard (Bugs 8c, 9a).
+
+Then the durable fix shipped: **GFS-pressure global cyclone detector** (`12318e2`, Bugs 5 & 6) and **global GFS+WW3 model detection + region impact + DB persistence** (`fe499f7`). New: `backend/jobs/detect_storms.py` (detector loop, WW3 cone confirmation, track dynamics, landfall), `backend/services/{region_impact,storm_reconciliation}.py`, `backend/config/{region_swell_windows,storm_detector_config}.json`, migration `018_derived_storms.sql`, endpoint `GET /api/storms/{id}/detail`, tests `test_detect_storms_ww3.py` + `test_storm_reconciliation.py`. Frontend: model-storm visual differentiation + dashboard storm UI (`9c7839e`, `fe6620d`, `fcf1488`, `6d8f256`).
+
+See `notes/STORM_DETECTION_EXECUTION_PLAN.md` audit table for per-phase status, and `notes/STORM_SIONE_HANDOFF.md` for the drawer→Sione design.
+
+### What's Next
+
+- Confirm storm detection loop is launched in `main.py` startup(); verify `global-land-mask` installed in prod
+- Wire the "Ask Sione about this storm" chip end-to-end (handoff doc §"Engineering work")
+- Continue Design V2 remaining phases
+- Optional interim: Bug 8 option (c) output-side dedupe if Atlantic count inflation resurfaces
+
+---
+
 ## 📍 Current Status (Apr 21, 2026) — Session 2
 
 ### Session Summary — Surf Scoring Fixes + Schema Validation

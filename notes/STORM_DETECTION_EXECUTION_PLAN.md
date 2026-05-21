@@ -1,8 +1,8 @@
 # Storm Detection — Execution Playbook (Phases 4-8)
 
 **Owner:** George
-**Status:** Ready to execute end-to-end
-**Last updated:** 2026-04-27
+**Status:** ✅ Phases 4–8 shipped (commits `12318e2`, `fe499f7`, Apr 27 2026). This doc is now a build record + verification reference, not an open work queue.
+**Last updated:** 2026-05-21
 **Goal:** Ship the remaining phases of `notes/GLOBAL_STORM_DETECTION_PLAN.md` so the storm map is MVP-complete.
 
 **Prerequisite reading (do this first, in order):**
@@ -22,20 +22,22 @@
 
 ## Audit — what's already in place
 
-Before changing anything, confirm current state. These were verified on 2026-04-27:
+> **Update (2026-05-21):** the original audit below (written 2026-04-27 morning) is superseded — Phases 4–8 shipped that same afternoon in commits `12318e2` (GFS detector, Bugs 5 & 6) and `fe499f7` (WW3 enrichment + region impact + DB persistence). The table reflects current `main`.
 
 | Phase | Plan reference | Actual state |
 |---|---|---|
-| 1 (Pressure ingestion) | §11 Phase 1 | **Done in-job, no separate endpoint.** `backend/jobs/detect_storms.py:fetch_gfs_global_field()` pulls PRMSL+UGRD+VGRD globally from NOMADS in one shot. The plan called for a separate `/api/pressure-overlay` endpoint — *we are skipping that*; the data is consumed directly by the detector and never round-trips through HTTP. Add a comment to the file noting this divergence from the plan. |
-| 2 (Detector job) | §11 Phase 2 | **Done.** `find_pressure_minima` + `cluster_minima` + `compute_fetch_geometry` + `detect_at_hour` all implemented. `_assign_ocean_basin` covers all 7 basins including SH. Background loop wired in `run_storm_detection_loop()` with 90s startup delay + 6h refresh. Verify it's actually launched in `main.py` startup() before Phase 4. |
-| 3 (Track matching) | §11 Phase 3 | **Done.** `match_tracks()` uses §5 algorithm — distance ≤ 600 km + pressure delta ≤ 20 mb between linked steps. Builds `forecast_track` array per storm. **Gap:** does not compute `intensification_rate_mb_per_6h`, `peak_intensity_hour`, or `is_deepening`. Phase 4 adds these. |
-| 4 (WW3 enrichment + confirmation pass) | §4.3, §4.4, §11 Phase 4 | **Not done.** No WW3 sampling. No Hs cone confirmation. No `peak_sea_m` / `peak_period_s` / `swell_direction_deg` / `max_cone_hs_m` fields on detected storms. |
-| 5 (Landfall check) | §6, §11 Phase 5 | **Not done.** Track points are not checked against a land mask. Note: the interim `routes/storms.py:_is_over_water` filter only checks the *current* center, not future track points. |
-| 6 (Bulletin reconciliation) | §8, §11 Phase 6 | **Naive merge only.** `routes/storms.py:200-218` drops model storms whose center is within 400 km of a bulletin storm. Real reconciliation (merge bulletin metadata onto matched derived storms, tag unmatched cases) is missing. |
-| 7 (Region impact + narrative) | §7, §11 Phase 7 | **Not done.** No `region_swell_windows.json`. No region screening. No narrative templater. |
-| 8 (DB + new endpoints + frontend) | §10, §11 Phase 8 | **Partial.** Frontend `StormMarker.js:5` already differentiates `source === 'model'` via `.source-model` CSS class — confirm the corresponding CSS exists. `derived_storms` Postgres table does not exist (`migrations/010_storm_observations.sql` is a different append-only history table). No `/api/storms/{id}/detail` endpoint. |
+| 1 (Pressure ingestion) | §11 Phase 1 | **Done in-job, no separate endpoint.** `backend/jobs/detect_storms.py:fetch_gfs_global_field()` pulls PRMSL+UGRD+VGRD globally from NOMADS in one shot. The separate `/api/pressure-overlay` endpoint was intentionally skipped — data is consumed directly by the detector, never round-trips through HTTP. |
+| 2 (Detector job) | §11 Phase 2 | **Done.** `find_pressure_minima` + `cluster_minima` + `compute_fetch_geometry` + `detect_at_hour`; `_assign_ocean_basin` covers all 7 basins incl. SH. Loop wired in `run_storm_detection_loop()` (90s startup + 6h refresh). |
+| 3 (Track matching) | §11 Phase 3 | **Done.** `match_tracks()` (≤600 km + ≤20 mb between linked steps) builds the `forecast_track` array. Dynamics gap closed in Phase 4 (`_annotate_track_dynamics`). |
+| 4 (WW3 enrichment + confirmation pass) | §4.3, §4.4, §11 Phase 4 | **Done** (`fe499f7`). `fetch_ww3_global_hs` + `sample_hs_cone` populate `peak_sea_m` / `peak_period_s` / `swell_direction_deg` / `max_cone_hs_m`. `_annotate_track_dynamics` adds `is_deepening` / `intensification_rate_mb_per_6h` / `peak_intensity_hour`. Tests: `backend/test_detect_storms_ww3.py`. |
+| 5 (Landfall check) | §6, §11 Phase 5 | **Done** (`fe499f7`). `_annotate_landfall` checks forecast-track points (not just the current center) and sets the landfall fields. |
+| 6 (Bulletin reconciliation) | §8, §11 Phase 6 | **Done** (`fe499f7`). `backend/services/storm_reconciliation.py:reconcile()` merges bulletin metadata onto matched derived storms. Tests: `backend/test_storm_reconciliation.py`. |
+| 7 (Region impact + narrative) | §7, §11 Phase 7 | **Done** (`fe499f7`). `backend/services/region_impact.py` (`score_storm_against_regions` + `compose_narrative`) + `backend/config/region_swell_windows.json`. |
+| 8 (DB + new endpoints + frontend) | §10, §11 Phase 8 | **Done** (`fe499f7`). Migration `018_derived_storms.sql` present; `_persist_derived_storms` + `_storm_to_row` write rows; `GET /api/storms/{storm_id}/detail` live. Frontend source differentiation (`2092503`) + dashboard storm UI (`9c7839e`, `fe6620d`, `fcf1488`, `6d8f256`). |
 
-**Latest existing migration:** `017_user_profile_extended.sql`. **New migration filename:** `018_derived_storms.sql`.
+**Latest migration:** `018_derived_storms.sql`.
+
+**Remaining follow-ups (not blockers):** (1) confirm the detection loop is actually launched in `main.py` startup(); (2) verify `global-land-mask` is installed in prod — graceful fallback if not; (3) the build's own "do not bundle phases into one mega commit" rule was relaxed for `fe499f7` (Phases 4+7+8 in one commit), so spot-check each phase's Verification block below rather than assuming parity.
 
 ---
 

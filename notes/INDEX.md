@@ -12,6 +12,36 @@ Complete index of all project documentation, organized by category.
 
 ---
 
+## 🌀 Storm Detection & Sione (Q2 2026 — most active area)
+
+### Storm Detection Pipeline
+- **[GLOBAL_STORM_DETECTION_PLAN.md](./GLOBAL_STORM_DETECTION_PLAN.md)** - ⭐ ✅ Design source of truth — GFS+WW3 wind-field cyclone detector (replaces bulletin-only pipeline)
+- **[STORM_DETECTION_EXECUTION_PLAN.md](./STORM_DETECTION_EXECUTION_PLAN.md)** - ⭐ ✅ Phase 4–8 build playbook + audit table (current state of detector)
+- **[STORM_COVERAGE_BUGS.md](./STORM_COVERAGE_BUGS.md)** - 🐛 Bulletin-pipeline bug tracker (Bugs 1–9, fix order, severities)
+- **[STORM_LLM_ANALYSIS_PLAN.md](./STORM_LLM_ANALYSIS_PLAN.md)** - ⭐ 🚧 Precomputed LLM storm analysis + caching + Sione handoff fix (7-phase plan)
+
+### Storm Card / Drawer
+- **[STORM_CARD_DESIGN_BRIEF.md](./STORM_CARD_DESIGN_BRIEF.md)** - Storm-detail card design brief
+- **[STORM-card.md](./STORM-card.md)** - Storm card spec / notes
+- **[STORM_DRAWER_V2_DESIGN_BRIEF.md](./STORM_DRAWER_V2_DESIGN_BRIEF.md)** - 📝 Drawer v2 brief (shelved in favor of Sione handoff)
+
+### Sione (AI assistant)
+- **[SIONE_CAPABILITIES.md](./SIONE_CAPABILITIES.md)** - ⭐ Sione modes, tool surface, provider strategy
+- **[STORM_SIONE_HANDOFF.md](./STORM_SIONE_HANDOFF.md)** - ⭐ Drawer → Sione storm-trip handoff (payloads, opener, tool surface)
+
+---
+
+## 🗺️ Map V2 & Handoffs
+
+- **[MAP_V2_IMPLEMENTATION_PLAN.md](./MAP_V2_IMPLEMENTATION_PLAN.md)** - ⭐ Map V2 implementation plan
+- **[MAP_V2_DATA_GAPS.md](./MAP_V2_DATA_GAPS.md)** - Map V2 data gaps
+- **[SPOT_DETAIL_V2_PLAN.md](./SPOT_DETAIL_V2_PLAN.md)** - SpotDetail V2 plan
+- **[BACKEND_REFACTOR_PLAN.md](./BACKEND_REFACTOR_PLAN.md)** - Backend module-split / services refactor plan
+- **[HANDOFF_2026-04-22.md](./HANDOFF_2026-04-22.md)** - Session handoff (2026-04-22)
+- **[CODE_HANDOFF_MAP_V2_SIONE.md](./CODE_HANDOFF_MAP_V2_SIONE.md)** - Code handoff: Map V2 + Sione
+
+---
+
 ## 📦 Deployment & Operations
 
 ### Production Deployment
@@ -195,9 +225,9 @@ Production considerations...
 
 ---
 
-**Last Updated**: 2026-04-21 (Session 2)
-**Total Documents**: 53
-**Categories**: 10
+**Last Updated**: 2026-05-21
+**Total Documents**: 74
+**Categories**: 12
 
 ---
 
