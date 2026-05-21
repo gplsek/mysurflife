@@ -77,10 +77,12 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - **Accept:** ✅ `backend/test_storm_analysis.py` (9 tests: hash stability/sensitivity/6h-bucket, generate calls model / skips empty / no-key, enrich reuse/generate/fallback). Full storm suite 32 green.
 - **Deploy reqs:** migration `019` applied + `ANTHROPIC_API_KEY` set. Degrades to templated narrative if either is missing.
 
-### Phase 4 — Snapshot builder + `/active` pure read
-- Move reconcile + land-mask + dedupe + bulletin merge into the job; build finished list; write `storm_snapshot`.
-- Refactor `/api/storms/active` → read snapshot (fallback to current path if snapshot missing/stale).
-- **Accept:** `/active` does no per-request bulletin fetch; latency drops; same response shape.
+### Phase 4 — Snapshot builder + `/active` pure read — ✅ done
+- `routes/storms.py`: extracted `assemble_active_storms()` (bulletin merge + dedupe + reconcile + land-mask) from the endpoint; added `build_and_store_snapshot()` (writes `storm_snapshot`) + `_read_storm_snapshot()` (8h staleness guard).
+- `jobs/detect_storms.py`: `run_detection()` calls `build_and_store_snapshot()` after persist.
+- `/api/storms/active`: default path (no query overrides) → pure snapshot read (`source: "snapshot"`); query overrides or missing/stale snapshot → live assemble (`source: "live"`). Response shape preserved (+`source`).
+- **Accept:** ✅ no per-request bulletin fetch on the default path; `backend/test_storm_snapshot.py` (3 tests: snapshot served / override bypass / missing→live). Full storm suite 35 green.
+- **Follow-up:** the detection loop runs in all 4 uvicorn workers, so the snapshot is written 4× (harmless last-write-wins) and detection/LLM is duplicated (change-gate dedupes most LLM via DB). Consider moving the detector to a single systemd service like `mysurflife-rate-spots-*`.
 
 ### Phase 5 — Sione handoff fix (storm_id → DB rebuild) — ✅ shipped (commit `acab8de`, branch `storm-handoff-fix`)
 - `/api/sione/chat`: on session miss but `ctx.storm_id` present, rebuild `system_prompt_override` from `derived_storms` row (+ analysis + timeline once Phase 3 lands) + user favorites.

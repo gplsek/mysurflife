@@ -1102,6 +1102,14 @@ async def run_detection(run_date: Optional[str] = None, run_cycle: Optional[str]
     detected_at = datetime.utcnow().replace(tzinfo=timezone.utc)
     await _persist_derived_storms(storms, detected_at)
 
+    # Phase 4: rebuild the /api/storms/active snapshot (bulletins + model reconciliation
+    # + land-mask) so the endpoint is a pure read instead of recomputing per request.
+    try:
+        from routes.storms import build_and_store_snapshot
+        await build_and_store_snapshot()
+    except Exception as e:
+        print(f"⚠️  storm detector: snapshot build failed ({e})")
+
     return storms
 
 
