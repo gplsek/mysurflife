@@ -138,15 +138,27 @@ def _build_storm_session(mode: str, storm: Dict, arrivals: List[Dict],
         format_storm_context_block,
         STORM_TRIP_SYSTEM_PROMPT,
     )
+    # The base prompt carries the respond-tool + artifact protocol (spot_comparison,
+    # conditions_timeline, swell_arrival, …). storm_trip layers its behavior + the
+    # storm context block on top — without the base, the model writes plain markdown
+    # instead of structured artifacts.
+    try:
+        from copilot import SYSTEM_PROMPT as _BASE_PROMPT
+    except Exception:
+        _BASE_PROMPT = ""
+
     opening_message     = generate_storm_trip_opener(storm, user_ctx, arrivals)
     storm_context_block = format_storm_context_block(storm, arrivals, user_ctx)
+    system_prompt = "\n\n".join(
+        p for p in (_BASE_PROMPT, STORM_TRIP_SYSTEM_PROMPT, storm_context_block) if p
+    )
     return {
         "mode":                   mode,
         "storm":                  storm,
         "arrivals":               arrivals,
         "user_ctx":               user_ctx,
         "opening_message":        opening_message,
-        "system_prompt_override": STORM_TRIP_SYSTEM_PROMPT + "\n\n" + storm_context_block,
+        "system_prompt_override": system_prompt,
         "created_at":             now,
     }
 
