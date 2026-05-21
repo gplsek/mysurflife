@@ -69,12 +69,13 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - Wired into `jobs/detect_storms.py` (alongside `region_impacts`/`narrative`) + persisted via `_storm_to_row` → `region_timeline` column. `/api/storms/{id}/detail` returns it automatically (selects `*`).
 - **Accept:** ✅ `backend/test_region_timeline.py` (7 tests) + full storm suite (23) pass; end-to-end verified against real region config.
 
-### Phase 3 — LLM analysis (Sonnet, change-gated)
-- New `backend/services/storm_analysis.py`: `generate_analysis(storm, region_timeline) -> str` using Sonnet 4.6.
-- Change gate: `analysis_input_hash` from rounded position + pressure + tier set + timeline region ids; skip LLM + reuse stored text if unchanged.
-- Graceful fallback to `compose_narrative()` on LLM error.
-- Wire into `run_detection()` after region_impacts.
-- **Accept:** `analysis_text` populated; unchanged storm on next run logs "reuse", no LLM call.
+### Phase 3 — LLM analysis (Sonnet, change-gated) — ✅ done
+- `backend/services/storm_analysis.py`: `generate_analysis(storm, region_timeline)` (Sonnet 4.6) narrates the deterministic timeline — uses only provided numbers, never invents. `enrich_with_analysis(storms, existing)` is the change-gated batch orchestrator (one client per batch).
+- Change gate: `compute_input_hash` over rounded position + pressure + type + deepening/landfall + timeline (region/tier/size/period/peak bucketed to 6h). Reuse stored text when unchanged → no API call.
+- Graceful fallback: missing key / empty timeline / LLM error → keep templated `narrative` as `analysis_text`, hash left unset so the next run retries.
+- Wired into `run_detection()` (`_load_existing_analysis` → `enrich_with_analysis`) before persist; `_storm_to_row` writes the 4 `analysis_*` columns. `/api/storms/{id}/detail` returns them (selects `*`).
+- **Accept:** ✅ `backend/test_storm_analysis.py` (9 tests: hash stability/sensitivity/6h-bucket, generate calls model / skips empty / no-key, enrich reuse/generate/fallback). Full storm suite 32 green.
+- **Deploy reqs:** migration `019` applied + `ANTHROPIC_API_KEY` set. Degrades to templated narrative if either is missing.
 
 ### Phase 4 — Snapshot builder + `/active` pure read
 - Move reconcile + land-mask + dedupe + bulletin merge into the job; build finished list; write `storm_snapshot`.

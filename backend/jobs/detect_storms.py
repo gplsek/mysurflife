@@ -976,6 +976,10 @@ def _storm_to_row(storm: Dict, detected_at: datetime, expires_at: str) -> Dict:
         "region_impacts":               storm.get("region_impacts") or [],
         "region_timeline":              storm.get("region_timeline") or [],
         "narrative":                    storm.get("narrative"),
+        "analysis_text":                storm.get("analysis_text"),
+        "analysis_generated_at":        storm.get("analysis_generated_at"),
+        "analysis_model":               storm.get("analysis_model"),
+        "analysis_input_hash":          storm.get("analysis_input_hash"),
         "raw_bulletin_text":            storm.get("raw_text"),
         "expires_at":                   expires_at,
     }
@@ -1007,6 +1011,29 @@ async def _persist_derived_storms(storms: List[Dict], detected_at: datetime) -> 
         print(f"✅ detect_storms: persisted {len(rows)} storms to derived_storms")
     except Exception as e:
         print(f"❌ detect_storms: persistence failed: {e}")
+
+
+async def _load_existing_analysis(storm_ids: List[str]) -> Dict[str, Dict]:
+    """Fetch stored analysis fields for the given storm_ids so the change gate can
+    reuse unchanged narratives without an LLM call. Returns {} on any failure
+    (e.g. migration 019 not yet applied) → everything regenerates."""
+    if not storm_ids:
+        return {}
+    try:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client()
+        if not client:
+            return {}
+        resp = (
+            client.table("derived_storms")
+            .select("storm_id, analysis_input_hash, analysis_text, analysis_model, analysis_generated_at")
+            .in_("storm_id", list(storm_ids))
+            .execute()
+        )
+        return {r["storm_id"]: r for r in (resp.data or [])}
+    except Exception as e:
+        print(f"⚠️  detect_storms: could not load existing analysis ({e}); regenerating all")
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -1059,6 +1086,15 @@ async def run_detection(run_date: Optional[str] = None, run_cycle: Optional[str]
 
     storms = match_tracks(detections_by_hour)
     print(f"✅ storm detector: {len(storms)} tracked storms from run {run_date} {run_cycle}z")
+
+    # Phase 3: change-gated LLM trajectory analysis. Reuses stored text for storms
+    # whose inputs are unchanged; only materially-changed storms hit the LLM.
+    try:
+        from services.storm_analysis import enrich_with_analysis
+        existing = await _load_existing_analysis([s["id"] for s in storms])
+        await enrich_with_analysis(storms, existing)
+    except Exception as e:
+        print(f"⚠️  storm detector: analysis enrichment failed ({e}); continuing without it")
 
     set_cached_model_storms(storms)
 
