@@ -1130,3 +1130,34 @@ async def run_storm_detection_loop() -> None:
         except Exception as e:
             print(f"❌ storm detector loop error: {e}")
         await asyncio.sleep(REFRESH_INTERVAL)
+
+
+# ---------------------------------------------------------------------------
+# CLI entry — single-instance runner (systemd oneshot + timer).
+# Running detection in every uvicorn worker means 4× GFS/WW3 downloads, LLM
+# spend, and DB/snapshot writes. Instead, `mysurflife-storm-detector` runs this
+# module once per cycle as one process. See notes/STORM_LLM_ANALYSIS_PLAN.md.
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import argparse
+
+    # Standalone process: ensure .env is loaded before any os.getenv reads
+    # (e.g. ANTHROPIC_API_KEY in services.storm_analysis at import time).
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+
+    parser = argparse.ArgumentParser(description="MySurfLife storm detector")
+    parser.add_argument(
+        "--loop", action="store_true",
+        help="Run continuously (90s startup + 6h interval) instead of a single cycle",
+    )
+    args = parser.parse_args()
+
+    if args.loop:
+        asyncio.run(run_storm_detection_loop())
+    else:
+        asyncio.run(run_detection())
