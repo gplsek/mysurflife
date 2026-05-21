@@ -73,7 +73,21 @@ function celsiusToF(c) {
   return ((c * 9) / 5 + 32).toFixed(0);
 }
 
-export default function Map({ state, stateRef, toggleState, setRegion, setQuery }) {
+// Storm strength filter (client-side). Thresholds in knots; falls back to
+// warning_tier when a system has no parsed wind speed.
+const STRENGTH_MIN_KTS = { all: 0, gale: 34, storm: 48, hurricane: 64 };
+const TIER_KTS = { gale: 34, storm: 48, hurricane: 64 };
+
+function stormPassesStrength(storm, level) {
+  if (!level || level === 'all') return true;
+  const min = STRENGTH_MIN_KTS[level] ?? 0;
+  const kts = storm.wind_kts ?? storm.peak_wind_kts;
+  if (kts != null) return kts >= min;
+  const tierKts = TIER_KTS[storm.warning_tier];
+  return tierKts != null ? tierKts >= min : false;   // hide unknown-strength when filtering
+}
+
+export default function Map({ state, stateRef, toggleState, setRegion, setQuery, setStormStrength }) {
   const mapContainerRef  = useRef(null);
   const mapRef           = useRef(null);
   const baseTileRef      = useRef(null);
@@ -328,7 +342,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
 
     const renderKey = [
       bounds.toBBoxString(), zoom,
-      s.region, s.showSpots, s.showBuoys, s.showStorms, s.favsOnly, s.query,
+      s.region, s.showSpots, s.showBuoys, s.showStorms, s.stormStrength, s.favsOnly, s.query,
       spotsRef.current.length, buoysRef.current.length, stormsRef.current.length,
       userSpotsRef.current.length, curHRef.current,
     ].join('_');
@@ -347,6 +361,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
 
     if (s.showStorms) {
       for (const storm of stormsRef.current) {
+        if (!stormPassesStrength(storm, s.stormStrength)) continue;
         addStormMarker(storm, curHRef.current);
       }
     }
@@ -629,6 +644,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery 
         state={state}
         onRegion={handleRegion}
         onToggle={toggleState}
+        onStormStrength={setStormStrength}
         spots={spots}
         buoys={buoys}
         storms={storms}

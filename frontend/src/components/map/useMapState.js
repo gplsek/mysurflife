@@ -13,6 +13,7 @@ export function useMapState() {
     showSpots:  true,
     showBuoys:  false,
     showStorms: false,
+    stormStrength: 'all',   // all | gale | storm | hurricane (client-side filter)
     favsOnly:   false,
     query:      '',
   });
@@ -32,6 +33,7 @@ export function useMapState() {
     setState(s => ({ ...s, region: id }));
   };
   const setQuery = (q) => setState(s => ({ ...s, query: q }));
+  const setStormStrength = (level) => setState(s => ({ ...s, stormStrength: level }));
 
-  return { state, stateRef, toggleState, setRegion, setQuery };
+  return { state, stateRef, toggleState, setRegion, setQuery, setStormStrength };
 }

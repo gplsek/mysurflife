@@ -84,7 +84,7 @@ function Shell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const searchRef = useRef(null);
-  const { state: mapState, stateRef: mapStateRef, toggleState: mapToggle, setRegion: mapSetRegion, setQuery: mapSetQuery } = useMapState();
+  const { state: mapState, stateRef: mapStateRef, toggleState: mapToggle, setRegion: mapSetRegion, setQuery: mapSetQuery, setStormStrength: mapSetStormStrength } = useMapState();
 
   useEffect(() => {
     const handler = (e) => {
@@ -124,6 +124,7 @@ function Shell() {
             toggleState={mapToggle}
             setRegion={mapSetRegion}
             setQuery={mapSetQuery}
+            setStormStrength={mapSetStormStrength}
           />
         </div>
       )}

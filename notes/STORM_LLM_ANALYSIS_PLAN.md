@@ -1,7 +1,7 @@
 # Storm LLM Analysis + Caching — Execution Plan
 
 **Owner:** George
-**Status:** 🚧 Ready to build — decisions locked 2026-05-21
+**Status:** ✅ All 7 phases complete on branch `storm-handoff-fix` (2026-05-21) — pending prod deploy (apply migration `019` + ensure `ANTHROPIC_API_KEY`)
 **Companions:**
 - `notes/STORM_DETECTION_EXECUTION_PLAN.md` — the detector this extends (Phases 1–8, shipped)
 - `notes/STORM_SIONE_HANDOFF.md` — drawer → Sione design (the handoff this fixes)
@@ -97,9 +97,12 @@ Trajectory of surf impact over the forecast — top 3 regions ordered by time, e
 - **Accept:** ✅ production build compiles (+498 B JS / +303 B CSS); JSX parses; no hex literals. Visual confirmation pending migration 019 applied + a detection cycle populating `analysis_text` in prod.
 - **Pre-existing gap (not Phase 6):** the other Phase 8 detail sections (`sc-section`, `sc-dynamics`, `sc-landfall`, `sc-regions`, `sc-row-grid`, `sc-cell`, `sc-region-row`) shipped without CSS — the detail panel below the analysis block is largely unstyled. Worth a follow-up styling pass.
 
-### Phase 7 — Map storm strength filter
-- Frontend control on the storm layer: **All / Gale 34kt+ / Storm 48kt+ / Hurricane 64kt+** (client-side filter on loaded set by `warning_tier` / wind — instant, no refetch).
-- **Accept:** toggling filters markers instantly.
+### Phase 7 — Map storm strength filter — ✅ done
+- `useMapState.js`: `stormStrength` state (`all|gale|storm|hurricane`) + `setStormStrength`; threaded App → Map → Chrome → LeftRail.
+- `LeftRail.jsx`: segmented control (**All / Gale 34+ / Storm 48+ / Hurr 64+**) shown when the Storms layer is on.
+- `Map.jsx`: `stormPassesStrength()` filters the already-loaded set in the render loop (wind_kts, falls back to warning_tier); `stormStrength` added to the render key so toggling is instant, no refetch.
+- `map-v2.css`: segmented-control styles (design tokens, dark-on-accent matches existing pattern).
+- **Accept:** ✅ production build compiles; filter logic unit-checked (10/10 cases). Instant client-side filtering, no refetch.
 
 ---
 

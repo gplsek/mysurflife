@@ -1,7 +1,14 @@
 import React from 'react';
 import { TIER_COLORS, TIER_LABELS, TIER_LEGEND } from './constants';
 
-export function LeftRail({ tierCounts, buoyCount, stormCount, state, onToggle, loading }) {
+const STRENGTH_OPTS = [
+  { k: 'all',       label: 'All' },
+  { k: 'gale',      label: 'Gale 34+' },
+  { k: 'storm',     label: 'Storm 48+' },
+  { k: 'hurricane', label: 'Hurr 64+' },
+];
+
+export function LeftRail({ tierCounts, buoyCount, stormCount, state, onToggle, onStormStrength, loading }) {
   return (
     <div className="mv-rail">
       <div className="mv-rail-card">
@@ -65,6 +72,19 @@ export function LeftRail({ tierCounts, buoyCount, stormCount, state, onToggle, l
           Storms
           <span className="mv-toggle-pip" />
         </button>
+        {state.showStorms && onStormStrength && (
+          <div className="mv-strength" role="group" aria-label="Filter storms by strength">
+            {STRENGTH_OPTS.map(opt => (
+              <button
+                key={opt.k}
+                className={`mv-strength-btn${(state.stormStrength || 'all') === opt.k ? ' on' : ''}`}
+                onClick={() => onStormStrength(opt.k)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           className={`mv-layer-btn${state.favsOnly ? ' on' : ''}`}
           onClick={() => onToggle('favsOnly')}
