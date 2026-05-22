@@ -77,12 +77,19 @@ def _exposure_factor(bearing: float, wmin: float, wmax: float) -> float:
 # ---------------------------------------------------------------------------
 
 def _e_fold_km(period_s: float) -> float:
-    """E-folding decay distance (km), period-aware."""
-    if period_s >= 16:
-        return 3000.0
+    """E-folding decay distance (km), period-aware.
+
+    Long-period swell crosses ocean basins with low dissipation, so the e-folding
+    distance scales strongly with period — a 16-18s Southern-Ocean swell still
+    produces surf ~10,000 km away (e.g. 55°S storm → ~4 ft @ 16s in So-Cal).
+    The previous 1000–3000 km range over-decayed far-field swell to zero, so every
+    storm scored as a `miss` and the trajectory analysis never fired.
+    """
+    if period_s >= 18:
+        return 9000.0
     if period_s <= 10:
-        return 1000.0
-    return 1000.0 + (period_s - 10) / 6.0 * 2000.0
+        return 2500.0
+    return 2500.0 + (period_s - 10) / 8.0 * 6500.0
 
 
 def _decay(distance_km: float, period_s: float) -> float:
