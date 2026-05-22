@@ -240,6 +240,100 @@ def calculate_wind_speed_score(wind_speed_ms: Optional[float]) -> float:
         return 0.0  # Blown out
 
 
+def _window_center(dir_min: float, dir_max: float) -> float:
+    """Center bearing of a [min,max] window, handling 0/360 wraparound."""
+    if dir_max < dir_min:  # window crosses north
+        return normalize_direction((dir_min + dir_max + 360) / 2)
+    return (dir_min + dir_max) / 2
+
+
+def _offshore_center(wind_windows: List[Dict]) -> Optional[float]:
+    """Best estimate of a spot's offshore wind bearing (the direction offshore wind
+    blows FROM) from its configured wind windows. Prefers an offshore/ideal window,
+    else any *-offshore window, else the highest-weight window."""
+    if not wind_windows:
+        return None
+    def cat(w):
+        return (w.get("category") or "").lower()
+    cands = [w for w in wind_windows if cat(w) in ("offshore", "ideal")]
+    if not cands:
+        cands = [w for w in wind_windows if "offshore" in cat(w)]
+    if not cands:
+        cands = wind_windows
+    best = max(cands, key=lambda w: w.get("weight", 1.0))
+    return _window_center(int(best["dir_min"]), int(best["dir_max"]))
+
+
+def calculate_wind_quality(
+    wind_direction: Optional[float],
+    wind_speed_ms: Optional[float],
+    wind_windows: List[Dict],
+) -> Dict:
+    """Unified wind quality (0-4 points), speed-gated by direction.
+
+    Surf reality: offshore wind (blowing from land into the wave face) grooms the
+    surf; onshore wind (blowing in the swell's travel direction) blows it out; cross
+    is mediocre. But speed gates how much direction matters:
+      - Glassy / very light (< 4 kt): clean regardless of direction.
+      - Light (4-8 kt): direction matters — offshore good, onshore poor.
+      - Moderate+ (> 8 kt): direction dominates — offshore survives, onshore blown out.
+
+    Returns {points (0-4), relation, dir_factor, speed_kt}. `relation` is one of
+    glassy | offshore | cross | onshore | unknown.
+    """
+    if wind_speed_ms is None:
+        return {"points": 2.0, "relation": "unknown", "dir_factor": 0.5, "speed_kt": None}
+
+    spd_kt = wind_speed_ms * 1.94384
+    offshore_center = _offshore_center(wind_windows)
+
+    if offshore_center is None or wind_direction is None:
+        dir_factor = 0.5  # no orientation info → neutral; score on speed alone
+        angle_off = None
+    else:
+        # 0° = pure offshore (into the face), 180° = pure onshore
+        angle_off = direction_difference(wind_direction, offshore_center)
+        if angle_off <= 50:
+            dir_factor = 1.0
+        elif angle_off <= 90:
+            dir_factor = 0.6
+        elif angle_off <= 130:
+            dir_factor = 0.3
+        else:
+            dir_factor = 0.1
+
+    # Speed-gated blend: light wind lifts the floor (glassy is clean any direction);
+    # stronger wind widens the offshore↔onshore gap.
+    if spd_kt < 4:
+        quality = 0.88 + 0.12 * dir_factor      # glassy → near-perfect regardless
+    elif spd_kt < 8:
+        quality = 0.45 + 0.50 * dir_factor      # light → onshore 0.45, offshore 0.95
+    elif spd_kt < 12:
+        quality = 0.15 + 0.70 * dir_factor      # moderate → onshore 0.15, offshore 0.85
+    elif spd_kt < 18:
+        quality = 0.05 + 0.55 * dir_factor      # strong → onshore 0.05, offshore 0.60
+    else:
+        quality = 0.35 * dir_factor             # very strong → only offshore survives
+
+    if spd_kt < 4:
+        relation = "glassy"
+    elif angle_off is None:
+        relation = "unknown"
+    elif angle_off <= 50:
+        relation = "offshore"
+    elif angle_off <= 130:
+        relation = "cross"
+    else:
+        relation = "onshore"
+
+    return {
+        "points": round(quality * 4.0, 2),
+        "relation": relation,
+        "dir_factor": dir_factor,
+        "speed_kt": round(spd_kt, 1),
+    }
+
+
 def get_rating_text(score: float) -> str:
     """Convert numeric score to text rating."""
     if score >= 8.5:
@@ -436,18 +530,19 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
         hs_multiplier
     )
 
-    wind_score = calculate_wind_score(
+    # Unified speed-gated wind quality (0-4): offshore good, glassy good,
+    # onshore blown out (esp. > 8 kt), cross mediocre. Replaces the old additive
+    # wind_score + wind_speed_score (which double-counted and ignored the
+    # offshore/onshore distinction due to a category-name mismatch).
+    wind_q = calculate_wind_quality(
         blended_buoy['wind_dir'],
         blended_buoy['wind_speed_ms'],
         wind_windows,
-        chars.get('max_onshore_mph') or 15
     )
+    wind_points = wind_q['points']
 
-    wind_speed_score = calculate_wind_speed_score(blended_buoy['wind_speed_ms'])
-
-    # Combine scores (out of 10 total)
-    # Swell direction: 3 pts, Size: 3 pts, Wind dir: 2 pts, Wind speed: 2 pts
-    overall_score = swell_dir_score + swell_size_score + wind_score + wind_speed_score
+    # Combine scores (out of 10 total): swell direction 3 + size 3 + wind 4
+    overall_score = swell_dir_score + swell_size_score + wind_points
 
     # Apply confidence factor
     confidence = tuning.get('confidence_base', 0.7)
@@ -462,8 +557,11 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
         # Component scores
         'swell_direction_score': swell_dir_score,
         'swell_size_score': round(swell_size_score, 2),
-        'wind_direction_score': wind_score,
-        'wind_speed_score': round(wind_speed_score, 2),
+        'wind_quality_score': wind_points,
+        'wind_relation': wind_q['relation'],
+        # Legacy keys retained for backward-compat (derived from the unified model)
+        'wind_direction_score': round(wind_q['dir_factor'] * 2, 2),
+        'wind_speed_score': round(wind_points, 2),
 
         # Buoy data used
         'wave_height_m': round(blended_buoy['wave_height_m'], 2),
