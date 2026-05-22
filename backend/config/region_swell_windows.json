@@ -9,6 +9,9 @@
     "central-america":  { "label": "Central America",     "centroid": [11.0,  -86.0], "swell_window_deg": [180, 250], "facing": ["S", "SW"] },
     "mainland-mx":      { "label": "Mainland Mexico",     "centroid": [16.5,  -99.5], "swell_window_deg": [200, 280], "facing": ["S", "SW", "W"] },
     "indo":             { "label": "Indonesia",           "centroid": [-8.5,  115.0], "swell_window_deg": [180, 240], "facing": ["S", "SW"] },
-    "australia-east":   { "label": "Australia East Coast","centroid": [-33.0, 151.5], "swell_window_deg": [120, 220], "facing": ["E", "SE", "S"] }
+    "australia-east":   { "label": "Australia East Coast","centroid": [-33.0, 151.5], "swell_window_deg": [120, 220], "facing": ["E", "SE", "S"] },
+    "peru":             { "label": "Peru",                 "centroid": [-12.0,  -77.3], "swell_window_deg": [185, 320], "facing": ["S", "SW", "W"] },
+    "chile-central":    { "label": "Central Chile",        "centroid": [-34.0,  -72.0], "swell_window_deg": [180, 300], "facing": ["SW", "W"] },
+    "s-brazil":         { "label": "Southern Brazil",      "centroid": [-27.6,  -48.5], "swell_window_deg": [70, 200],  "facing": ["E", "SE", "S"] }
   }
 }
