@@ -71,6 +71,27 @@ function fmtHours(h) {
   return h < 48 ? `~${Math.round(h)}h` : `~${Math.round(h / 24)}d`;
 }
 
+// Map a model storm's region_timeline into the L2 "Reachable surf" arrival-row shape,
+// so model storms populate the scorecard like bulletin storms (which come from /arrivals).
+function timelineToArrivals(regionTimeline) {
+  if (!regionTimeline || !regionTimeline.length) return [];
+  const fmtWhen = (h) => {
+    if (h == null) return '—';
+    const d = new Date(Date.now() + h * 3600 * 1000);
+    return d.toLocaleString('en-US', { weekday: 'short', hour: 'numeric' });
+  };
+  return regionTimeline.map((t) => ({
+    region_id: t.region_id || t.region,
+    name:      t.region,
+    peak_ft:   t.size_ft,
+    peak_when: fmtWhen(t.peak_hours),
+    window_h:  (t.fade_hours != null && t.arrival_hours != null)
+      ? Math.max(0, Math.round(t.fade_hours - t.arrival_hours))
+      : null,
+    // tier left undefined → RegionalScorecard derives it from peak_ft
+  }));
+}
+
 export function StormCard({ storm, mapRef, onClose }) {
   const navigate = useNavigate();
   const [l2Status,       setL2Status]       = useState('idle');
@@ -293,7 +314,15 @@ export function StormCard({ storm, mapRef, onClose }) {
     onClose();
   };
 
-  const selectedArrival = arrivals?.find(a => a.region_id === selectedRegion) || null;
+  // L2 "Reachable surf": prefer real bulletin arrivals; for model storms with no
+  // arrivals, fall back to the Sione region_timeline so the section still populates.
+  const timelineArrivals = timelineToArrivals(regionTimeline);
+  const useTimelineL2 = l2Status === 'ready'
+    && (!arrivals || arrivals.length === 0)
+    && timelineArrivals.length > 0;
+  const l2Arrivals = useTimelineL2 ? timelineArrivals : arrivals;
+
+  const selectedArrival = (l2Arrivals || []).find(a => a.region_id === selectedRegion) || null;
 
   /* ─── Render ──────────────────────────────────────────────── */
   return (
@@ -309,39 +338,6 @@ export function StormCard({ storm, mapRef, onClose }) {
       )}
 
       <div className="storm-card-body">
-
-        {/* ─── AI trajectory analysis (Phase 6) ─── */}
-        {(analysisText || (regionTimeline && regionTimeline.length > 0)) && (
-          <div className="sc-analysis">
-            {analysisText && (
-              <>
-                <div className="sc-analysis-head">
-                  <Logo variant="mark" size={13} />
-                  <span>{analysisModel ? 'Sione forecast' : 'Forecast'}</span>
-                </div>
-                <p className="sc-analysis-body">{analysisText}</p>
-              </>
-            )}
-            {regionTimeline && regionTimeline.length > 0 && (
-              <div className="sc-trajectory">
-                {regionTimeline.map((t) => (
-                  <div
-                    key={t.region_id || t.region}
-                    className={`sc-traj-row tier-${t.tier || 'partial'}`}
-                  >
-                    <span className="sc-traj-when">{fmtHours(t.peak_hours)}</span>
-                    <span className="sc-traj-region">{t.region}</span>
-                    <span className="sc-traj-size">
-                      {t.size_ft != null ? `${t.size_ft}ft` : '—'}
-                      {t.period_s != null ? ` @ ${Math.round(t.period_s)}s` : ''}
-                    </span>
-                    <span className="sc-traj-dir">{degToCompass(t.dir_deg) || ''}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ─── L1: Header ─── */}
         <div className="l1-head">
@@ -589,9 +585,20 @@ export function StormCard({ storm, mapRef, onClose }) {
           </div>
         )}
 
-        {/* ─── L2: Regional scorecard ─── */}
+        {/* ─── Sione forecast summary (prose) ─── */}
+        {analysisText && (
+          <div className="sc-analysis">
+            <div className="sc-analysis-head">
+              <Logo variant="mark" size={13} />
+              <span>{analysisModel ? 'Sione forecast' : 'Forecast'}</span>
+            </div>
+            <p className="sc-analysis-body">{analysisText}</p>
+          </div>
+        )}
+
+        {/* ─── L2: Regional scorecard (bulletin arrivals, or Sione timeline) ─── */}
         <RegionalScorecard
-          arrivals={arrivals}
+          arrivals={l2Arrivals}
           status={l2Status}
           sort={l2Sort}
           onSortChange={setL2Sort}
@@ -603,8 +610,8 @@ export function StormCard({ storm, mapRef, onClose }) {
           onSelectRegion={handleSelectRegion}
         />
 
-        {/* ─── L3: Spot breakdown ─── */}
-        {selectedArrival && (
+        {/* ─── L3: Spot breakdown (bulletin arrivals only — timeline rows have no spots) ─── */}
+        {selectedArrival && selectedArrival.spots && selectedArrival.spots.length > 0 && (
           <ArrivalSpotList
             region={selectedArrival}
             highlight={highlight}
