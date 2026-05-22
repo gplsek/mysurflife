@@ -20,6 +20,10 @@ _BASIN_LABELS = {
     "north-pacific":  "the North Pacific",
     "north-atlantic": "the North Atlantic",
     "east-pacific":   "the East Pacific",
+    "south-pacific":  "the South Pacific",
+    "south-atlantic": "the South Atlantic",
+    "south-indian":   "the South Indian Ocean",
+    "north-indian":   "the North Indian Ocean",
 }
 
 # Tiers we consider "impactful enough to mention"
@@ -57,100 +61,85 @@ def _swell_dir_text(storm: Dict) -> str:
     return mov_dir or "WNW"
 
 
+def _location_phrase(storm: Dict) -> str:
+    """Human location for the storm — evocative at high latitudes."""
+    lat = storm.get("lat")
+    if isinstance(lat, (int, float)):
+        if lat <= -55:
+            return "in the Southern Ocean off Antarctica"
+        if lat >= 60:
+            return f"in the far-northern {_basin(storm.get('ocean', '')).replace('the ', '')}"
+    return f"in {_basin(storm.get('ocean', ''))}"
+
+
+def _fmt_days(hours) -> str:
+    if hours is None:
+        return "—"
+    h = float(hours)
+    return f"~{round(h)}h" if h < 36 else f"~{round(h / 24)}d"
+
+
 def generate_storm_trip_opener(
     storm: Dict,
     user_ctx: Optional[Dict],
     arrivals: List[Dict],
 ) -> str:
     """
-    Assemble the opening message for a storm_trip session.
-    No LLM call — pure template logic.
+    Structured storm briefing for the chat opener — vitals + most-affected regions
+    + suggested prompts. No LLM call (the card already shows the LLM trajectory).
     """
-    type_label  = _type_label(storm.get("type", "LOW"))
-    basin       = _basin(storm.get("ocean", ""))
-    best        = _best_arrival(arrivals)
+    type_label = _type_label(storm.get("type", "LOW"))
+    location   = _location_phrase(storm)
 
-    # Landfall takes priority — short swell window is critical info
-    landfall_h = storm.get("landfall_eta_hours")
-    if landfall_h and isinstance(landfall_h, (int, float)) and landfall_h > 0:
-        window_note = (
-            f"There may be a short pulse reaching {best['name']} before that."
-            if best
-            else "Swell generation cuts off before meaningful energy reaches the coast."
-        )
-        return (
-            f"Heads up — this storm tracks onto land in about {int(landfall_h)}h, "
-            f"which closes the swell window early. {window_note} "
-            f"Worth checking if your spots see anything before that. Want me to check?"
-        )
+    # ── Vitals line ──
+    vitals: List[str] = []
+    if storm.get("pressure_mb"):
+        vitals.append(f"central pressure ~{int(storm['pressure_mb'])} mb")
+    wind = storm.get("wind_kts") or storm.get("peak_wind_kts")
+    if wind:
+        vitals.append(f"peak winds {int(wind)} kt")
+    mov = storm.get("movement") or {}
+    if mov.get("direction"):
+        spd = mov.get("speed_kts") or mov.get("speed_kt")
+        vitals.append(f"moving {mov['direction']}" + (f" at {int(spd)} kt" if spd else ""))
+    seas_ft = storm.get("sea_height_ft")
+    if not seas_ft and storm.get("peak_sea_m"):
+        seas_ft = round(storm["peak_sea_m"] * 3.281)
+    if seas_ft:
+        vitals.append(f"seas to ~{int(seas_ft)} ft")
+    fetch  = storm.get("fetch") or {}
+    radius = fetch.get("peak_radius_nm") or fetch.get("radius_nm")
+    quad   = fetch.get("peak_quadrant") or fetch.get("quadrant")
+    if radius and quad:
+        vitals.append(f"~{int(radius)} nm fetch to the {quad}")
 
-    # Anonymous / no favorites
-    fav_slugs = set((user_ctx or {}).get("favorite_slugs", []))
-    if not fav_slugs:
-        if best:
-            return (
-                f"I'm tracking a {type_label} in {basin}. "
-                f"Best exposure is {best['name']} starting {best['peak_when']}. "
-                f"Want me to break down which coasts this hits and when?"
-            )
-        return (
-            f"I'm tracking a {type_label} in {basin}. "
-            f"The system looks weak for direct surf impact right now. "
-            f"Want me to walk through the forecast track?"
-        )
+    intro = f"I'm tracking a {type_label} {location}."
+    if vitals:
+        v = ", ".join(vitals)
+        intro += " " + v[0].upper() + v[1:] + "."
+    lines = [intro]
 
-    # Match favorites against arrivals spot lists
-    fav_names: Dict[str, str] = (user_ctx or {}).get("favorite_names", {})
-    hit_spots: List[Dict] = []
-    hit_arrival: Optional[Dict] = None
-    relevant = sorted(
-        [a for a in arrivals if a.get("tier") in _RELEVANT_TIERS],
-        key=lambda a: -(a.get("peak_ft") or 0),
-    )
-    for arr in relevant:
-        arr_spot_ids = {s["id"] for s in arr.get("spots", [])}
-        matched = [
-            {"slug": slug, "name": fav_names.get(slug, slug)}
-            for slug in fav_slugs
-            if slug in arr_spot_ids
-        ]
-        if matched:
-            hit_spots.extend(matched)
-            if hit_arrival is None:
-                hit_arrival = arr
+    # ── Most-affected regions (from the precomputed timeline) ──
+    timeline = storm.get("region_timeline") or []
+    if timeline:
+        parts = []
+        for t in timeline[:3]:
+            extra = []
+            if t.get("size_ft")  is not None: extra.append(f"{t['size_ft']}ft")
+            if t.get("period_s") is not None: extra.append(f"{round(t['period_s'])}s")
+            detail = f" {' @ '.join(extra)}" if extra else ""
+            parts.append(f"{t.get('region', '?')} ({_fmt_days(t.get('peak_hours'))}{detail})")
+        lines.append("Regions most affected: " + "; ".join(parts) + ".")
 
-    if hit_spots and hit_arrival:
-        names_str  = ", ".join(s["name"] for s in hit_spots[:2])
-        dir_text   = _swell_dir_text(storm)
-        period_str = (
-            f"{hit_arrival['peak_period_s']}s"
-            if hit_arrival.get("peak_period_s")
-            else "—"
-        )
-        return (
-            f"I'm tracking a {type_label} in {basin} that'll send swell into your area. "
-            f"{names_str} {'sit' if len(hit_spots) > 1 else 'sits'} in the "
-            f"{hit_arrival['name']} window — peaking around {hit_arrival['peak_when']}. "
-            f"Swell direction looks like {dir_text} at {period_str}. "
-            f"Want me to break down which of your spots will work best, or look at "
-            f"conditions for a specific day?"
-        )
+    # ── Suggested prompts ──
+    if (user_ctx or {}).get("favorite_slugs"):
+        lines.append("What else would you like to know — how it lines up with your spots, "
+                     "a specific region or spot it might hit, or the best day to score it?")
+    else:
+        lines.append("What else would you like to know — want me to look at a specific region "
+                     "or spot it might affect, or break down the timing?")
 
-    # Favorites don't intersect with storm path
-    home_label = (user_ctx or {}).get("home_region_label") or "your area"
-    if best:
-        return (
-            f"I'm tracking a {type_label} in {basin}. "
-            f"Best exposure is {best['name']} starting {best['peak_when']}. "
-            f"Your home spots in {home_label} are mostly out of the direct window for this one. "
-            f"Want a deeper look at whether it's worth a trip, or how this compares to past "
-            f"swells in your journal?"
-        )
-    return (
-        f"I'm tracking a {type_label} in {basin}. "
-        f"This system doesn't look like a direct hit for your spots. "
-        f"Want me to walk through the track and see if anything reaches your area?"
-    )
+    return "\n\n".join(lines)
 
 
 # ── Storm_trip system prompt ───────────────────────────────────────────────────

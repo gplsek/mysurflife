@@ -94,6 +94,8 @@ def _coerce_storm_obj(d: Optional[Dict]) -> Optional[Dict]:
         "warning_tier":        d.get("warning_tier"),
         "forecast_track":      d.get("forecast_track"),
         "region_impacts":      d.get("region_impacts"),
+        "region_timeline":     d.get("region_timeline"),
+        "analysis_text":       d.get("analysis_text"),
         "narrative":           d.get("narrative"),
         "ocean":               _ocean_from_id(sid),
         "peak_sea_m":          d.get("peak_sea_m"),

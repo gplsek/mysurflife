@@ -202,9 +202,21 @@ export function StormCard({ storm, mapRef, onClose }) {
     setChipLoading(true);
     try {
       const authHeaders = await getAuthHeaders();
+      // Enrich the /active storm with the precomputed analysis fields from the
+      // detail fetch, so the opener can summarise vitals + affected regions.
+      const enrichedStorm = {
+        ...storm,
+        ...(detail ? {
+          region_timeline:     detail.region_timeline,
+          analysis_text:       detail.analysis_text,
+          peak_sea_m:          detail.peak_sea_m,
+          peak_period_s:       detail.peak_period_s,
+          swell_direction_deg: detail.swell_direction_deg,
+        } : {}),
+      };
       const payload = {
         mode:   'storm_trip',
-        storm:  { ...storm, arrivals: arrivals || [] },
+        storm:  { ...enrichedStorm, arrivals: arrivals || [] },
         source: 'storm-card',
       };
       const res = await fetch('/api/sione/sessions', {
@@ -218,7 +230,7 @@ export function StormCard({ storm, mapRef, onClose }) {
       // Carry a slim storm + arrivals so Sione can rebuild context if the chat lands
       // on a different worker than the session was created on (or after a restart).
       // Drop heavy fields not used by the LLM context block (raw bulletin, spot lists).
-      const { raw_text, ...slimStorm } = storm;
+      const { raw_text, ...slimStorm } = enrichedStorm;
       const slimArrivals = (arrivals || []).map(a => ({
         region_id:     a.region_id,
         name:          a.name,
@@ -239,7 +251,7 @@ export function StormCard({ storm, mapRef, onClose }) {
     } finally {
       setChipLoading(false);
     }
-  }, [storm, arrivals, navigate]);
+  }, [storm, detail, arrivals, navigate]);
 
   /* ─── Map reactions on region select ─────────────────────── */
   const applyMapReactions = useCallback((regionId) => {
