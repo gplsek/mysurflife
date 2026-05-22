@@ -85,3 +85,34 @@ def test_rebuild_returns_none_when_nothing_resolves(monkeypatch):
         return None
     monkeypatch.setattr(sione, "_load_storm_object", fake_load)
     assert asyncio.run(sione._rebuild_storm_session({"storm_id": "x"}, None)) is None
+
+
+# ── generate_storm_trip_opener: structured briefing (vitals + regions + prompts) ──
+from sione.openers.storm_trip import generate_storm_trip_opener
+
+
+def test_opener_structured_briefing():
+    storm = {"type": "LOW", "ocean": "south-pacific", "lat": -62, "pressure_mb": 955,
+             "wind_kts": 55, "movement": {"direction": "ESE", "speed_kts": 25},
+             "sea_height_ft": 24, "fetch": {"peak_radius_nm": 300, "peak_quadrant": "NE"},
+             "region_timeline": [{"region": "Hawaii S Shore", "peak_hours": 163,
+                                  "size_ft": 4, "period_s": 15}]}
+    msg = generate_storm_trip_opener(storm, {"favorite_slugs": ["x"]}, [])
+    assert "Southern Ocean off Antarctica" in msg
+    assert "955 mb" in msg and "55 kt" in msg and "ESE at 25 kt" in msg and "24 ft" in msg
+    assert "300 nm fetch to the NE" in msg
+    assert "Hawaii S Shore" in msg
+    assert "What else would you like to know" in msg
+
+
+def test_opener_basin_grammar():
+    msg = generate_storm_trip_opener(
+        {"type": "LOW", "ocean": "north-pacific", "lat": 45, "wind_kts": 40,
+         "movement": {"direction": "NE"}}, None, [])
+    assert "in the North Pacific" in msg
+    assert "system the" not in msg          # no missing preposition
+
+
+def test_opener_minimal_no_data():
+    msg = generate_storm_trip_opener({"type": "LOW"}, None, [])
+    assert "tracking" in msg and "What else" in msg     # no crash on sparse data
