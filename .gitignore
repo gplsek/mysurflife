@@ -74,6 +74,7 @@ backend/test_*.py
 !backend/test_sione_handoff.py
 !backend/test_wind_quality.py
 !backend/test_spot_orientation.py
+!backend/test_spot_config_gen.py
 !backend/test_detect_storms_ww3.py
 !backend/test_storm_reconciliation.py
 backend/migrate_*.py
