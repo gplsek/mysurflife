@@ -7,6 +7,7 @@ import LogoPulse from './design/LogoPulse';
 import Logo from './design/Logo';
 import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
 import AISpotAnalysis from './AISpotAnalysis';
+import SwellWindRose from './components/SwellWindRose';
 import './SpotDetail.css';
 
 // ─── Map controller ───────────────────────────────────────────────
@@ -661,6 +662,24 @@ const SpotDetail = () => {
             bestTide={ch.tide_position || '—'}
             hazards={Array.isArray(ch.hazards) ? ch.hazards.join(', ') : ch.hazards || '—'}
           />
+          {(spot.spot_swell_windows?.length > 0 || spot.spot_wind_windows?.length > 0) && (
+            <div className="sd-card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            color: 'var(--muted)', marginBottom: 8 }}>Exposure</div>
+              <SwellWindRose
+                swell={spot.spot_swell_windows || []}
+                wind={spot.spot_wind_windows || []}
+                size={180}
+              />
+              <div style={{ display: 'flex', gap: 14, justifyContent: 'center',
+                            marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2,
+                      background: 'var(--accent)', marginRight: 4 }} />swell</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2,
+                      background: 'var(--good)', marginRight: 4 }} />offshore wind</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Two-column: Swells + Strip charts */}
