@@ -95,15 +95,17 @@ except Exception as e:
 # Supabase database connection (optional)
 # Import after environment variables are loaded
 try:
-    from database import supabase
+    from database import supabase, only_public_spots
     if supabase:
         print("✅ Supabase database ready")
 except ImportError:
     print("⚠️  Supabase not configured (database.py not imported)")
     supabase = None
+    only_public_spots = lambda q: q
 except Exception as e:
     print(f"⚠️  Supabase initialization failed: {e}")
     supabase = None
+    only_public_spots = lambda q: q
 
 # Authentication middleware
 try:
@@ -3296,6 +3298,9 @@ async def get_surf_spots(
             )
         """)
 
+        # Public catalog only — never list a user's private spot (M2 gate)
+        query = only_public_spots(query)
+
         # Apply filters
         if region:
             query = query.eq("subregion", region)
@@ -3371,13 +3376,17 @@ async def get_surf_spot_detail(slug: str):
         return {"error": "Database not configured"}
 
     try:
-        result = supabase.table("spots").select("""
+        # Public endpoint: only serve public spots. A private spot returns
+        # "not found" here; owners reach their own via an authenticated path (M2 gate).
+        result = only_public_spots(
+            supabase.table("spots").select("""
             *,
             spot_characteristics(*),
             spot_swell_windows(*),
             spot_wind_windows(*),
             spot_forecast_tuning(*)
-        """).eq("slug", slug).single().execute()
+        """).eq("slug", slug)
+        ).single().execute()
 
         if not result.data:
             return {"error": "Spot not found"}

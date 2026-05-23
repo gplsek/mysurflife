@@ -19,10 +19,11 @@ except ImportError:
     optional_auth = None
 
 try:
-    from database import get_supabase_admin_client, supabase
+    from database import get_supabase_admin_client, supabase, only_public_spots
 except ImportError:
     get_supabase_admin_client = lambda: None
     supabase = None
+    only_public_spots = lambda q: q
 
 try:
     from buoy_service import get_map_buoys
@@ -61,9 +62,11 @@ async def _fetch_spots() -> tuple:
         if not client:
             return [], None
 
-        # spots table
-        spots_resp = client.table("spots").select(
-            "slug, name, region, subregion, latitude, longitude"
+        # spots table — public catalog only (admin client bypasses RLS; M2 gate)
+        spots_resp = only_public_spots(
+            client.table("spots").select(
+                "slug, name, region, subregion, latitude, longitude"
+            )
         ).execute()
         spots = {s["slug"]: s for s in (spots_resp.data or [])}
 

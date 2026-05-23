@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
 try:
-    from auth import require_auth, is_admin
+    from auth import require_auth, optional_auth, is_admin
 except ImportError:  # pragma: no cover
     require_auth = None
+    optional_auth = None
     def is_admin(_uid):  # type: ignore
         return False
 
@@ -63,20 +64,40 @@ class WindowsPayload(BaseModel):
     wind: List[WindWindow] = []
 
 
-def _spot_id(client, slug: str) -> Optional[str]:
-    r = client.table("spots").select("id").eq("slug", slug).single().execute()
-    return r.data["id"] if r.data else None
+def _spot_meta(client, slug: str):
+    """Return (id, owner_id, visibility) for a spot, or None if it doesn't exist."""
+    r = client.table("spots").select("id, owner_id, visibility").eq("slug", slug).maybe_single().execute()
+    if not r or not r.data:
+        return None
+    return r.data["id"], r.data.get("owner_id"), r.data.get("visibility", "public")
+
+
+def _can_edit(user, owner_id) -> bool:
+    """A spot's windows are editable by an admin or by the spot's owner."""
+    uid = (user or {}).get("user_id")
+    return bool(uid) and (is_admin(uid) or (owner_id is not None and owner_id == uid))
 
 
 @router.get("/api/spots/{slug}/windows")
-async def get_spot_windows(slug: str):
-    """Public — returns the spot's swell + wind windows for the rose visualization."""
+async def get_spot_windows(
+    slug: str,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
+    """Returns the spot's swell + wind windows for the rose visualization.
+
+    Public spots are readable by anyone; a private spot's windows are visible only
+    to its owner or an admin (otherwise 404 — don't reveal the spot exists). The
+    admin client bypasses RLS, so this gate is enforced in code (M2).
+    """
     from database import get_supabase_admin_client
     client = get_supabase_admin_client()
     if not client:
         raise HTTPException(503, "database unavailable")
-    sid = _spot_id(client, slug)
-    if not sid:
+    meta = _spot_meta(client, slug)
+    if not meta:
+        raise HTTPException(404, "spot not found")
+    sid, owner_id, visibility = meta
+    if visibility != "public" and not _can_edit(user, owner_id):
         raise HTTPException(404, "spot not found")
     swell = client.table("spot_swell_windows").select("*").eq("spot_id", sid).execute().data or []
     wind  = client.table("spot_wind_windows").select("*").eq("spot_id", sid).execute().data or []
@@ -89,16 +110,21 @@ async def put_spot_windows(
     payload: WindowsPayload,
     user: Dict = Depends(require_auth) if require_auth else None,
 ):
-    """Admin-only. Replace the spot's windows with the supplied set (tagged 'human')."""
-    if not user or not is_admin(user.get("user_id")):
-        raise HTTPException(403, "admin privileges required")
+    """Replace the spot's windows with the supplied set (tagged 'human').
+
+    Editable by an admin or by the spot's owner (private spots). The admin client
+    bypasses RLS, so ownership is enforced in code (M2).
+    """
     from database import get_supabase_admin_client
     client = get_supabase_admin_client()
     if not client:
         raise HTTPException(503, "database unavailable")
-    sid = _spot_id(client, slug)
-    if not sid:
+    meta = _spot_meta(client, slug)
+    if not meta:
         raise HTTPException(404, "spot not found")
+    sid, owner_id, _visibility = meta
+    if not _can_edit(user, owner_id):
+        raise HTTPException(403, "admin or owner privileges required")
 
     swell_rows = [{**w.model_dump(), "spot_id": sid, "source": "human"} for w in payload.swell]
     wind_rows  = [{**w.model_dump(), "spot_id": sid, "source": "human"} for w in payload.wind]

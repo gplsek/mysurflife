@@ -520,13 +520,14 @@ async def _find_storm(storm_id: str) -> Optional[dict]:
 async def _fetch_db_spots():
     """Fetch spots + current ratings for arrivals spot breakdown."""
     try:
-        from database import get_supabase_admin_client, supabase
+        from database import get_supabase_admin_client, supabase, only_public_spots
         client = get_supabase_admin_client() or supabase
         if not client:
             return []
-        spots_resp   = client.table("spots").select(
+        # Public catalog only — admin client bypasses RLS (M2 gate)
+        spots_resp   = only_public_spots(client.table("spots").select(
             "slug, name, region, subregion, latitude, longitude"
-        ).execute()
+        )).execute()
         ratings_resp = client.table("spot_ratings").select(
             "spot_slug, rating, wind_mph"
         ).execute()
