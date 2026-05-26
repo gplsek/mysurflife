@@ -101,3 +101,29 @@ export default function SwellWindRose({ swell = [], wind = [], size = 180 }) {
     </svg>
   );
 }
+
+/**
+ * RoseLegend — color key matching the rose's bands. Render under a
+ * SwellWindRose so users can decode the arcs.
+ */
+const LEGEND_ITEMS = [
+  { label: 'swell',         fill: 'oklch(0.82 0.16 195)' }, // accent base (first SWELL_SHADE)
+  { label: 'offshore wind', fill: 'var(--good, #2fbf71)' },
+  { label: 'cross wind',    fill: 'var(--gold, #e6b450)' },
+  { label: 'onshore wind',  fill: 'var(--coral, #e5734d)' },
+];
+
+export function RoseLegend() {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12,
+                  justifyContent: 'center', marginTop: 8,
+                  fontSize: 11, color: 'var(--fg-2)' }}>
+      {LEGEND_ITEMS.map(item => (
+        <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: item.fill }} />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}

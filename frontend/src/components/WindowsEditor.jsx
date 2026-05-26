@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import SwellWindRose from './SwellWindRose';
+import SwellWindRose, { RoseLegend } from './SwellWindRose';
 
 /**
  * WindowsEditor — interactive editor for a spot's swell + wind windows (B2a).
@@ -95,6 +95,7 @@ export default function WindowsEditor({ slug, initialSwell = [], initialWind = [
     <div className="windows-editor">
       <div className="we-preview">
         <SwellWindRose swell={normalizedSwell} wind={normalizedWind} size={200} />
+        <RoseLegend />
         <div className="we-preview-hint">live preview</div>
       </div>
 

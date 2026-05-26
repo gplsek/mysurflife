@@ -7,7 +7,7 @@ import LogoPulse from './design/LogoPulse';
 import Logo from './design/Logo';
 import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
 import AISpotAnalysis from './AISpotAnalysis';
-import SwellWindRose from './components/SwellWindRose';
+import SwellWindRose, { RoseLegend } from './components/SwellWindRose';
 import WindowsEditor from './components/WindowsEditor';
 import './SpotDetail.css';
 
@@ -686,13 +686,7 @@ const SpotDetail = () => {
                 wind={spot.spot_wind_windows || []}
                 size={180}
               />
-              <div style={{ display: 'flex', gap: 14, justifyContent: 'center',
-                            marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2,
-                      background: 'var(--accent)', marginRight: 4 }} />swell</span>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2,
-                      background: 'var(--good)', marginRight: 4 }} />offshore wind</span>
-              </div>
+              <RoseLegend />
             </div>
           )}
         </div>
