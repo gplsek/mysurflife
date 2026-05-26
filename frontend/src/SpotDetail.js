@@ -8,6 +8,7 @@ import Logo from './design/Logo';
 import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
 import AISpotAnalysis from './AISpotAnalysis';
 import SwellWindRose from './components/SwellWindRose';
+import WindowsEditor from './components/WindowsEditor';
 import './SpotDetail.css';
 
 // ─── Map controller ───────────────────────────────────────────────
@@ -429,6 +430,7 @@ const SpotDetail = () => {
   );
 
   const ch = spot.spot_characteristics || {};
+  const canEdit = isAdmin || (user?.id && spot.owner_id && user.id === spot.owner_id);
   const lat = (isEditMode && editedSpot ? editedSpot.latitude : spot.latitude) ?? null;
   const lng = (isEditMode && editedSpot ? editedSpot.longitude : spot.longitude) ?? null;
   const hasCoords = lat != null && lng != null;
@@ -536,13 +538,13 @@ const SpotDetail = () => {
               <span className="sd-chip-label">{isFav ? 'Saved' : 'Save'}</span>
             </button>
           )}
-          {isAdmin && !isEditMode && (
+          {canEdit && !isEditMode && (
             <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
               <span className="sd-chip-label">Edit</span>
             </button>
           )}
-          {isAdmin && isEditMode && !isRelocateMode && (
+          {canEdit && isEditMode && !isRelocateMode && (
             <>
               <button className="sd-chip sd-chip--accent" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving…' : 'Save'}
@@ -554,7 +556,7 @@ const SpotDetail = () => {
               <button className="sd-chip" onClick={exitEditMode} disabled={isSaving}>Cancel</button>
             </>
           )}
-          {isAdmin && isEditMode && isRelocateMode && (
+          {canEdit && isEditMode && isRelocateMode && (
             <button className="sd-chip sd-chip--accent" onClick={() => setIsRelocateMode(false)}>
               Done
             </button>
@@ -662,7 +664,20 @@ const SpotDetail = () => {
             bestTide={ch.tide_position || '—'}
             hazards={Array.isArray(ch.hazards) ? ch.hazards.join(', ') : ch.hazards || '—'}
           />
-          {(spot.spot_swell_windows?.length > 0 || spot.spot_wind_windows?.length > 0) && (
+          {canEdit && isEditMode ? (
+            <div className="sd-card">
+              <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            color: 'var(--muted)', marginBottom: 12, textAlign: 'center' }}>
+                Exposure — edit windows
+              </div>
+              <WindowsEditor
+                slug={slug}
+                initialSwell={spot.spot_swell_windows || []}
+                initialWind={spot.spot_wind_windows || []}
+                onSaved={() => window.location.reload()}
+              />
+            </div>
+          ) : (spot.spot_swell_windows?.length > 0 || spot.spot_wind_windows?.length > 0) && (
             <div className="sd-card" style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
                             color: 'var(--muted)', marginBottom: 8 }}>Exposure</div>

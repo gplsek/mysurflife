@@ -4,6 +4,7 @@ GET is public (powers the SwellWindRose visualization on SpotDetail).
 PUT is admin-gated and authoritative: it replaces the spot's windows and tags them
 source='human' (so a human edit always wins over generated geo/llm config).
 """
+import traceback
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -66,10 +67,14 @@ class WindowsPayload(BaseModel):
 
 def _spot_meta(client, slug: str):
     """Return (id, owner_id, visibility) for a spot, or None if it doesn't exist."""
-    r = client.table("spots").select("id, owner_id, visibility").eq("slug", slug).maybe_single().execute()
-    if not r or not r.data:
+    # Avoid .maybe_single() — postgrest-py raises APIError on 204 responses
+    # for some shapes of result. limit(1) + manual unwrap is more robust.
+    r = client.table("spots").select("id, owner_id, visibility").eq("slug", slug).limit(1).execute()
+    rows = (r.data or []) if r else []
+    if not rows:
         return None
-    return r.data["id"], r.data.get("owner_id"), r.data.get("visibility", "public")
+    row = rows[0]
+    return row["id"], row.get("owner_id"), row.get("visibility", "public")
 
 
 def _can_edit(user, owner_id) -> bool:
@@ -129,12 +134,17 @@ async def put_spot_windows(
     swell_rows = [{**w.model_dump(), "spot_id": sid, "source": "human"} for w in payload.swell]
     wind_rows  = [{**w.model_dump(), "spot_id": sid, "source": "human"} for w in payload.wind]
 
-    # Authoritative replace.
-    client.table("spot_swell_windows").delete().eq("spot_id", sid).execute()
-    client.table("spot_wind_windows").delete().eq("spot_id", sid).execute()
-    if swell_rows:
-        client.table("spot_swell_windows").insert(swell_rows).execute()
-    if wind_rows:
-        client.table("spot_wind_windows").insert(wind_rows).execute()
+    try:
+        # Authoritative replace.
+        client.table("spot_swell_windows").delete().eq("spot_id", sid).execute()
+        client.table("spot_wind_windows").delete().eq("spot_id", sid).execute()
+        if swell_rows:
+            client.table("spot_swell_windows").insert(swell_rows).execute()
+        if wind_rows:
+            client.table("spot_wind_windows").insert(wind_rows).execute()
+    except Exception as e:
+        print(f"❌ put_spot_windows {slug}: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        raise HTTPException(500, f"{type(e).__name__}: {e}")
 
     return {"slug": slug, "swell": swell_rows, "wind": wind_rows, "saved": True}
