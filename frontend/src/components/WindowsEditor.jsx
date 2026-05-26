@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import SwellWindRose, { RoseLegend } from './SwellWindRose';
 
 /**
@@ -27,7 +27,7 @@ function getAuthToken() {
   }
 }
 
-export default function WindowsEditor({ slug, initialSwell = [], initialWind = [], onSaved, onCancel }) {
+export default function WindowsEditor({ slug, initialSwell = [], initialWind = [], currentScore = null, onSaved, onCancel }) {
   const [swell, setSwell] = useState(() => initialSwell.map(s => ({
     dir_min: s.dir_min ?? 0,
     dir_max: s.dir_max ?? 0,
@@ -43,6 +43,10 @@ export default function WindowsEditor({ slug, initialSwell = [], initialWind = [
   })));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewTimerRef = useRef(null);
+  const previewAbortRef = useRef(null);
 
   useEffect(() => { setError(null); }, [swell, wind]);
 
@@ -67,6 +71,43 @@ export default function WindowsEditor({ slug, initialSwell = [], initialWind = [
     max_mph: Math.max(0, Math.round(Number(w.max_mph) || 0)),
     weight: clamp01(w.weight),
   }));
+
+  // Debounced live-score preview against /score-preview. Cancels in-flight
+  // fetches when the user keeps typing so we don't show stale results.
+  const swellKey = JSON.stringify(normalizedSwell);
+  const windKey  = JSON.stringify(normalizedWind);
+  useEffect(() => {
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = setTimeout(async () => {
+      if (previewAbortRef.current) previewAbortRef.current.abort();
+      const ctrl = new AbortController();
+      previewAbortRef.current = ctrl;
+      setPreviewLoading(true);
+      try {
+        const token = getAuthToken();
+        const res = await fetch(`/api/surf-spots/${slug}/score-preview`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ swell: normalizedSwell, wind: normalizedWind }),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) throw new Error(`Preview ${res.status}`);
+        const data = await res.json();
+        if (!ctrl.signal.aborted) setPreview(data);
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          // Silent — preview is best-effort. Editing still works without it.
+          console.warn('score-preview failed:', e.message);
+        }
+      } finally {
+        if (!ctrl.signal.aborted) setPreviewLoading(false);
+      }
+    }, 500);
+    return () => { if (previewTimerRef.current) clearTimeout(previewTimerRef.current); };
+  }, [swellKey, windKey, slug]);
 
   const handleSave = async () => {
     const token = getAuthToken();
@@ -94,6 +135,11 @@ export default function WindowsEditor({ slug, initialSwell = [], initialWind = [
   return (
     <div className="windows-editor">
       <div className="we-preview">
+        <ScoreStrip
+          current={currentScore}
+          projected={preview?.overall_score}
+          loading={previewLoading}
+        />
         <SwellWindRose swell={normalizedSwell} wind={normalizedWind} size={200} />
         <RoseLegend />
         <div className="we-preview-hint">live preview</div>
@@ -199,5 +245,47 @@ function Field({ label, hint, children }) {
       <span className="we-field-label">{label}{hint && <span className="we-field-hint"> {hint}</span>}</span>
       {children}
     </label>
+  );
+}
+
+function tierColor10(score) {
+  if (score == null) return 'var(--muted)';
+  if (score >= 8.5) return 'var(--coral)';
+  if (score >= 7.0) return 'var(--gold)';
+  if (score >= 5.0) return 'var(--good)';
+  if (score >= 3.0) return 'var(--accent)';
+  return 'var(--muted)';
+}
+
+function ScoreStrip({ current, projected, loading }) {
+  const delta = (current != null && projected != null) ? (projected - current) : null;
+  return (
+    <div className="we-score-strip">
+      <div className="we-score-cell">
+        <div className="we-score-cell-label">Current</div>
+        <div className="we-score-cell-num" style={{ color: tierColor10(current) }}>
+          {current != null ? current.toFixed(1) : '—'}
+          <span className="we-score-cell-max">/10</span>
+        </div>
+      </div>
+      <div className="we-score-arrow">→</div>
+      <div className="we-score-cell we-score-cell--proj">
+        <div className="we-score-cell-label">
+          With your edits
+          {loading && <span className="we-score-cell-loading"> …</span>}
+        </div>
+        <div className="we-score-cell-num" style={{ color: tierColor10(projected) }}>
+          {projected != null ? projected.toFixed(1) : '—'}
+          <span className="we-score-cell-max">/10</span>
+        </div>
+      </div>
+      {delta != null && Math.abs(delta) >= 0.05 && (
+        <div className="we-score-delta" style={{
+          color: delta > 0 ? 'var(--good)' : 'var(--coral)',
+        }}>
+          {delta > 0 ? '+' : ''}{delta.toFixed(1)}
+        </div>
+      )}
+    </div>
   );
 }

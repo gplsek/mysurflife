@@ -327,6 +327,18 @@ def calculate_wind_quality(
     else:
         quality = 0.35 * dir_factor             # very strong → only offshore survives
 
+    # Out-of-window penalty: if the user defined good-wind windows and the
+    # current wind isn't in *any* of them, that's a "you didn't tell me this
+    # direction is OK" signal — treat it as bad. Glassy (<4 kt) is genuinely
+    # clean regardless, so exempt that band only.
+    if wind_windows and wind_direction is not None and spd_kt >= 4:
+        in_any = any(
+            is_direction_in_window(wind_direction, w['dir_min'], w['dir_max'])[0]
+            for w in wind_windows
+        )
+        if not in_any:
+            quality *= 0.40
+
     if spd_kt < 4:
         relation = "glassy"
     elif angle_off is None:
@@ -471,7 +483,14 @@ async def blend_buoy_data(buoy_blend: Dict, buoy_data_cache: Dict) -> Optional[D
     return blended
 
 
-async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend_override: Optional[Dict] = None, size_bias: float = 1.0) -> Optional[Dict]:
+async def calculate_spot_score(
+    spot_slug: str,
+    buoy_data_cache: Dict,
+    buoy_blend_override: Optional[Dict] = None,
+    size_bias: float = 1.0,
+    swell_windows_override: Optional[List[Dict]] = None,
+    wind_windows_override: Optional[List[Dict]] = None,
+) -> Optional[Dict]:
     """
     Calculate real-time surf score for a spot.
 
@@ -479,6 +498,9 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
         spot_slug: Spot identifier (e.g., "blacks-beach")
         buoy_data_cache: Dictionary of buoy data keyed by station ID
         buoy_blend_override: Optional override for buoy blend weights (for adding WW3 etc.)
+        swell_windows_override: If provided, replaces the spot's saved swell windows
+            for this calculation (powers /score-preview without persisting).
+        wind_windows_override: Same as above for wind windows.
 
     Returns:
         Score breakdown with overall rating (0-10 scale)
@@ -505,8 +527,8 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
     spot = result.data
     chars = spot['spot_characteristics']
     tuning = spot['spot_forecast_tuning']
-    swell_windows = spot['spot_swell_windows']
-    wind_windows = spot['spot_wind_windows']
+    swell_windows = swell_windows_override if swell_windows_override is not None else spot['spot_swell_windows']
+    wind_windows = wind_windows_override if wind_windows_override is not None else spot['spot_wind_windows']
 
     # Use override blend if provided, otherwise use database config
     buoy_blend = buoy_blend_override if buoy_blend_override is not None else tuning['buoy_blend']

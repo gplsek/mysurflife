@@ -26,6 +26,35 @@ const MapInteractionController = ({ isRelocateMode }) => {
   return null;
 };
 
+// ─── Score badge ──────────────────────────────────────────────────
+function scoreTier10(score) {
+  if (score == null) return 'flat';
+  if (score >= 8.5) return 'firing';
+  if (score >= 7.0) return 'solid';
+  if (score >= 5.0) return 'good';
+  if (score >= 3.0) return 'fair';
+  return 'flat';
+}
+
+function ScoreBadge({ score }) {
+  if (score == null) return null;
+  const tier = scoreTier10(score);
+  const tierColor = {
+    firing: 'var(--coral)',
+    solid:  'var(--gold)',
+    good:   'var(--good)',
+    fair:   'var(--accent)',
+    flat:   'var(--muted)',
+  }[tier];
+  return (
+    <div className={`sd-score-badge sd-score-${tier}`} style={{ '--tier-color': tierColor }}
+         aria-label={`Score ${score.toFixed(1)} out of 10`}>
+      <span className="sd-score-num">{score.toFixed(1)}</span>
+      <span className="sd-score-max">/10</span>
+    </div>
+  );
+}
+
 // ─── Degree helpers ───────────────────────────────────────────────
 function degreesToCardinal(deg) {
   if (deg == null) return '';
@@ -288,7 +317,7 @@ const SpotDetail = () => {
         wave_face_ft: waveFt,
         category_label: waveFt
           ? `Cat ${getWaveCategory(waveFt)} · ${getWaveSizeLabel(waveFt)}`
-          : conditions?.rating || null,
+          : null,
         period_s: conditions?.period_sec,
         period_label: getPeriodLabel(conditions?.period_sec),
         primary_dir_deg: conditions?.swell_direction,
@@ -585,6 +614,7 @@ const SpotDetail = () => {
         {/* Spot title */}
         <div className="sd-title-wrap">
           <SpotTitle name={spot.name} eyebrow={eyebrow} />
+          <ScoreBadge score={conditions?.overall_score} />
         </div>
 
         {/* Compass */}
@@ -674,6 +704,7 @@ const SpotDetail = () => {
                 slug={slug}
                 initialSwell={spot.spot_swell_windows || []}
                 initialWind={spot.spot_wind_windows || []}
+                currentScore={conditions?.overall_score}
                 onSaved={() => window.location.reload()}
               />
             </div>

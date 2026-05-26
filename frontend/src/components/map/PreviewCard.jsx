@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ratingTier, ratingColor } from './markers';
-import { TIER_LABELS } from './constants';
 
 export function PreviewCard({ preview, isFav, onToggleFav, onClose }) {
   const [live, setLive] = useState(null);
@@ -51,18 +50,24 @@ export function PreviewCard({ preview, isFav, onToggleFav, onClose }) {
               <button className="mv-prev-close" onClick={onClose} aria-label="Close">×</button>
             </div>
           </div>
-          <div className="mv-prev-rating">
-            <span
-              className="mv-prev-pill"
-              style={{ background: ratingColor(preview.rating) }}
-            >
-              {TIER_LABELS[ratingTier(preview.rating)]}
-            </span>
-            <span>
-              {preview.rating != null ? preview.rating.toFixed(1) : '—'} / 5.0
-              {swell != null ? ` · ${swell.toFixed(1)}ft primary swell` : ''}
-            </span>
-          </div>
+          {(() => {
+            // preview.rating is on 0-5 (cached); live.overall_score is 0-10.
+            const score10 = live?.overall_score ?? (preview.rating != null ? preview.rating * 2 : null);
+            return (
+              <div className="mv-prev-rating">
+                <span
+                  className="mv-prev-pill"
+                  style={{ background: ratingColor(score10) }}
+                  aria-label={`Score ${score10 != null ? score10.toFixed(1) : 'unknown'} out of 10`}
+                />
+                <span>
+                  <strong style={{ fontSize: '1.05em' }}>{score10 != null ? score10.toFixed(1) : '—'}</strong>
+                  <span style={{ opacity: 0.6 }}> / 10</span>
+                  {swell != null ? ` · ${swell.toFixed(1)}ft primary swell` : ''}
+                </span>
+              </div>
+            );
+          })()}
           <div className="mv-prev-metrics">
             <div>
               <span>Swell</span>

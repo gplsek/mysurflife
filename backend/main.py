@@ -3483,112 +3483,153 @@ async def update_surf_spot(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def _compute_spot_conditions(
+    slug: str,
+    user: Optional[Dict] = None,
+    swell_windows_override: Optional[list] = None,
+    wind_windows_override: Optional[list] = None,
+):
+    """Shared implementation for /conditions and /score-preview.
+
+    Fetches the spot's buoy blend + WW3 point data, then scores against the
+    spot's stored windows (or the supplied overrides). The override path
+    powers the WindowsEditor live preview without persisting anything.
+    """
+    if not supabase:
+        return {"error": "Database not configured"}
+
+    from surf_scoring import calculate_spot_score
+
+    # Get spot to find buoy mappings
+    spot_result = supabase.table("spots").select("""
+        *,
+        spot_forecast_tuning(buoy_blend)
+    """).eq("slug", slug).single().execute()
+
+    if not spot_result.data:
+        return {"error": "Spot not found"}
+
+    spot = spot_result.data
+    tuning = spot.get('spot_forecast_tuning', {})
+    buoy_blend = tuning.get('buoy_blend', {})
+
+    if not buoy_blend:
+        return {"error": "No buoys mapped for this spot"}
+
+    # Make a copy of buoy_blend so we can modify it
+    import copy
+    buoy_blend_with_model = copy.deepcopy(buoy_blend)
+
+    # Fetch buoy data for all buoys in the blend
+    buoy_cache = {}
+    for buoy_id in buoy_blend.keys():
+        try:
+            buoy_data = await fetch_buoy_data(buoy_id)
+            if buoy_data and 'station' in buoy_data:
+                buoy_cache[buoy_id] = buoy_data
+        except Exception as e:
+            print(f"⚠️  Failed to fetch buoy {buoy_id}: {e}")
+            continue
+
+    # Fetch WW3 model data at spot coordinates via direct point lookup
+    try:
+        lat = spot['latitude']
+        lon = spot['longitude']
+        bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
+
+        wave_response = await _get_wave_overlay_impl("ww3", bounds, 0, True, "global")
+        vectors = (wave_response or {}).get('vectors') or []
+        closest = _closest_vector(vectors, lat, lon) if vectors else None
+
+        if closest and closest.get('hs'):
+            buoy_cache['WW3'] = {
+                'station': 'WW3',
+                'wave_height_m': closest.get('hs'),
+                'dominant_period_sec': closest.get('per'),
+                'mean_wave_dir': str(int(closest.get('dir_deg'))) if closest.get('dir_deg') else None,
+                'wind_speed_ms': None,
+                'wind_dir': None,
+                'timestamp_utc': datetime.utcnow().isoformat() + 'Z',
+                'name': 'WaveWatch III Model'
+            }
+
+            ww3_weight = 0.2
+            scale_factor = 1.0 - ww3_weight
+            for buoy_id in buoy_blend_with_model.keys():
+                if isinstance(buoy_blend_with_model[buoy_id], dict):
+                    buoy_blend_with_model[buoy_id]['weight'] = buoy_blend_with_model[buoy_id].get('weight', 0) * scale_factor
+                else:
+                    buoy_blend_with_model[buoy_id] = {'weight': buoy_blend_with_model[buoy_id] * scale_factor}
+            buoy_blend_with_model['WW3'] = {'weight': ww3_weight, 'role': 'model'}
+    except Exception as e:
+        print(f"⚠️  Failed to fetch WW3 for {slug}: {e}")
+
+    # Look up per-user size perception bias for this spot
+    size_bias = 1.0
+    if user and isinstance(user, dict) and user.get('user_id'):
+        try:
+            profile_result = supabase.table('user_spot_profiles') \
+                .select('size_perception_bias') \
+                .eq('user_id', user['user_id']) \
+                .eq('spot_id', slug) \
+                .single().execute()
+            if profile_result.data and profile_result.data.get('size_perception_bias'):
+                size_bias = float(profile_result.data['size_perception_bias'])
+        except Exception:
+            pass
+
+    # Calculate score with modified blend (includes WW3 if available)
+    score_result = await calculate_spot_score(
+        slug, buoy_cache,
+        buoy_blend_override=buoy_blend_with_model,
+        size_bias=size_bias,
+        swell_windows_override=swell_windows_override,
+        wind_windows_override=wind_windows_override,
+    )
+
+    if not score_result:
+        return {"error": "Unable to calculate conditions"}
+
+    score_result['size_bias'] = size_bias
+    return score_result
+
+
 @app.get("/api/surf-spots/{slug}/conditions")
 async def get_surf_spot_conditions(
     slug: str,
     user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
 ):
-    """
-    Get real-time surf conditions and score for a spot.
-    Returns current wave/wind data from blended buoys with 0-10 quality score.
-    """
-    if not supabase:
-        return {"error": "Database not configured"}
-
+    """Real-time surf conditions and score (0-10) for a spot."""
     try:
-        from surf_scoring import calculate_spot_score
-
-        # Get spot to find buoy mappings
-        spot_result = supabase.table("spots").select("""
-            *,
-            spot_forecast_tuning(buoy_blend)
-        """).eq("slug", slug).single().execute()
-
-        if not spot_result.data:
-            return {"error": "Spot not found"}
-
-        spot = spot_result.data
-        tuning = spot.get('spot_forecast_tuning', {})
-        buoy_blend = tuning.get('buoy_blend', {})
-
-        if not buoy_blend:
-            return {"error": "No buoys mapped for this spot"}
-
-        # Make a copy of buoy_blend so we can modify it
-        import copy
-        buoy_blend_with_model = copy.deepcopy(buoy_blend)
-
-        # Fetch buoy data for all buoys in the blend
-        buoy_cache = {}
-        for buoy_id in buoy_blend.keys():
-            try:
-                buoy_data = await fetch_buoy_data(buoy_id)
-                if buoy_data and 'station' in buoy_data:
-                    buoy_cache[buoy_id] = buoy_data
-            except Exception as e:
-                print(f"⚠️  Failed to fetch buoy {buoy_id}: {e}")
-                continue
-
-        # Fetch WW3 model data at spot coordinates via direct point lookup
-        try:
-            lat = spot['latitude']
-            lon = spot['longitude']
-            bounds = f"{lat-0.1},{lon-0.1},{lat+0.1},{lon+0.1}"
-
-            wave_response = await _get_wave_overlay_impl("ww3", bounds, 0, True, "global")
-            vectors = (wave_response or {}).get('vectors') or []
-            closest = _closest_vector(vectors, lat, lon) if vectors else None
-
-            if closest and closest.get('hs'):
-                buoy_cache['WW3'] = {
-                    'station': 'WW3',
-                    'wave_height_m': closest.get('hs'),
-                    'dominant_period_sec': closest.get('per'),
-                    'mean_wave_dir': str(int(closest.get('dir_deg'))) if closest.get('dir_deg') else None,
-                    'wind_speed_ms': None,
-                    'wind_dir': None,
-                    'timestamp_utc': datetime.utcnow().isoformat() + 'Z',
-                    'name': 'WaveWatch III Model'
-                }
-
-                ww3_weight = 0.2
-                scale_factor = 1.0 - ww3_weight
-                for buoy_id in buoy_blend_with_model.keys():
-                    if isinstance(buoy_blend_with_model[buoy_id], dict):
-                        buoy_blend_with_model[buoy_id]['weight'] = buoy_blend_with_model[buoy_id].get('weight', 0) * scale_factor
-                    else:
-                        buoy_blend_with_model[buoy_id] = {'weight': buoy_blend_with_model[buoy_id] * scale_factor}
-                buoy_blend_with_model['WW3'] = {'weight': ww3_weight, 'role': 'model'}
-                print(f"✅ Added WW3 model data to {slug} blend (20% weight)")
-        except Exception as e:
-            print(f"⚠️  Failed to fetch WW3 for {slug}: {e}")
-
-        # Look up per-user size perception bias for this spot
-        # Guard: when called internally (not via HTTP), user may be a Depends object, not a dict
-        size_bias = 1.0
-        if user and isinstance(user, dict) and user.get('user_id'):
-            try:
-                profile_result = supabase.table('user_spot_profiles') \
-                    .select('size_perception_bias') \
-                    .eq('user_id', user['user_id']) \
-                    .eq('spot_id', slug) \
-                    .single().execute()
-                if profile_result.data and profile_result.data.get('size_perception_bias'):
-                    size_bias = float(profile_result.data['size_perception_bias'])
-            except Exception:
-                pass
-
-        # Calculate score with modified blend (includes WW3 if available)
-        score_result = await calculate_spot_score(slug, buoy_cache, buoy_blend_override=buoy_blend_with_model, size_bias=size_bias)
-
-        if not score_result:
-            return {"error": "Unable to calculate conditions"}
-
-        score_result['size_bias'] = size_bias
-        return score_result
-
+        return await _compute_spot_conditions(slug, user)
     except Exception as e:
         print(f"❌ Error calculating conditions for {slug}: {e}")
+        return {"error": str(e)}
+
+
+@app.post("/api/surf-spots/{slug}/score-preview")
+async def post_surf_spot_score_preview(
+    slug: str,
+    payload: Dict[str, Any],
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
+    """Score the spot against caller-supplied windows without persisting.
+
+    Powers the WindowsEditor live preview. Body shape matches PUT /windows:
+        { "swell": [...], "wind": [...] }
+    Returns the same shape as /conditions so the frontend can diff component
+    scores side-by-side with the current rating.
+    """
+    try:
+        swell = payload.get("swell")
+        wind = payload.get("wind")
+        return await _compute_spot_conditions(
+            slug, user,
+            swell_windows_override=swell if isinstance(swell, list) else [],
+            wind_windows_override=wind if isinstance(wind, list) else [],
+        )
+    except Exception as e:
+        print(f"❌ Error computing score preview for {slug}: {e}")
         return {"error": str(e)}
 
 

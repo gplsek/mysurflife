@@ -1,8 +1,12 @@
+// All ratings on the 0-10 scale (single source of truth).
+// spot_ratings.rating in the DB is 0-5; consumers should double it before
+// passing in. Live /conditions returns overall_score on 0-10 already.
 export function ratingTier(r) {
-  if (!r || r < 1.5) return 'flat';
-  if (r < 2.5) return 'fair';
-  if (r < 3.5) return 'good';
-  if (r < 4.5) return 'solid';
+  if (r == null) return 'flat';
+  if (r < 3.0) return 'flat';
+  if (r < 5.0) return 'fair';
+  if (r < 7.0) return 'good';
+  if (r < 8.5) return 'solid';
   return 'firing';
 }
 
@@ -18,11 +22,17 @@ export function ratingColor(r) {
   return map[tier];
 }
 
+// Convert spot rating to 0-10, regardless of source.
+// bundle: spot.rating is 0-5 (precomputed); live: current_conditions.overall_score is 0-10.
+export function toScore10(spot) {
+  const live = spot.current_conditions?.overall_score;
+  if (live != null) return live;
+  if (spot.rating != null) return spot.rating * 2;
+  return null;
+}
+
 export function spotMarkerHtml(spot) {
-  // bundle path: spot.rating is 0-5
-  // legacy path: spot.current_conditions.overall_score is 0-10 → halve it
-  const raw   = spot.current_conditions?.overall_score;
-  const score = spot.rating ?? (raw != null ? raw / 2 : null);
+  const score = toScore10(spot);
   const tier  = ratingTier(score);
   const rating = score != null ? score.toFixed(1) : '';
 

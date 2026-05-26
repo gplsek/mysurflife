@@ -469,16 +469,73 @@
 }
 .sd-insight-cta:hover { opacity: 0.88; }
 
+/* ─── Score badge (next to title) ─── */
+.sd-title-wrap {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.sd-score-badge {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 8px 14px; border-radius: 12px;
+  background: color-mix(in oklch, var(--tier-color) 14%, var(--bg-2));
+  border: 1px solid color-mix(in oklch, var(--tier-color) 45%, var(--border));
+  color: var(--tier-color);
+  font-family: var(--font-ui);
+}
+.sd-score-num {
+  font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+  line-height: 1;
+}
+.sd-score-max {
+  font-size: 12px; font-weight: 500; color: var(--muted);
+}
+.sd-score-label {
+  margin-left: 6px; padding-left: 8px;
+  border-left: 1px solid color-mix(in oklch, var(--tier-color) 30%, var(--border));
+  font-size: 11px; font-family: var(--font-mono);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--tier-color); opacity: 0.85;
+  align-self: center;
+}
+
 /* ─── Windows editor (B2a) ─── */
 .windows-editor {
   display: flex; flex-direction: column; gap: 18px;
 }
 .we-preview {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
 .we-preview-hint {
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--muted);
+}
+
+.we-score-strip {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px; border-radius: 12px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  margin-bottom: 4px; min-width: 300px;
+}
+.we-score-cell { display: flex; flex-direction: column; gap: 2px; min-width: 70px; }
+.we-score-cell--proj { min-width: 100px; }
+.we-score-cell-label {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
+}
+.we-score-cell-loading { opacity: 0.6; }
+.we-score-cell-num {
+  font-size: 22px; font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+}
+.we-score-cell-max { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+.we-score-cell-rating {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; margin-top: 2px;
+}
+.we-score-arrow {
+  color: var(--muted); font-size: 16px; line-height: 1;
+}
+.we-score-delta {
+  margin-left: auto; font-weight: 700; font-size: 14px;
+  font-family: var(--font-mono);
 }
 .we-section {
   border: 1px solid var(--border); border-radius: 12px;
