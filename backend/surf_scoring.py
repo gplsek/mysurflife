@@ -159,6 +159,20 @@ def calculate_swell_size_score(
         return max(0.0, 3.0 - (penalty * 2.5))  # Lose up to 2.5 points for oversized
 
 
+_WIND_CATEGORY_BASE = {
+    # Generic tiers (legacy)
+    "ideal":          2.0,
+    "tolerable":      1.2,
+    "marginal":       0.5,
+    # Directional categories (editor B2a)
+    "offshore":       2.0,
+    "side-offshore":  1.7,
+    "cross":          1.2,
+    "side-onshore":   0.6,
+    "onshore":        0.2,
+}
+
+
 def calculate_wind_score(
     wind_direction: Optional[float],
     wind_speed_ms: Optional[float],
@@ -168,7 +182,9 @@ def calculate_wind_score(
     """
     Calculate score for wind conditions (0-2 points).
 
-    Offshore = ideal, light onshore = tolerable, strong onshore = poor
+    Offshore = ideal, light onshore = tolerable, strong onshore = poor.
+    Categories: ideal/tolerable/marginal (legacy) or
+                offshore/side-offshore/cross/side-onshore/onshore (editor B2a).
     """
     if not wind_windows:
         # No wind preference defined - neutral score
@@ -184,18 +200,14 @@ def calculate_wind_score(
     for window in wind_windows:
         dir_min = window['dir_min']
         dir_max = window['dir_max']
-        category = window.get('category', 'ideal')
+        category = (window.get('category') or 'ideal').lower()
         weight = window.get('weight', 1.0)
 
         in_window, distance = is_direction_in_window(wind_direction, dir_min, dir_max)
 
         if in_window:
-            if category == 'ideal':
-                score = 2.0 * weight
-            elif category == 'tolerable':
-                score = 1.2 * weight
-            else:  # marginal
-                score = 0.5 * weight
+            base = _WIND_CATEGORY_BASE.get(category, 0.5)
+            score = base * weight
 
             # Apply wind speed penalty if too strong
             if wind_speed_ms is not None and max_onshore_mph is not None:

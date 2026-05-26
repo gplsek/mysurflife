@@ -41,10 +41,27 @@ const WIND_FILL = {
   onshore:         'var(--coral, #e5734d)',
 };
 
+// Per-index hue shades within the accent color so multiple swell windows read
+// as distinct rings instead of one merged blob. 6 shades cycle if there are more.
+const SWELL_SHADES = [
+  'oklch(0.82 0.16 195)',
+  'oklch(0.72 0.16 205)',
+  'oklch(0.86 0.12 175)',
+  'oklch(0.66 0.14 215)',
+  'oklch(0.78 0.18 185)',
+  'oklch(0.60 0.12 200)',
+];
+
 export default function SwellWindRose({ swell = [], wind = [], size = 180 }) {
   const cx = size / 2, cy = size / 2;
   const rOuter = size * 0.46, rSwellIn = size * 0.34;
   const rWindOut = size * 0.30, rWindIn = size * 0.18;
+
+  // Stroke between arcs in the page bg color creates a visible gap so adjacent
+  // or overlapping windows don't merge visually. Stroke width is intentionally
+  // small (≈1.2px at size=180) — enough to separate, not so much it eats arcs.
+  const sepStroke = 'var(--bg-1, #0a1218)';
+  const sepWidth = Math.max(0.8, size * 0.007);
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img"
@@ -55,18 +72,20 @@ export default function SwellWindRose({ swell = [], wind = [], size = 180 }) {
       <circle cx={cx} cy={cy} r={rWindOut} fill="none"
               stroke="var(--border, rgba(255,255,255,0.08))" strokeWidth="1" />
 
-      {/* swell windows (outer band) */}
+      {/* swell windows (outer band) — shade varies per index for legibility */}
       {swell.map((w, i) => (
         <path key={`s${i}`} d={band(cx, cy, rSwellIn, rOuter, w.dir_min, w.dir_max)}
-              fill="var(--accent, #3EC9D4)"
-              opacity={0.25 + 0.6 * Math.min(1, Math.max(0.1, w.weight ?? 1))} />
+              fill={SWELL_SHADES[i % SWELL_SHADES.length]}
+              stroke={sepStroke} strokeWidth={sepWidth}
+              opacity={0.45 + 0.5 * Math.min(1, Math.max(0.1, w.weight ?? 1))} />
       ))}
 
-      {/* wind windows (inner band) */}
+      {/* wind windows (inner band) — category color, gap-stroked for separation */}
       {wind.map((w, i) => (
         <path key={`w${i}`} d={band(cx, cy, rWindIn, rWindOut, w.dir_min, w.dir_max)}
               fill={WIND_FILL[(w.category || '').toLowerCase()] || 'var(--muted, #8a93a0)'}
-              opacity={0.85} />
+              stroke={sepStroke} strokeWidth={sepWidth}
+              opacity={0.45 + 0.5 * Math.min(1, Math.max(0.1, w.weight ?? 1))} />
       ))}
 
       {/* compass labels */}
