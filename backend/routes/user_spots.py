@@ -246,19 +246,29 @@ async def update_user_spot(
             {"spot_id": spot_id, "break_type": body.break_type},
             on_conflict="spot_id",
         ).execute()
-        row["spot_characteristics"] = {"break_type": body.break_type}
 
-    # If coords moved meaningfully, refresh the auto-buoy blend so /conditions
-    # keeps pointing at sensible neighbors. Only when latitude or longitude
-    # was actually patched.
+    # If coords were patched, seed an auto buoy blend ONLY when the spot has
+    # no tuning row yet — never overwrite an existing blend, which may be
+    # hand-tuned via the editor (human edits win, cf. migration 020).
     if body.latitude is not None or body.longitude is not None:
-        blend = _auto_buoy_blend(row["latitude"], row["longitude"])
-        if blend:
-            c.table("spot_forecast_tuning").upsert(
-                {"spot_id": spot_id, "buoy_blend": blend},
-                on_conflict="spot_id",
-            ).execute()
+        existing = (
+            c.table("spot_forecast_tuning").select("spot_id")
+             .eq("spot_id", spot_id).limit(1).execute()
+        )
+        if not (existing.data or []):
+            blend = _auto_buoy_blend(row["latitude"], row["longitude"])
+            if blend:
+                c.table("spot_forecast_tuning").insert(
+                    {"spot_id": spot_id, "buoy_blend": blend}
+                ).execute()
 
+    # Re-read with the characteristics join so the response always carries
+    # break_type (the update/verify rows above have no joins).
+    final = (
+        c.table("spots").select("*, spot_characteristics(break_type)")
+         .eq("id", spot_id).limit(1).execute()
+    )
+    row = (final.data or [row])[0]
     return {"spot": _fmt(row)}
 
 

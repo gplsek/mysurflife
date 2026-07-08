@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 try:
-    from auth import optional_auth
+    from auth import optional_auth, is_admin
 except ImportError:
     optional_auth = None
+    is_admin = None
 
 try:
     from database import supabase
@@ -188,7 +189,8 @@ async def _copilot_get_buoy_history(spot_id: str, hours: int = 24, user_id: Opti
         spot = rows[0]
 
         if spot.get("visibility", "public") != "public":
-            if not (user_id and spot.get("owner_id") == user_id):
+            admin_ok = bool(user_id and is_admin and is_admin(user_id))
+            if not (user_id and (admin_ok or spot.get("owner_id") == user_id)):
                 return {"error": f"Spot '{spot_id}' not found"}
         station_id = spot.get("primary_buoy_id")
 
@@ -231,11 +233,12 @@ async def _copilot_get_buoy_history(spot_id: str, hours: int = 24, user_id: Opti
         return {"error": str(e), "spot_id": spot_id}
 
 
-async def _copilot_compare_spots(spot_ids: List[str]) -> Dict:
-    """Fetch conditions for each spot and rank them."""
+async def _copilot_compare_spots(spot_ids: List[str], user_id: Optional[str] = None) -> Dict:
+    """Fetch conditions for each spot and rank them. user_id flows through so
+    an owner's private spots resolve inside comparisons, not just alone."""
     try:
         results = await asyncio.gather(
-            *[_copilot_get_spot_conditions(sid) for sid in spot_ids],
+            *[_copilot_get_spot_conditions(sid, user_id=user_id) for sid in spot_ids],
             return_exceptions=True
         )
 
@@ -272,7 +275,7 @@ async def _copilot_compare_spots(spot_ids: List[str]) -> Dict:
         return {"error": str(e)}
 
 
-async def _copilot_rank_spots(region: Optional[str] = None) -> Dict:
+async def _copilot_rank_spots(region: Optional[str] = None, user_id: Optional[str] = None) -> Dict:
     """Rank all spots in a region by current score."""
     try:
         if not supabase:
@@ -288,7 +291,7 @@ async def _copilot_rank_spots(region: Optional[str] = None) -> Dict:
 
         slugs = [s["slug"] for s in spot_result.data]
         conditions = await asyncio.gather(
-            *[_copilot_get_spot_conditions(slug) for slug in slugs],
+            *[_copilot_get_spot_conditions(slug, user_id=user_id) for slug in slugs],
             return_exceptions=True
         )
 
@@ -451,8 +454,9 @@ def _build_tool_registry(user_id: Optional[str]) -> Dict:
     """Build the tool registry dict for a given user_id.
 
     Spot-data tools accept user_id so private-spot owners can ask Sione about
-    their own spots. Public spots work for anyone; private ones gate on
-    owner_id == user_id (admin bypass handled by the underlying endpoint).
+    their own spots — including inside compare/rank, which fan out to the
+    single-spot tool. Public spots work for anyone; private ones gate on
+    owner_id == user_id with an is_admin bypass.
     """
     def _with_user(fn):
         # The tool dispatcher in copilot.py calls fn(**input). Wrap fn so a
@@ -466,8 +470,8 @@ def _build_tool_registry(user_id: Optional[str]) -> Dict:
         "get_spot_conditions":       _with_user(_copilot_get_spot_conditions),
         "get_conditions_window":     _with_user(_copilot_get_conditions_window),
         "get_buoy_history":          _with_user(_copilot_get_buoy_history),
-        "compare_spots":             _copilot_compare_spots,
-        "rank_spots":                _copilot_rank_spots,
+        "compare_spots":             _with_user(_copilot_compare_spots),
+        "rank_spots":                _with_user(_copilot_rank_spots),
         "calculate_swell_arrival":   _copilot_calculate_swell_arrival,
         "save_session":              functools.partial(_copilot_save_session, user_id),
     }

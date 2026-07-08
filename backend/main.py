@@ -3368,6 +3368,20 @@ async def get_surf_spots(
         return {"error": str(e), "spots": [], "count": 0}
 
 
+def _spot_visible_to(spot: Dict, user: Optional[Dict]) -> bool:
+    """App-side visibility gate for spot rows fetched via the RLS-bypassing
+    admin client. Mirrors the spots_public_read RLS policy (migration 021):
+    public spots require is_published=true; private spots require owner or
+    admin. Callers must select visibility, owner_id, and is_published.
+    """
+    if spot.get("visibility", "public") == "public":
+        return bool(spot.get("is_published", True))
+    uid = (user or {}).get("user_id") if isinstance(user, dict) else None
+    if not uid:
+        return False
+    return spot.get("owner_id") == uid or bool(is_admin and is_admin(uid))
+
+
 @app.get("/api/surf-spots/{slug}")
 async def get_surf_spot_detail(
     slug: str,
@@ -3402,18 +3416,10 @@ async def get_surf_spot_detail(
             return {"error": "Spot not found"}
         spot = rows[0]
 
-        visibility = spot.get("visibility", "public")
-        if visibility == "public":
-            return spot
-
-        # Private: only the owner (or an admin) can read it.
-        uid = (user or {}).get("user_id") if isinstance(user, dict) else None
-        is_admin_user = bool(uid and is_admin and is_admin(uid))
-        if uid and (is_admin_user or spot.get("owner_id") == uid):
-            return spot
-
-        # Don't reveal that a private spot with this slug exists.
-        return {"error": "Spot not found"}
+        # Don't reveal that a hidden spot with this slug exists.
+        if not _spot_visible_to(spot, user):
+            return {"error": "Spot not found"}
+        return spot
 
     except Exception as e:
         print(f"❌ Error fetching spot {slug}: {e}")
@@ -3535,20 +3541,10 @@ async def _compute_spot_conditions(
         return {"error": "Spot not found"}
     spot_result_data = spot_rows[0]
 
-    visibility = spot_result_data.get("visibility", "public")
-    if visibility != "public":
-        uid = (user or {}).get("user_id") if isinstance(user, dict) else None
-        admin_ok = bool(uid and is_admin and is_admin(uid))
-        if not (uid and (admin_ok or spot_result_data.get("owner_id") == uid)):
-            return {"error": "Spot not found"}
+    if not _spot_visible_to(spot_result_data, user):
+        return {"error": "Spot not found"}
 
-    # Shim for downstream code that still expects spot_result.data
-    class _R:
-        pass
-    spot_result = _R()
-    spot_result.data = spot_result_data
-
-    spot = spot_result.data
+    spot = spot_result_data
     tuning = spot.get('spot_forecast_tuning', {})
     buoy_blend = tuning.get('buoy_blend', {})
 
@@ -3690,17 +3686,14 @@ async def get_surf_spot_model_forecast(
         client = get_supabase_admin_client() or supabase
 
         rows = client.table("spots").select(
-            "latitude, longitude, name, visibility, owner_id"
+            "latitude, longitude, name, visibility, owner_id, is_published"
         ).eq("slug", slug).limit(1).execute().data or []
         if not rows:
             return {"error": "Spot not found"}
         spot = rows[0]
 
-        if spot.get("visibility", "public") != "public":
-            uid = (user or {}).get("user_id") if isinstance(user, dict) else None
-            admin_ok = bool(uid and is_admin and is_admin(uid))
-            if not (uid and (admin_ok or spot.get("owner_id") == uid)):
-                return {"error": "Spot not found"}
+        if not _spot_visible_to(spot, user):
+            return {"error": "Spot not found"}
 
         lat = spot['latitude']
         lon = spot['longitude']
@@ -3901,27 +3894,27 @@ async def get_surf_spot_forecast_timeline(
         return {"error": "Database not configured"}
 
     try:
+        # Visibility gate runs BEFORE any cache read: the L1 key has no user
+        # component, so a cache warmed by the owner must not serve a private
+        # spot's timeline to other callers.
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client() or supabase
+        rows = client.table("spots").select(
+            "latitude, longitude, name, visibility, owner_id, is_published"
+        ).eq("slug", slug).limit(1).execute().data or []
+        if not rows:
+            return {"error": "Spot not found"}
+        spot = rows[0]
+        if not _spot_visible_to(spot, user):
+            return {"error": "Spot not found"}
+        lat, lon = spot['latitude'], spot['longitude']
+
         # ── L1 assembled-timeline cache (30 min TTL) ───────────────────────
         tl_key = f"timeline:{slug}:{hours}"
         cached_tl = _timeline_cache.get(tl_key)
         if cached_tl and datetime.now() - cached_tl["cached_at"] < _TIMELINE_CACHE_TTL:
             print(f"📦 Timeline L1 hit: {tl_key}")
             return cached_tl["data"]
-
-        from database import get_supabase_admin_client
-        client = get_supabase_admin_client() or supabase
-        rows = client.table("spots").select(
-            "latitude, longitude, name, visibility, owner_id"
-        ).eq("slug", slug).limit(1).execute().data or []
-        if not rows:
-            return {"error": "Spot not found"}
-        spot = rows[0]
-        if spot.get("visibility", "public") != "public":
-            uid = (user or {}).get("user_id") if isinstance(user, dict) else None
-            admin_ok = bool(uid and is_admin and is_admin(uid))
-            if not (uid and (admin_ok or spot.get("owner_id") == uid)):
-                return {"error": "Spot not found"}
-        lat, lon = spot['latitude'], spot['longitude']
 
         timeline = None
         source = "live"

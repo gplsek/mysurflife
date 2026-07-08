@@ -16,8 +16,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
-# Global Supabase client
+# Global Supabase clients (anon + service-role), created once per process
 _supabase_client: Optional[Client] = None
+_supabase_admin_client: Optional[Client] = None
 
 
 def get_supabase_client() -> Optional[Client]:
@@ -53,13 +54,18 @@ def get_supabase_admin_client() -> Optional[Client]:
     Returns:
         Supabase admin client if configured, None otherwise
     """
+    global _supabase_admin_client
+
+    if _supabase_admin_client is not None:
+        return _supabase_admin_client
+
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         print("⚠️  Supabase admin access not configured")
         return None
 
     try:
-        admin_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-        return admin_client
+        _supabase_admin_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        return _supabase_admin_client
     except Exception as e:
         print(f"❌ Failed to create Supabase admin client: {e}")
         return None
