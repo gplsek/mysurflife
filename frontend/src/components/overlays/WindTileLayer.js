@@ -59,6 +59,10 @@ export class WindTileController {
    */
   setFrame(frame) {
     const url = windTileUrl(frame);
+    // Same frame as the last request (e.g. hourly timeline ticks over
+    // 3-hourly tiles): the visible or pending layer already targets it.
+    if (this._url === url) return;
+    this._url = url;
     this.frame = frame;
 
     if (!this.layer) {
@@ -124,6 +128,7 @@ export class WindTileController {
     }
     this.layer = null;
     this.pending = null;
+    this._url = null;
   }
 }
 

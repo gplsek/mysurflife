@@ -1049,6 +1049,19 @@ async def _persist_derived_storms(storms: List[Dict], detected_at: datetime) -> 
         client.table("derived_storms").upsert(rows, on_conflict="storm_id").execute()
         print(f"✅ detect_storms: persisted {len(rows)} storms to derived_storms")
     except Exception as e:
+        # The upsert is all-or-nothing, so one unknown column (e.g. deploying
+        # ahead of migration 023) would otherwise cost the whole run's rows.
+        # Strip the offending column and retry once.
+        if "max_gust_kts" in str(e):
+            print("⚠️  detect_storms: max_gust_kts column missing (apply migration 023); retrying without it")
+            for r in rows:
+                r.pop("max_gust_kts", None)
+            try:
+                client.table("derived_storms").upsert(rows, on_conflict="storm_id").execute()
+                print(f"✅ detect_storms: persisted {len(rows)} storms (without gusts)")
+                return
+            except Exception as e2:
+                e = e2
         print(f"❌ detect_storms: persistence failed: {e}")
 
 

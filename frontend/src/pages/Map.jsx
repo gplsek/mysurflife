@@ -538,9 +538,20 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
       windParticlesRef.current = new WindParticlesGL(map, {
         numParticles: Number(localStorage.getItem('particleCount')) || 10000,
       });
-      windParticlesRef.current.setRun('gfs', windManifest.run);
     }
-    return () => { alive = false; };
+    // Idempotent for an unchanged run; on a new run it drops cached GL
+    // textures so particles advect against the fresh frames.
+    windParticlesRef.current.setRun('gfs', windManifest.run);
+
+    // The tile backend keeps only the newest runs on disk, so a map left
+    // open must follow new GFS runs or its tile URLs eventually 404.
+    const refresh = setInterval(() => {
+      fetchWindManifest('gfs')
+        .then((m) => { if (alive && m.run !== windManifest.run) setWindManifest(m); })
+        .catch(() => {});   // transient failure: keep serving the current run
+    }, 15 * 60 * 1000);
+
+    return () => { alive = false; clearInterval(refresh); };
   }, [state.showWind, windManifest]);
 
   // Tear down wind layers on unmount (the toggle effect above only handles
