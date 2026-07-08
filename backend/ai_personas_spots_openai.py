@@ -60,8 +60,14 @@ async def get_spot_context(spot_slug: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        # Fetch spot with all related tables
-        result = supabase.table("spots") \
+        # Admin client bypasses RLS so private spots are readable too.
+        try:
+            from database import get_supabase_admin_client
+            client = get_supabase_admin_client() or supabase
+        except ImportError:
+            client = supabase
+
+        rows = client.table("spots") \
             .select("""
                 *,
                 spot_characteristics(*),
@@ -69,13 +75,12 @@ async def get_spot_context(spot_slug: str) -> Optional[Dict[str, Any]]:
                 spot_wind_windows(*)
             """) \
             .eq("slug", spot_slug) \
-            .single() \
-            .execute()
+            .limit(1).execute().data or []
 
-        if not result.data:
+        if not rows:
             return None
 
-        return result.data
+        return rows[0]
 
     except Exception as e:
         print(f"❌ Error fetching spot context: {e}")

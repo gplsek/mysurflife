@@ -3369,31 +3369,51 @@ async def get_surf_spots(
 
 
 @app.get("/api/surf-spots/{slug}")
-async def get_surf_spot_detail(slug: str):
-    """
-    Get detailed information for a single surf spot.
-    Includes characteristics, swell/wind windows, and buoy mappings.
+async def get_surf_spot_detail(
+    slug: str,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
+    """Spot detail. Public spots are world-readable; private spots are
+    readable only by their owner (or admin). On miss we 404 without leaking
+    that a private spot exists.
     """
     if not supabase:
         return {"error": "Database not configured"}
 
+    select_cols = """
+        *,
+        spot_characteristics(*),
+        spot_swell_windows(*),
+        spot_wind_windows(*),
+        spot_forecast_tuning(*)
+    """
+
     try:
-        # Public endpoint: only serve public spots. A private spot returns
-        # "not found" here; owners reach their own via an authenticated path (M2 gate).
-        result = only_public_spots(
-            supabase.table("spots").select("""
-            *,
-            spot_characteristics(*),
-            spot_swell_windows(*),
-            spot_wind_windows(*),
-            spot_forecast_tuning(*)
-        """).eq("slug", slug)
-        ).single().execute()
+        # Service-role client (bypasses RLS); we enforce visibility in code.
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client() or supabase
 
-        if not result.data:
+        rows = (
+            client.table("spots").select(select_cols)
+                  .eq("slug", slug)
+                  .limit(1).execute().data
+        )
+        if not rows:
             return {"error": "Spot not found"}
+        spot = rows[0]
 
-        return result.data
+        visibility = spot.get("visibility", "public")
+        if visibility == "public":
+            return spot
+
+        # Private: only the owner (or an admin) can read it.
+        uid = (user or {}).get("user_id") if isinstance(user, dict) else None
+        is_admin_user = bool(uid and is_admin and is_admin(uid))
+        if uid and (is_admin_user or spot.get("owner_id") == uid):
+            return spot
+
+        # Don't reveal that a private spot with this slug exists.
+        return {"error": "Spot not found"}
 
     except Exception as e:
         print(f"❌ Error fetching spot {slug}: {e}")
@@ -3501,15 +3521,32 @@ async def _compute_spot_conditions(
         return {"error": "Database not configured"}
 
     from surf_scoring import calculate_spot_score
+    from database import get_supabase_admin_client
+    client = get_supabase_admin_client() or supabase
 
-    # Get spot to find buoy mappings
-    spot_result = supabase.table("spots").select("""
+    # Get spot to find buoy mappings. Admin client bypasses RLS, so we
+    # enforce visibility in code (private spots only readable by owner/admin).
+    spot_rows = client.table("spots").select("""
         *,
         spot_forecast_tuning(buoy_blend)
-    """).eq("slug", slug).single().execute()
+    """).eq("slug", slug).limit(1).execute().data or []
 
-    if not spot_result.data:
+    if not spot_rows:
         return {"error": "Spot not found"}
+    spot_result_data = spot_rows[0]
+
+    visibility = spot_result_data.get("visibility", "public")
+    if visibility != "public":
+        uid = (user or {}).get("user_id") if isinstance(user, dict) else None
+        admin_ok = bool(uid and is_admin and is_admin(uid))
+        if not (uid and (admin_ok or spot_result_data.get("owner_id") == uid)):
+            return {"error": "Spot not found"}
+
+    # Shim for downstream code that still expects spot_result.data
+    class _R:
+        pass
+    spot_result = _R()
+    spot_result.data = spot_result_data
 
     spot = spot_result.data
     tuning = spot.get('spot_forecast_tuning', {})
@@ -3636,7 +3673,10 @@ async def post_surf_spot_score_preview(
 
 
 @app.get("/api/surf-spots/{slug}/model-forecast")
-async def get_surf_spot_model_forecast(slug: str):
+async def get_surf_spot_model_forecast(
+    slug: str,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
     """
     Get current model forecast data at spot coordinates.
     Fetches WW3 wave and HRRR wind data at the exact spot location.
@@ -3645,13 +3685,23 @@ async def get_surf_spot_model_forecast(slug: str):
         return {"error": "Database not configured"}
 
     try:
-        # Get spot coordinates
-        spot_result = supabase.table("spots").select("latitude, longitude, name").eq("slug", slug).single().execute()
+        # Use admin client so private spots are reachable; enforce in code.
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client() or supabase
 
-        if not spot_result.data:
+        rows = client.table("spots").select(
+            "latitude, longitude, name, visibility, owner_id"
+        ).eq("slug", slug).limit(1).execute().data or []
+        if not rows:
             return {"error": "Spot not found"}
+        spot = rows[0]
 
-        spot = spot_result.data
+        if spot.get("visibility", "public") != "public":
+            uid = (user or {}).get("user_id") if isinstance(user, dict) else None
+            admin_ok = bool(uid and is_admin and is_admin(uid))
+            if not (uid and (admin_ok or spot.get("owner_id") == uid)):
+                return {"error": "Spot not found"}
+
         lat = spot['latitude']
         lon = spot['longitude']
 
@@ -3837,7 +3887,11 @@ async def _fetch_timeline_hour(
 
 
 @app.get("/api/surf-spots/{slug}/forecast-timeline")
-async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
+async def get_surf_spot_forecast_timeline(
+    slug: str,
+    hours: int = 180,
+    user: Optional[Dict] = Depends(optional_auth) if optional_auth else None,
+):
     """
     Get forecast timeline for a spot showing wave, wind, and tide conditions over time.
     Reads from pre-baked Redis cache when available; falls back to live fetch.
@@ -3854,14 +3908,19 @@ async def get_surf_spot_forecast_timeline(slug: str, hours: int = 180):
             print(f"📦 Timeline L1 hit: {tl_key}")
             return cached_tl["data"]
 
-        spot_result = supabase.table("spots") \
-            .select("latitude, longitude, name") \
-            .eq("slug", slug).single().execute()
-
-        if not spot_result.data:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client() or supabase
+        rows = client.table("spots").select(
+            "latitude, longitude, name, visibility, owner_id"
+        ).eq("slug", slug).limit(1).execute().data or []
+        if not rows:
             return {"error": "Spot not found"}
-
-        spot = spot_result.data
+        spot = rows[0]
+        if spot.get("visibility", "public") != "public":
+            uid = (user or {}).get("user_id") if isinstance(user, dict) else None
+            admin_ok = bool(uid and is_admin and is_admin(uid))
+            if not (uid and (admin_ok or spot.get("owner_id") == uid)):
+                return {"error": "Spot not found"}
         lat, lon = spot['latitude'], spot['longitude']
 
         timeline = None

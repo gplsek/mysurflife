@@ -139,14 +139,18 @@ const SpotDetail = () => {
 
   const handleSignOut = async () => { setMenuOpen(false); await signOut(); navigate('/'); };
 
-  // Phase 1: critical data
+  // Phase 1: critical data. Auth headers go through so private-spot owners
+  // can read their own /api/surf-spots/{slug} and /conditions; the endpoints
+  // 404 to anyone else.
   useEffect(() => {
     const fetch_ = async () => {
       try {
         setLoading(true);
+        const { getAuthHeaders } = await import('./supabaseClient');
+        const headers = await getAuthHeaders();
         const [spotRes, condRes] = await Promise.all([
-          fetch(`/api/surf-spots/${slug}`),
-          fetch(`/api/surf-spots/${slug}/conditions`),
+          fetch(`/api/surf-spots/${slug}`, { headers }),
+          fetch(`/api/surf-spots/${slug}/conditions`, { headers }),
         ]);
         if (!spotRes.ok) throw new Error(`Failed to fetch spot: ${spotRes.status}`);
         if (!condRes.ok) throw new Error(`Failed to fetch conditions: ${condRes.status}`);
@@ -208,9 +212,17 @@ const SpotDetail = () => {
   useEffect(() => {
     if (!spot) return;
     setModelLoading(true);
-    fetch(`/api/surf-spots/${slug}/model-forecast`)
-      .then(r => r.ok ? r.json() : null).then(d => setModelForecast(d)).catch(() => {})
-      .finally(() => setModelLoading(false));
+    (async () => {
+      const { getAuthHeaders } = await import('./supabaseClient');
+      const headers = await getAuthHeaders();
+      try {
+        const r = await fetch(`/api/surf-spots/${slug}/model-forecast`, { headers });
+        const d = r.ok ? await r.json() : null;
+        setModelForecast(d);
+      } catch {} finally {
+        setModelLoading(false);
+      }
+    })();
   }, [slug, spot]);
 
   // Phase 4: timeline (168h)
@@ -222,16 +234,20 @@ const SpotDetail = () => {
     setTimelineLoading(true);
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 25000);
-    fetch(`/api/surf-spots/${slug}/forecast-timeline?hours=168`, { signal: ctrl.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.timeline) {
-          setForecastTimeline(d);
-          timelineFetchedForRef.current = slug;
-        }
-      })
-      .catch(() => {})
-      .finally(() => { clearTimeout(t); setTimelineLoading(false); });
+    (async () => {
+      const { getAuthHeaders } = await import('./supabaseClient');
+      const headers = await getAuthHeaders();
+      fetch(`/api/surf-spots/${slug}/forecast-timeline?hours=168`, { signal: ctrl.signal, headers })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.timeline) {
+            setForecastTimeline(d);
+            timelineFetchedForRef.current = slug;
+          }
+        })
+        .catch(() => {})
+        .finally(() => { clearTimeout(t); setTimelineLoading(false); });
+    })();
     return () => ctrl.abort();
   }, [slug, spot]);
 

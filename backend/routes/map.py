@@ -150,7 +150,12 @@ async def _get_favorites(user: Optional[Dict]) -> List[str]:
 
 
 async def _fetch_user_spots(user: Optional[Dict]) -> List[Dict]:
-    """Returns the authenticated user's private spots, shaped for the map bundle."""
+    """Returns the authenticated user's private spots, shaped for the map bundle.
+
+    After M3 convergence private spots are ordinary rows in `spots` with
+    visibility='private'. We pull break_type from the joined characteristics
+    so the existing 'My Spots' card on the map shows it.
+    """
     if not user:
         return []
     try:
@@ -159,26 +164,31 @@ async def _fetch_user_spots(user: Optional[Dict]) -> List[Dict]:
         if not client or not user_id:
             return []
         resp = (
-            client.table("user_spots")
-            .select("id, name, latitude, longitude, break_type, description, is_shared, created_at")
-            .eq("user_id", user_id)
+            client.table("spots")
+            .select("id, slug, name, latitude, longitude, location_description, created_at, "
+                    "spot_characteristics(break_type)")
+            .eq("owner_id", user_id)
+            .eq("visibility", "private")
             .execute()
         )
-        return [
-            {
-                "slug":        f"usr_{r['id']}",
+        out = []
+        for r in (resp.data or []):
+            chars = r.get("spot_characteristics") or {}
+            if isinstance(chars, list):
+                chars = chars[0] if chars else {}
+            out.append({
+                "slug":        r.get("slug") or f"usr_{r['id']}",
                 "name":        r["name"],
                 "latitude":    r["latitude"],
                 "longitude":   r["longitude"],
-                "break_type":  r.get("break_type"),
-                "description": r.get("description"),
-                "is_shared":   r.get("is_shared", False),
+                "break_type":  chars.get("break_type"),
+                "description": r.get("location_description"),
+                "is_shared":   False,
                 "is_user_spot": True,
                 "region":      "My Spots",
                 "rating":      None,
-            }
-            for r in (resp.data or [])
-        ]
+            })
+        return out
     except Exception as e:
         print(f"⚠️  map/bundle: user_spots fetch failed: {e}")
         return []

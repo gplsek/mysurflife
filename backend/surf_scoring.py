@@ -508,8 +508,17 @@ async def calculate_spot_score(
     if not supabase:
         return None
 
-    # Fetch spot with all related data
-    result = supabase.table("spots") \
+    # Fetch spot with all related data. Use the admin (service-role) client so
+    # private spots (visibility='private') are reachable too — RLS would hide
+    # them from the anon client. The caller (e.g. /conditions, /score-preview)
+    # is responsible for the owner-only gate before getting here.
+    try:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client() or supabase
+    except ImportError:
+        client = supabase
+
+    rows = client.table("spots") \
         .select("""
             *,
             spot_characteristics(*),
@@ -518,13 +527,13 @@ async def calculate_spot_score(
             spot_forecast_tuning(*)
         """) \
         .eq("slug", spot_slug) \
-        .single() \
-        .execute()
+        .limit(1) \
+        .execute().data or []
 
-    if not result.data:
+    if not rows:
         return None
 
-    spot = result.data
+    spot = rows[0]
     chars = spot['spot_characteristics']
     tuning = spot['spot_forecast_tuning']
     swell_windows = swell_windows_override if swell_windows_override is not None else spot['spot_swell_windows']
