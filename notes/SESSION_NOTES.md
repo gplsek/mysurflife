@@ -2,6 +2,22 @@
 
 ---
 
+## 📍 Jul 7–8, 2026 — Wind tiles Phase D: /map-lab → /map (session crashed mid-phase, resumed + finished)
+
+All on `feat/wind-tiles-phase-ab`, uncommitted at time of writing. Phase D of `notes/WIND_TILES_EXECUTION_PLAN.md`:
+
+- **Wind on /map (step 1)**: `WindTileController` + `WindParticlesGL` + `WindLegend` mounted in `pages/Map.jsx`, driven by the shared timeline `curH` (tiles snap to 3-hourly frames, particles crossfade the gap). `showWind` toggle added to `useMapState`, NavDrawer, **and** `LeftRail.jsx` (the always-visible Layers card — was missed pre-crash). Added an unmount-only cleanup effect: the toggle effect only tore down on `showWind` flipping off, so leaving `/map` with wind on leaked the WebGL context.
+- **Storms over wind (steps 2–3)**: verified visually — dots + ghost track markers render above tiles, and `addStormMarker`'s full-track interpolation already keys to the shared hour, so scrubbing `+3d` moves storms and wind in sync. No snap-to-minimum needed at current zooms.
+- **Max gust (step 4)**: `jobs/detect_storms.py` now requests `var_GUST` (surface) in the same GRIB slice, box-maxes it around each center → `max_gust_kts` on detections, `forecast_track` points, the storm record, and the `derived_storms` row (migration `023_storm_max_gust.sql`, **not yet applied**). DB fallback loader in `routes/storms.py` passes it through; `reconcile` spreads model dicts so it reaches the wire. StormCard "Max Winds" cell sub-line shows `gusts N kt` when present (falls back to mph). Verified live against GFS 2026-07-08 00z: 91/91 detections carried gusts (e.g. 926 mb typhoon: 78 kt sustained / 96 kt gust).
+- **Retire (step 5, partial)**: `/map-lab` route + import removed from `App.js`. `MapLab.jsx` source kept. Per plan, `/old-map` route + `WindCanvasLayer.js` / `WindParticlesLayer.js` / `WindGrid.js` + legacy `/api/wind-overlay` get deleted after ~1 week stable — **do not delete yet** (from ~Jul 8).
+
+### What's Next
+
+- Apply migration `023_storm_max_gust.sql` (note: `022_converge_user_spots.sql` from the separate user-spots convergence workstream is also pending — same tree holds that uncommitted backend diff; keep the two workstreams in separate commits/PRs)
+- StormCard gusts appear after the first detector run with the new code (persistence to DB logs an error until 023 is applied; in-memory cache path works regardless)
+- `/review` + PR for Phase D per plan's one-PR-per-phase discipline
+- After 1 week stable: delete `/old-map` + legacy wind layers + `/api/wind-overlay`
+
 ## 📍 Current Status (Apr 23–27, 2026) — Session 3
 
 ### Session Summary — Design V2 merge, Sione streaming + storm handoff, global storm detector

@@ -110,6 +110,7 @@ export function StormCard({ storm, mapRef, onClose }) {
   const posLabel   = `${Math.abs(storm.lat).toFixed(1)}°${storm.lat >= 0 ? 'N' : 'S'}, ${Math.abs(storm.lon).toFixed(1)}°${storm.lon >= 0 ? 'E' : 'W'}`;
   const wind_kt    = storm.wind_kts || 0;
   const wind_mph   = Math.round(wind_kt * 1.15078);
+  const gust_kt    = storm.max_gust_kts;
   const seas_ft    = storm.sea_height_ft || 0;
   const seas_range = storm.sea_range_ft || `${seas_ft}`;
   const movDir     = storm.movement?.direction;
@@ -410,7 +411,7 @@ export function StormCard({ storm, mapRef, onClose }) {
           <div className="cell">
             <div className="k">Max Winds</div>
             <div className="v">{wind_kt}<span className="u">kt</span></div>
-            <div className="sub">{wind_mph} mph</div>
+            <div className="sub">{gust_kt != null ? `gusts ${Math.round(gust_kt)} kt` : `${wind_mph} mph`}</div>
           </div>
           <div className="cell">
             <div className="k">Max Seas</div>

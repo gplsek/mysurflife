@@ -86,6 +86,16 @@ export function LeftRail({ tierCounts, buoyCount, stormCount, state, onToggle, o
           </div>
         )}
         <button
+          className={`mv-layer-btn${state.showWind ? ' on' : ''}`}
+          onClick={() => onToggle('showWind')}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3">
+            <path d="M1.5 4.5h6a1.8 1.8 0 100-3.6M1.5 7h9a1.8 1.8 0 110 3.6M1.5 9.5h4" strokeLinecap="round"/>
+          </svg>
+          Wind
+          <span className="mv-toggle-pip" />
+        </button>
+        <button
           className={`mv-layer-btn${state.favsOnly ? ' on' : ''}`}
           onClick={() => onToggle('favsOnly')}
         >

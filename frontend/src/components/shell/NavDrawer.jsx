@@ -40,6 +40,10 @@ const LAYER_TOGGLES = [
     icon: <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3"><circle cx="6.5" cy="6.5" r="2.5"/><path d="M6.5 4v1M6.5 8v1M4 6.5H3M9 6.5h1" strokeLinecap="round"/><path d="M4.9 4.9l-.7-.7M8.8 8.8l-.7-.7M8.8 4.2l.7-.7M4.2 8.8l-.7.7" strokeLinecap="round"/></svg>,
   },
   {
+    key: 'showWind', label: 'Wind',
+    icon: <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M1.5 4.5h6a1.8 1.8 0 100-3.6M1.5 7h9a1.8 1.8 0 110 3.6M1.5 9.5h4" strokeLinecap="round"/></svg>,
+  },
+  {
     key: 'favsOnly', label: 'Favorites only',
     icon: null, // rendered dynamically below
   },

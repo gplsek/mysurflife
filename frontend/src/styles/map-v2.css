@@ -1457,3 +1457,37 @@
   border-color: var(--accent);
   color: oklch(0.14 0.02 230);   /* dark-on-accent, matches timeline/chip active state */
 }
+
+/* ── Wind overlay legend (Phase D, WIND_TILES_EXECUTION_PLAN) ── */
+.mv-wind-legend {
+  position: absolute;
+  left: 14px;
+  bottom: 92px;
+  z-index: 720;
+  background: rgba(10, 18, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  padding: 8px 12px 6px;
+  color: rgba(244, 241, 234, 0.92);
+  backdrop-filter: blur(6px);
+}
+
+.mv-wind-legend .wind-legend-title {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+
+.mv-wind-legend .wind-legend-bar {
+  width: 200px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.mv-wind-legend .wind-legend-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  opacity: 0.65;
+  margin-top: 2px;
+}

@@ -116,6 +116,7 @@ async def _load_model_storms_from_db() -> List[Dict]:
                 "lon":                          r["current_lon"],
                 "pressure_mb":                  r.get("current_pressure_mb"),
                 "wind_kts":                     r.get("peak_wind_kts"),
+                "max_gust_kts":                 r.get("max_gust_kts"),
                 "warning_tier":                 r.get("warning_tier"),
                 "name":                         r.get("basin_label"),
                 "is_deepening":                 r.get("is_deepening"),
