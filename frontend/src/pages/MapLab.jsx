@@ -9,7 +9,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { CARTO_DARK, CARTO_LABELS, CARTO_ATTR } from '../components/map/constants';
+import {
+  CARTO_DARK, CARTO_LABELS, CARTO_LIGHT, CARTO_LIGHT_LABELS, CARTO_ATTR,
+} from '../components/map/constants';
 import {
   WindTileController,
   fetchWindManifest,
@@ -41,7 +43,7 @@ export default function MapLab() {
   const [error, setError] = useState(null);
   const [hourIdx, setHourIdx] = useState(0);
   const [variable, setVariable] = useState('speed');
-  const [opacity, setOpacity] = useState(0.8);
+  const [opacity, setOpacity] = useState(0.92);
   const [playing, setPlaying] = useState(false);
   const [tilesLoading, setTilesLoading] = useState(false);
   const [particlesOn, setParticlesOn] = useState(true);
@@ -49,6 +51,9 @@ export default function MapLab() {
   const [particleCount, setParticleCount] = useState(() =>
     clampParticleCount(Number(localStorage.getItem('particleCount')) || 10000)
   );
+  const [basemap, setBasemap] = useState(() => localStorage.getItem('mapLabBasemap2') || 'dark');
+  const baseLayersRef = useRef({ base: null, labels: null });
+  const coastRef = useRef(null);
 
   // Map init
   useEffect(() => {
@@ -62,8 +67,6 @@ export default function MapLab() {
       worldCopyJump: true,
       attributionControl: true,
     });
-    L.tileLayer(CARTO_DARK, { attribution: CARTO_ATTR, zIndex: 200 }).addTo(map);
-    L.tileLayer(CARTO_LABELS, { zIndex: 400 }).addTo(map);
     mapRef.current = map;
 
     return () => {
@@ -74,6 +77,39 @@ export default function MapLab() {
       windRef.current = null;
       particlesRef.current = null;
     };
+  }, []);
+
+  // Basemap (dark/light) — swap base + label tile layers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    localStorage.setItem('mapLabBasemap2', basemap);
+    const { base, labels } = baseLayersRef.current;
+    if (base) base.remove();
+    if (labels) labels.remove();
+    const baseUrl = basemap === 'light' ? CARTO_LIGHT : CARTO_DARK;
+    const labelUrl = basemap === 'light' ? CARTO_LIGHT_LABELS : CARTO_LABELS;
+    baseLayersRef.current = {
+      base: L.tileLayer(baseUrl, { attribution: CARTO_ATTR, zIndex: 200 }).addTo(map),
+      labels: L.tileLayer(labelUrl, { zIndex: 400 }).addTo(map),
+    };
+  }, [basemap]);
+
+  // Coastline stroke above the near-opaque wind layer — land/water separation
+  // stays crisp without letting the basemap wash out the ramp colors.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || coastRef.current) return;
+    fetch('/geojson/ne_50m_land.geojson')
+      .then((r) => r.json())
+      .then((geo) => {
+        if (!mapRef.current || coastRef.current) return;
+        coastRef.current = L.geoJSON(geo, {
+          interactive: false,
+          style: { color: 'rgba(244, 241, 234, 0.45)', weight: 1, fill: false },
+        }).addTo(map);
+      })
+      .catch(() => {});
   }, []);
 
   // Manifest load
@@ -241,6 +277,12 @@ export default function MapLab() {
             disabled={glUnsupported}
           >
             Flow
+          </button>
+          <button
+            type="button"
+            onClick={() => setBasemap((b) => (b === 'light' ? 'dark' : 'light'))}
+          >
+            {basemap === 'light' ? 'Dark map' : 'Light map'}
           </button>
         </div>
         <label className="map-lab-opacity">

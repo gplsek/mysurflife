@@ -89,11 +89,13 @@ export class WindTileController {
       this.layer = next;
       if (this.onLoad) this.onLoad();
 
+      // Fade the new layer in ON TOP of the still-opaque old layer, then drop
+      // the old one. Fading both simultaneously dips the combined opacity
+      // (~0.7 at midpoint) and the basemap flashes through on every swap.
       const start = performance.now();
       const fade = (now) => {
         const t = Math.min(1, (now - start) / SWAP_FADE_MS);
         next.setOpacity(this.opacity * t);
-        old.setOpacity(this.opacity * (1 - t));
         if (t < 1) {
           this._fadeRaf = requestAnimationFrame(fade);
         } else {
