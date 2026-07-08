@@ -40,6 +40,7 @@ from routes.ai_analysis import router as ai_analysis_router
 from routes.copilot     import router as copilot_router
 from routes.sione       import router as sione_router
 from routes.spot_config import router as spot_config_router
+from routes.tiles       import router as tiles_router
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(sessions_router)
@@ -52,6 +53,7 @@ app.include_router(ai_analysis_router)
 app.include_router(copilot_router)
 app.include_router(sione_router)
 app.include_router(spot_config_router)
+app.include_router(tiles_router)
 
 from high_seas import register_routes as register_high_seas_routes
 register_high_seas_routes(app)

@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { ThemeProvider } from './design/ThemeProvider';
 import MapView from './pages/Map';
 import MapOverlay from './MapOverlay';
+import MapLab from './pages/MapLab';
 import SpotDetail from './SpotDetail';
 import ManagePersonas from './ManagePersonas';
 import ManageUsers from './ManageUsers';
@@ -258,6 +259,9 @@ function App() {
 
             {/* Old map — available until Phase 5 ships */}
             <Route path="/old-map" element={<RequireAuth><MapOverlay /></RequireAuth>} />
+
+            {/* Wind tiles dev harness — Phase B of WIND_TILES_EXECUTION_PLAN; removed in Phase D */}
+            <Route path="/map-lab" element={<RequireAuth><MapLab /></RequireAuth>} />
 
             {/* Spot detail — renders inside Shell so nav is present */}
             <Route path="/spots/:slug" element={<RequireAuth><Shell /></RequireAuth>} />

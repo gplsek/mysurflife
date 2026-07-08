@@ -1,0 +1,151 @@
+/* map-lab.css — throwaway chrome for the /map-lab dev harness.
+   Colors use theme custom properties (no hex in Layer/Legend JS). */
+
+.map-lab {
+  position: fixed;
+  inset: 0;
+}
+
+.map-lab-map {
+  position: absolute;
+  inset: 0;
+  background: var(--ink, rgb(10, 18, 24));
+}
+
+.map-lab-chrome {
+  position: absolute;
+  z-index: 800;
+  background: rgba(10, 18, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  color: rgba(244, 241, 234, 0.92);
+  font-size: 13px;
+  padding: 8px 12px;
+  backdrop-filter: blur(6px);
+}
+
+.map-lab-header {
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.map-lab-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.map-lab-sub {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.map-lab-controls {
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.map-lab-var-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.map-lab-var-toggle button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.map-lab-var-toggle button.active {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.map-lab-opacity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.map-lab-legend {
+  bottom: 76px;
+  left: 12px;
+  padding: 8px 12px 6px;
+}
+
+.wind-legend-title {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+
+.wind-legend-bar {
+  width: 220px;
+  height: 10px;
+  border-radius: 5px;
+}
+
+.wind-legend-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+
+.map-lab-timeline {
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+}
+
+.ovl-timeline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ovl-play {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: inherit;
+  cursor: pointer;
+  flex: none;
+}
+
+.ovl-slider {
+  flex: 1;
+  accent-color: var(--accent, rgb(62, 201, 212));
+}
+
+.ovl-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 132px;
+  line-height: 1.25;
+}
+
+.ovl-time-valid {
+  font-size: 12px;
+}
+
+.ovl-time-hour {
+  font-size: 11px;
+  opacity: 0.6;
+}
