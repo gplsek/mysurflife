@@ -260,8 +260,9 @@ function App() {
             {/* Old map — available until Phase 5 ships */}
             <Route path="/old-map" element={<RequireAuth><MapOverlay /></RequireAuth>} />
 
-            {/* Wind tiles dev harness — Phase B of WIND_TILES_EXECUTION_PLAN; removed in Phase D */}
-            <Route path="/map-lab" element={<RequireAuth><MapLab /></RequireAuth>} />
+            {/* Wind tiles dev harness — Phase B/C of WIND_TILES_EXECUTION_PLAN; removed in
+                Phase D. No auth gate: renders only public model data (tile API is public). */}
+            <Route path="/map-lab" element={<MapLab />} />
 
             {/* Spot detail — renders inside Shell so nav is present */}
             <Route path="/spots/:slug" element={<RequireAuth><Shell /></RequireAuth>} />

@@ -1,5 +1,5 @@
 /**
- * MapLab.jsx — /map-lab dev harness for the wind tile pipeline (Phase B,
+ * MapLab.jsx — /map-lab dev harness for the wind tile pipeline (Phases B+C,
  * notes/WIND_TILES_EXECUTION_PLAN.md).
  *
  * Thin, throwaway chrome around portable components (components/overlays/*).
@@ -15,20 +15,27 @@ import {
   fetchWindManifest,
   prefetchFrame,
 } from '../components/overlays/WindTileLayer';
+import {
+  WindParticlesGL,
+  clampParticleCount,
+} from '../components/overlays/WindParticlesLayerGL';
 import OverlayTimeline from '../components/overlays/OverlayTimeline';
 import WindLegend from '../components/overlays/WindLegend';
 import LogoPulse from '../design/LogoPulse';
 import '../styles/map-lab.css';
 
-const PLAY_INTERVAL_MS = 700;
+const PLAY_INDEX_PER_SEC = 1.4;   // timeline indices advanced per second
 const PREFETCH_IDLE_MS = 400;
 const MODEL = 'gfs';
+const PARTICLE_CHOICES = [1000, 5000, 10000, 25000, 50000];
 
 export default function MapLab() {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const windRef = useRef(null);
+  const particlesRef = useRef(null);
   const prefetchTimerRef = useRef(null);
+  const playPosRef = useRef(0);
 
   const [manifest, setManifest] = useState(null);
   const [error, setError] = useState(null);
@@ -37,6 +44,11 @@ export default function MapLab() {
   const [opacity, setOpacity] = useState(0.8);
   const [playing, setPlaying] = useState(false);
   const [tilesLoading, setTilesLoading] = useState(false);
+  const [particlesOn, setParticlesOn] = useState(true);
+  const [glUnsupported, setGlUnsupported] = useState(false);
+  const [particleCount, setParticleCount] = useState(() =>
+    clampParticleCount(Number(localStorage.getItem('particleCount')) || 10000)
+  );
 
   // Map init
   useEffect(() => {
@@ -56,9 +68,11 @@ export default function MapLab() {
 
     return () => {
       if (windRef.current) windRef.current.remove();
+      if (particlesRef.current) particlesRef.current.destroy();
       map.remove();
       mapRef.current = null;
       windRef.current = null;
+      particlesRef.current = null;
     };
   }, []);
 
@@ -100,19 +114,77 @@ export default function MapLab() {
     return () => clearTimeout(prefetchTimerRef.current);
   }, [manifest, hourIdx, variable, opacity]);
 
+  // Particle layer lifecycle
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !manifest || glUnsupported) return;
+
+    if (particlesOn && !particlesRef.current) {
+      particlesRef.current = new WindParticlesGL(map, {
+        numParticles: particleCount,
+        onUnsupported: () => setGlUnsupported(true),
+      });
+    }
+    const gl = particlesRef.current;
+    if (!gl || gl.unsupported) return;
+
+    gl.setVisible(particlesOn);
+    if (particlesOn) {
+      gl.setRun(MODEL, manifest.run);
+      const h0 = manifest.hours[hourIdx];
+      const h1 = manifest.hours[hourIdx + 1] ?? h0;
+      gl.setTime(h0, h1, 0);
+    }
+  }, [manifest, particlesOn, hourIdx, glUnsupported, particleCount]);
+
+  // Particle count changes
+  useEffect(() => {
+    localStorage.setItem('particleCount', String(particleCount));
+    if (particlesRef.current && !particlesRef.current.unsupported) {
+      particlesRef.current.setNumParticles(particleCount);
+    }
+  }, [particleCount]);
+
   // Opacity
   useEffect(() => {
     if (windRef.current) windRef.current.setOpacity(opacity);
   }, [opacity]);
 
-  // Play loop
+  // Slider/keyboard jumps keep the playhead ref in sync
+  useEffect(() => {
+    if (!playing) playPosRef.current = hourIdx;
+  }, [hourIdx, playing]);
+
+  // Continuous play: fractional playhead drives particle crossfade every
+  // frame; tiles (and the slider) snap when the integer index changes.
   useEffect(() => {
     if (!playing || !manifest) return;
-    const id = setInterval(() => {
-      setHourIdx((i) => (i + 1) % manifest.hours.length);
-    }, PLAY_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [playing, manifest]);
+    let rafId;
+    let last = performance.now();
+
+    const tick = (now) => {
+      rafId = requestAnimationFrame(tick);
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+
+      let pos = playPosRef.current + dt * PLAY_INDEX_PER_SEC;
+      if (pos >= manifest.hours.length - 1) pos = 0;
+      playPosRef.current = pos;
+
+      const idx = Math.floor(pos);
+      const mix = pos - idx;
+      setHourIdx((cur) => (cur === idx ? cur : idx));
+
+      const gl = particlesRef.current;
+      if (gl && !gl.unsupported && particlesOn) {
+        const h0 = manifest.hours[idx];
+        const h1 = manifest.hours[idx + 1] ?? h0;
+        gl.setTime(h0, h1, mix);
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [playing, manifest, particlesOn]);
 
   // Keyboard scrubbing
   const onKeyDown = useCallback((e) => {
@@ -140,6 +212,9 @@ export default function MapLab() {
               ? `manifest error: ${error}`
               : 'loading run…'}
         </span>
+        {glUnsupported && (
+          <span className="map-lab-sub">animated flow needs WebGL — heatmap only</span>
+        )}
         {tilesLoading && <LogoPulse size={24} />}
       </div>
 
@@ -159,7 +234,27 @@ export default function MapLab() {
           >
             Gusts
           </button>
+          <button
+            type="button"
+            className={particlesOn ? 'active' : ''}
+            onClick={() => setParticlesOn((p) => !p)}
+            disabled={glUnsupported}
+          >
+            Flow
+          </button>
         </div>
+        <label className="map-lab-opacity">
+          Particles
+          <select
+            value={particleCount}
+            onChange={(e) => setParticleCount(Number(e.target.value))}
+            disabled={!particlesOn || glUnsupported}
+          >
+            {PARTICLE_CHOICES.map((n) => (
+              <option key={n} value={n}>{n >= 1000 ? `${n / 1000}k` : n}</option>
+            ))}
+          </select>
+        </label>
         <label className="map-lab-opacity">
           Opacity
           <input
@@ -181,7 +276,7 @@ export default function MapLab() {
         <OverlayTimeline
           hours={manifest?.hours ?? []}
           index={hourIdx}
-          onIndexChange={setHourIdx}
+          onIndexChange={(i) => { playPosRef.current = i; setHourIdx(i); }}
           playing={playing}
           onTogglePlay={() => setPlaying((p) => !p)}
           runIso={manifest?.run_iso}

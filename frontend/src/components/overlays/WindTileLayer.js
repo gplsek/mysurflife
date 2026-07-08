@@ -21,6 +21,8 @@ export async function fetchWindManifest(model = 'gfs') {
   return resp.json();
 }
 
+const SWAP_FADE_MS = 180;
+
 export class WindTileController {
   constructor(map, { opacity = 0.8, maxNativeZoom = 7, zIndex = 210, onLoading, onLoad } = {}) {
     this.map = map;
@@ -29,46 +31,97 @@ export class WindTileController {
     this.zIndex = zIndex;
     this.onLoading = onLoading;
     this.onLoad = onLoad;
-    this.layer = null;
+    this.layer = null;        // currently visible layer
+    this.pending = null;      // next-hour layer, loading behind the scenes
     this.frame = null;
+    this._fadeRaf = null;
   }
 
+  _makeLayer(url, opacity) {
+    return L.tileLayer(url, {
+      opacity,
+      zIndex: this.zIndex,
+      maxNativeZoom: this.maxNativeZoom,
+      maxZoom: 18,
+      tileSize: 256,
+      crossOrigin: true,
+      updateWhenZooming: false,
+      keepBuffer: 4,
+      className: 'wind-tile-layer',
+    });
+  }
+
+  /**
+   * Double-buffered frame swap: the old layer stays fully visible while the
+   * new hour loads on a second layer underneath; once every visible tile of
+   * the new layer is in, it fades up and the old layer is removed. No blank
+   * flash between hours — rapid scrubs cancel superseded pending layers.
+   */
   setFrame(frame) {
     const url = windTileUrl(frame);
     this.frame = frame;
+
     if (!this.layer) {
-      this.layer = L.tileLayer(url, {
-        opacity: this.opacity,
-        zIndex: this.zIndex,
-        maxNativeZoom: this.maxNativeZoom,
-        maxZoom: 18,
-        tileSize: 256,
-        crossOrigin: true,
-        updateWhenZooming: false,
-        keepBuffer: 4,
-        className: 'wind-tile-layer',
-      });
+      this.layer = this._makeLayer(url, this.opacity);
       if (this.onLoading) this.layer.on('loading', this.onLoading);
       if (this.onLoad) this.layer.on('load', this.onLoad);
       this.layer.addTo(this.map);
-    } else {
-      // setUrl keeps the current tiles visible until replacements decode,
-      // so scrubbing reads as a crossfade rather than a blank flash.
-      this.layer.setUrl(url);
+      return;
     }
+
+    if (this.pending) {
+      this.pending.off();
+      this.pending.remove();
+      this.pending = null;
+    }
+    if (this._fadeRaf) {
+      cancelAnimationFrame(this._fadeRaf);
+      this._fadeRaf = null;
+    }
+
+    if (this.onLoading) this.onLoading();
+    const next = this._makeLayer(url, 0);
+    this.pending = next;
+    next.once('load', () => {
+      if (this.pending !== next) return;   // superseded by a newer frame
+      this.pending = null;
+      const old = this.layer;
+      this.layer = next;
+      if (this.onLoad) this.onLoad();
+
+      const start = performance.now();
+      const fade = (now) => {
+        const t = Math.min(1, (now - start) / SWAP_FADE_MS);
+        next.setOpacity(this.opacity * t);
+        old.setOpacity(this.opacity * (1 - t));
+        if (t < 1) {
+          this._fadeRaf = requestAnimationFrame(fade);
+        } else {
+          this._fadeRaf = null;
+          old.off();
+          old.remove();
+        }
+      };
+      this._fadeRaf = requestAnimationFrame(fade);
+    });
+    next.addTo(this.map);
   }
 
   setOpacity(opacity) {
     this.opacity = opacity;
-    if (this.layer) this.layer.setOpacity(opacity);
+    if (this.layer && !this._fadeRaf) this.layer.setOpacity(opacity);
   }
 
   remove() {
-    if (this.layer) {
-      this.layer.off();
-      this.layer.remove();
-      this.layer = null;
+    if (this._fadeRaf) cancelAnimationFrame(this._fadeRaf);
+    for (const layer of [this.layer, this.pending]) {
+      if (layer) {
+        layer.off();
+        layer.remove();
+      }
     }
+    this.layer = null;
+    this.pending = null;
   }
 }
 
