@@ -9,9 +9,11 @@ import { stormMarkerHtml }                                from '../components/ma
 import { useMapBundle }                                   from '../components/map/useMapBundle';
 import Chrome                                             from '../components/map/Chrome';
 import { StormCard }                                      from '../components/map/StormCard';
-import { WindTileController, fetchWindManifest }          from '../components/overlays/WindTileLayer';
+import { WindTileController, fetchWindManifest,
+         waveTileUrl, waveUVUrl, fetchWaveManifest }      from '../components/overlays/WindTileLayer';
 import { WindParticlesGL }                                from '../components/overlays/WindParticlesLayerGL';
 import WindLegend                                         from '../components/overlays/WindLegend';
+import WaveLegend                                         from '../components/overlays/WaveLegend';
 import '../styles/map-v2.css';
 import '../styles/storm-card.css';
 
@@ -121,6 +123,20 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     localStorage.setItem('mv-wind-variable', v);
     setWindVar(v);
   };
+
+  // Wave overlay (waves = HTSGW, swell = partition-1) — same tile+particle
+  // machinery as wind, pointed at /api/tiles/waves. Particle speed is deep-
+  // water group velocity, so the color ramp maps it back to period seconds.
+  const waveCtlRef        = useRef(null);
+  const waveParticlesRef  = useRef(null);
+  const waveParticlesVarRef = useRef(null);
+  const [waveManifest, setWaveManifest] = useState(null);
+  const waveActive = state.showWaves || state.showSwell;
+  const waveVar = state.showSwell ? 'swell' : 'height';
+  const WAVE_PERIOD_RAMP = useMemo(() => ({
+    ramp: 'wave_period',
+    valueAt: (t) => (t * 40 * 4 * Math.PI) / 9.8,  // group vel m/s → period s
+  }), []);
 
   const location = useLocation();
 
@@ -562,12 +578,81 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     return () => { alive = false; clearInterval(refresh); };
   }, [state.showWind, windManifest]);
 
-  // Coastline stroke above the wind tiles — keeps land/ocean separation crisp
-  // under the ramp colors (same Natural Earth outline map-lab used).
+  // ─── Wave overlay lifecycle (Waves / Swell toggles in LeftRail) ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (!state.showWind) {
+
+    if (!waveActive) {
+      if (waveCtlRef.current) { waveCtlRef.current.remove(); waveCtlRef.current = null; }
+      if (waveParticlesRef.current) { waveParticlesRef.current.destroy(); waveParticlesRef.current = null; }
+      return;
+    }
+
+    let alive = true;
+    if (!waveManifest) {
+      fetchWaveManifest()
+        .then((m) => { if (alive) setWaveManifest(m); })
+        .catch((e) => console.warn('🌊 wave manifest failed:', e));
+      return () => { alive = false; };
+    }
+
+    if (baseTileRef.current) baseTileRef.current.setZIndex(200);
+    if (labelTileRef.current) labelTileRef.current.setZIndex(400);
+
+    if (!waveCtlRef.current) {
+      waveCtlRef.current = new WindTileController(map, {
+        opacity: 0.85,
+        maxNativeZoom: Math.min(waveManifest.max_zoom ?? 7, 7),
+        zIndex: 210,
+        urlBuilder: waveTileUrl,
+      });
+    }
+    // Particles advect against the selected variable's direction field, so a
+    // waves ↔ swell switch needs a fresh instance pointed at the other uv set.
+    if (waveParticlesRef.current && waveParticlesVarRef.current !== waveVar) {
+      waveParticlesRef.current.destroy();
+      waveParticlesRef.current = null;
+    }
+    if (!waveParticlesRef.current) {
+      waveParticlesRef.current = new WindParticlesGL(map, {
+        numParticles: Number(localStorage.getItem('particleCount')) || 10000,
+        uvUrl: waveUVUrl(waveVar),
+        colorRamp: WAVE_PERIOD_RAMP,
+      });
+      waveParticlesVarRef.current = waveVar;
+    }
+    waveParticlesRef.current.setRun('gfswave', waveManifest.run);
+
+    const refresh = setInterval(() => {
+      fetchWaveManifest()
+        .then((m) => { if (alive && m.run !== waveManifest.run) setWaveManifest(m); })
+        .catch(() => {});
+    }, 15 * 60 * 1000);
+
+    return () => { alive = false; clearInterval(refresh); };
+  }, [waveActive, waveVar, waveManifest, WAVE_PERIOD_RAMP]);
+
+  // Wave frame follows the shared timeline (same 3-hourly crossfade as wind)
+  useEffect(() => {
+    if (!waveActive || !waveManifest || !waveCtlRef.current) return;
+    const maxHour = waveManifest.hours[waveManifest.hours.length - 1];
+    const h0 = Math.min(maxHour, Math.floor(curH / 3) * 3);
+    const h1 = Math.min(maxHour, h0 + 3);
+    const mix = h1 > h0 ? (curH - h0) / 3 : 0;
+
+    waveCtlRef.current.setFrame({ run: waveManifest.run, hour: h0, variable: waveVar });
+    if (waveParticlesRef.current && !waveParticlesRef.current.unsupported) {
+      waveParticlesRef.current.setTime(h0, h1, mix);
+    }
+  }, [waveActive, waveManifest, curH, waveVar]);
+
+  // Coastline stroke above the overlay tiles — keeps land/ocean separation
+  // crisp under the ramp colors (same Natural Earth outline map-lab used).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!state.showWind && !waveActive) {
       if (coastRef.current) { coastRef.current.remove(); coastRef.current = null; }
       return;
     }
@@ -584,13 +669,15 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, [state.showWind]);
+  }, [state.showWind, waveActive]);
 
   // Tear down wind layers on unmount (the toggle effect above only handles
   // showWind flipping off, not leaving the page with wind still on)
   useEffect(() => () => {
     if (windCtlRef.current) { windCtlRef.current.remove(); windCtlRef.current = null; }
     if (windParticlesRef.current) { windParticlesRef.current.destroy(); windParticlesRef.current = null; }
+    if (waveCtlRef.current) { waveCtlRef.current.remove(); waveCtlRef.current = null; }
+    if (waveParticlesRef.current) { waveParticlesRef.current.destroy(); waveParticlesRef.current = null; }
     if (coastRef.current) { coastRef.current.remove(); coastRef.current = null; }
   }, []);
 
@@ -765,6 +852,11 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
             >Gusts</button>
           </div>
           <WindLegend variable={windVar} />
+        </div>
+      )}
+      {waveActive && (
+        <div className="mv-wind-legend">
+          <WaveLegend variable={waveVar} />
         </div>
       )}
       <Chrome

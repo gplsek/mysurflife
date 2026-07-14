@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { RegionChips }       from './RegionChips';
 import { LeftRail }          from './LeftRail';
 import { ZoomControls }      from './ZoomControls';
@@ -36,12 +36,6 @@ export default function Chrome({
   curH,
   onCurHChange,
 }) {
-  const [timelineOpen, setTimelineOpen] = useState(false);
-
-  const handleExpandChange = useCallback((open) => {
-    setTimelineOpen(open);
-  }, []);
-
   const tierCounts = TIER_LEGEND.reduce((acc, { tier }) => {
     acc[tier] = spots.filter(sp => {
       const r = sp.rating ?? (sp.current_conditions?.overall_score != null
@@ -76,14 +70,12 @@ export default function Chrome({
       <MapTimeline
         curH={curH}
         onCurHChange={onCurHChange}
-        onExpandChange={handleExpandChange}
       />
       <StatusBar
         loading={loading}
         inViewCount={inViewCount}
         totalCount={spots.length}
         updatedAt={updatedAt}
-        timelineOpen={timelineOpen}
       />
     </>
   );

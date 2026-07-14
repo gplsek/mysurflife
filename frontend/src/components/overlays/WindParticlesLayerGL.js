@@ -268,11 +268,19 @@ function mercatorY(lat) {
   return 0.5 - Math.log(Math.tan(Math.PI / 4 + rad / 2)) / (2 * Math.PI);
 }
 
-function buildColorRamp() {
+// Default ramp maps normalized particle speed (0..1 of UV_SCALE_MS) to the
+// wind_speed ramp in knots. Wave particles pass their own spec: e.g. the
+// wave_period ramp with valueAt converting group velocity back to seconds.
+const DEFAULT_COLOR_RAMP = {
+  ramp: 'wind_speed',
+  valueAt: (t) => t * RAMP_MAX_KTS,
+};
+
+function buildColorRamp({ ramp, valueAt } = DEFAULT_COLOR_RAMP) {
   const data = new Uint8Array(256 * 4);
   for (let i = 0; i < 256; i++) {
-    const kts = (i / 255) * RAMP_MAX_KTS;
-    const { r, g, b } = sampleRamp('wind_speed', kts);
+    const value = valueAt(i / 255);
+    const { r, g, b } = sampleRamp(ramp, value);
     data[i * 4 + 0] = r;
     data[i * 4 + 1] = g;
     data[i * 4 + 2] = b;
@@ -286,8 +294,11 @@ function buildColorRamp() {
 // --------------------------------------------------------------------------
 
 export class WindParticlesGL {
-  constructor(map, { numParticles = DEFAULT_PARTICLES, onUnsupported } = {}) {
+  constructor(map, { numParticles = DEFAULT_PARTICLES, onUnsupported,
+                     uvUrl = windUVUrl, colorRamp = DEFAULT_COLOR_RAMP } = {}) {
     this.map = map;
+    this.uvUrl = uvUrl;
+    this.colorRamp = colorRamp;
     this.frame = null;          // { model, run }
     this.hour0 = null;
     this.hour1 = null;
@@ -323,7 +334,7 @@ export class WindParticlesGL {
     this.updateProgram = createProgram(gl, QUAD_VERT, UPDATE_FRAG);
     this.drawProgram = createProgram(gl, DRAW_VERT, DRAW_FRAG);
     this.framebuffer = gl.createFramebuffer();
-    this.colorRampTexture = createTexture(gl, gl.LINEAR, buildColorRamp(), 256, 1);
+    this.colorRampTexture = createTexture(gl, gl.LINEAR, buildColorRamp(this.colorRamp), 256, 1);
 
     this.setNumParticles(clampParticleCount(numParticles));
     this._resize();
@@ -433,7 +444,7 @@ export class WindParticlesGL {
       }
     };
     img.onerror = () => this.uvLoading.delete(key);
-    img.src = windUVUrl({ ...this.frame, hour });
+    img.src = this.uvUrl({ ...this.frame, hour });
   }
 
   _currentTextures() {

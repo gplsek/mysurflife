@@ -14,6 +14,8 @@ export function useMapState() {
     showBuoys:  false,
     showStorms: false,
     showWind:   false,
+    showWaves:  false,
+    showSwell:  false,
     stormStrength: 'all',   // all | gale | storm | hurricane (client-side filter)
     favsOnly:   false,
     query:      '',
@@ -22,11 +24,17 @@ export function useMapState() {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
+  const OVERLAYS = ['showWind', 'showWaves', 'showSwell'];
   const toggleState = (key) => setState(s => {
     const next = !s[key];
     // Spots and buoys are mutually exclusive — too busy together
     if (key === 'showSpots' && next) return { ...s, showSpots: true, showBuoys: false };
     if (key === 'showBuoys' && next) return { ...s, showBuoys: true, showSpots: false };
+    // Raster overlays are mutually exclusive — tiles would stack opaquely
+    if (OVERLAYS.includes(key) && next) {
+      const cleared = Object.fromEntries(OVERLAYS.map(k => [k, false]));
+      return { ...s, ...cleared, [key]: true };
+    }
     return { ...s, [key]: next };
   });
   const setRegion = (id) => {

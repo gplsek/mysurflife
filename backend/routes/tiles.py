@@ -16,11 +16,13 @@ from typing import Optional, Tuple
 from fastapi import APIRouter, HTTPException, Request, Response
 
 import overlay_tiles as ot
+import wave_tiles as wt
 
 router = APIRouter(prefix="/api/tiles", tags=["tiles"])
 
 SUPPORTED_MODELS = {"gfs"}
 SUPPORTED_VARS = {"speed", "gust"}
+SUPPORTED_WAVE_VARS = {"height", "swell"}
 
 
 def _validate(model: str, hour: int) -> None:
@@ -175,6 +177,131 @@ async def wind_tile(model: str, run: str, hour: int, z: int, x: int, y_spec: str
     if png is None:
         raise HTTPException(404, f"variable '{var}' not present in this run")
     path = ot.png_tile_path(model, run_id, hour, var, z, x, y, scale)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(png)
+    return Response(png, media_type="image/png", headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# Wave tiles (GFSWave — waves + primary swell)
+# ---------------------------------------------------------------------------
+
+def _validate_wave(hour: int, var: str) -> None:
+    if hour not in wt.WAVE_TILE_HOURS:
+        raise HTTPException(404, f"forecast hour {hour} not in tile cadence (0..{wt.WAVE_TILE_HOURS[-1]} step 3)")
+    if var not in SUPPORTED_WAVE_VARS:
+        raise HTTPException(400, f"var must be one of {sorted(SUPPORTED_WAVE_VARS)}")
+
+
+async def _resolve_wave_run(run: str) -> str:
+    if run == "latest":
+        resolved = await wt.resolve_latest_run()
+        if not resolved:
+            raise HTTPException(503, "could not resolve latest wave model run")
+        return resolved
+    if len(run) != 10 or not run.isdigit():
+        raise HTTPException(400, "run must be YYYYMMDDHH or 'latest'")
+    return run
+
+
+def _wave_cache_headers(run_id: str, extra_key: str) -> dict:
+    latest = wt._run_cache.get(wt.WAVE_MODEL)
+    is_latest = bool(latest) and latest[0] == run_id
+    cache_control = (
+        "public, max-age=600, stale-while-revalidate=1800"
+        if is_latest
+        else "public, max-age=21600, immutable"
+    )
+    etag = 'W/"' + hashlib.md5(f"waves:{run_id}:{extra_key}".encode()).hexdigest()[:16] + '"'
+    return {
+        "Cache-Control": cache_control,
+        "ETag": etag,
+        "Access-Control-Allow-Origin": "*",
+        "Vary": "Accept-Encoding",
+    }
+
+
+@router.get("/waves/runs")
+async def wave_runs():
+    """Wave run manifest the frontend loads before requesting any tiles."""
+    run_id = await wt.resolve_latest_run()
+    if not run_id:
+        raise HTTPException(503, "could not resolve latest wave model run")
+    return {
+        "model": wt.WAVE_MODEL,
+        "run": run_id,
+        "run_iso": ot.run_id_to_iso(run_id),
+        "hours": wt.WAVE_TILE_HOURS,
+        "baked_hours": wt.baked_hours(run_id),
+        "variables": sorted(SUPPORTED_WAVE_VARS),
+        "max_zoom": ot.MAX_TILE_ZOOM,
+        "tile_url": f"/api/tiles/waves/{run_id}/{{hour}}/{{z}}/{{x}}/{{y}}.png",
+        "uv_url": f"/api/tiles/waves/{run_id}/{{hour}}/uv.png",
+    }
+
+
+@router.get("/waves/{run}/{hour}/uv.png")
+async def wave_uv_texture(run: str, hour: int, request: Request, var: str = "height"):
+    _validate_wave(hour, var)
+    run_id = await _resolve_wave_run(run)
+
+    headers = _wave_cache_headers(run_id, f"uv:{var}:{hour}")
+    not_modified = _maybe_304(request, headers)
+    if not_modified:
+        return not_modified
+
+    path = wt.wave_uv_texture_path(run_id, hour, var)
+    if path.exists():
+        return Response(path.read_bytes(), media_type="image/png", headers=headers)
+
+    grids = await wt.get_grids(run_id, hour)
+    if grids is None:
+        raise HTTPException(503, "wave model data unavailable for this hour")
+    rendered = wt.render_uv_texture(grids, variable=var)
+    if rendered is None:
+        raise HTTPException(404, f"variable '{var}' not present in this run")
+    png, _meta = rendered
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(png)
+    return Response(png, media_type="image/png", headers=headers)
+
+
+@router.get("/waves/{run}/{hour}/{z}/{x}/{y_spec}")
+async def wave_tile(run: str, hour: int, z: int, x: int, y_spec: str,
+                    request: Request, var: str = "height"):
+    _validate_wave(hour, var)
+    y, ext, scale = _parse_y_spec(y_spec)
+    if not (0 <= z <= ot.MAX_TILE_ZOOM):
+        raise HTTPException(404, f"zoom {z} out of range (0..{ot.MAX_TILE_ZOOM})")
+    n = 2 ** z
+    if not (0 <= x < n and 0 <= y < n):
+        raise HTTPException(404, "tile out of range")
+
+    run_id = await _resolve_wave_run(run)
+    headers = _wave_cache_headers(run_id, f"{var}:{hour}:{z}:{x}:{y_spec}")
+    not_modified = _maybe_304(request, headers)
+    if not_modified:
+        return not_modified
+
+    if ext == "png":
+        path = wt.wave_png_tile_path(run_id, hour, var, z, x, y, scale)
+        if path.exists():
+            return Response(path.read_bytes(), media_type="image/png", headers=headers)
+
+    grids = await wt.get_grids(run_id, hour)
+    if grids is None:
+        raise HTTPException(503, "wave model data unavailable for this hour")
+
+    if ext == "f32":
+        data = wt.render_f32_tile(grids, z, x, y, variable=var)
+        if data is None:
+            raise HTTPException(404, f"variable '{var}' not present in this run")
+        return Response(data, media_type="application/octet-stream", headers=headers)
+
+    png = wt.render_png_tile(grids, z, x, y, variable=var, scale=scale)
+    if png is None:
+        raise HTTPException(404, f"variable '{var}' not present in this run")
+    path = wt.wave_png_tile_path(run_id, hour, var, z, x, y, scale)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(png)
     return Response(png, media_type="image/png", headers=headers)
