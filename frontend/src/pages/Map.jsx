@@ -9,6 +9,9 @@ import { stormMarkerHtml }                                from '../components/ma
 import { useMapBundle }                                   from '../components/map/useMapBundle';
 import Chrome                                             from '../components/map/Chrome';
 import { StormCard }                                      from '../components/map/StormCard';
+import { WindTileController, fetchWindManifest }          from '../components/overlays/WindTileLayer';
+import { WindParticlesGL }                                from '../components/overlays/WindParticlesLayerGL';
+import WindLegend                                         from '../components/overlays/WindLegend';
 import '../styles/map-v2.css';
 import '../styles/storm-card.css';
 
@@ -105,6 +108,11 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
   const [detailStorm,   setDetailStorm]   = useState(null);
   const queryFlyRef    = useRef('');
   const stormOpenedRef = useRef(false);
+
+  // Wind overlay (tiles + GL particles), driven by the shared timeline curH
+  const windCtlRef       = useRef(null);
+  const windParticlesRef = useRef(null);
+  const [windManifest, setWindManifest] = useState(null);
 
   const location = useLocation();
 
@@ -496,6 +504,78 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     scheduleRender();
   }, [curH, scheduleRender]);
 
+  // ─── Wind overlay lifecycle (toggle in NavDrawer) ────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!state.showWind) {
+      if (windCtlRef.current) { windCtlRef.current.remove(); windCtlRef.current = null; }
+      if (windParticlesRef.current) { windParticlesRef.current.destroy(); windParticlesRef.current = null; }
+      return;
+    }
+
+    let alive = true;
+    if (!windManifest) {
+      fetchWindManifest('gfs')
+        .then((m) => { if (alive) setWindManifest(m); })
+        .catch((e) => console.warn('🌬️ wind manifest failed:', e));
+      return () => { alive = false; };
+    }
+
+    // Keep CARTO layers ordered around the wind tiles: base < wind < labels
+    if (baseTileRef.current) baseTileRef.current.setZIndex(200);
+    if (labelTileRef.current) labelTileRef.current.setZIndex(400);
+
+    if (!windCtlRef.current) {
+      windCtlRef.current = new WindTileController(map, {
+        opacity: 0.85,
+        maxNativeZoom: Math.min(windManifest.max_zoom ?? 7, 7),
+        zIndex: 210,
+      });
+    }
+    if (!windParticlesRef.current) {
+      windParticlesRef.current = new WindParticlesGL(map, {
+        numParticles: Number(localStorage.getItem('particleCount')) || 10000,
+      });
+    }
+    // Idempotent for an unchanged run; on a new run it drops cached GL
+    // textures so particles advect against the fresh frames.
+    windParticlesRef.current.setRun('gfs', windManifest.run);
+
+    // The tile backend keeps only the newest runs on disk, so a map left
+    // open must follow new GFS runs or its tile URLs eventually 404.
+    const refresh = setInterval(() => {
+      fetchWindManifest('gfs')
+        .then((m) => { if (alive && m.run !== windManifest.run) setWindManifest(m); })
+        .catch(() => {});   // transient failure: keep serving the current run
+    }, 15 * 60 * 1000);
+
+    return () => { alive = false; clearInterval(refresh); };
+  }, [state.showWind, windManifest]);
+
+  // Tear down wind layers on unmount (the toggle effect above only handles
+  // showWind flipping off, not leaving the page with wind still on)
+  useEffect(() => () => {
+    if (windCtlRef.current) { windCtlRef.current.remove(); windCtlRef.current = null; }
+    if (windParticlesRef.current) { windParticlesRef.current.destroy(); windParticlesRef.current = null; }
+  }, []);
+
+  // Wind frame follows the shared timeline. curH is hourly (0-168); tiles are
+  // 3-hourly, so particles crossfade across the gap for smooth playback.
+  useEffect(() => {
+    if (!state.showWind || !windManifest || !windCtlRef.current) return;
+    const maxHour = windManifest.hours[windManifest.hours.length - 1];
+    const h0 = Math.min(maxHour, Math.floor(curH / 3) * 3);
+    const h1 = Math.min(maxHour, h0 + 3);
+    const mix = h1 > h0 ? (curH - h0) / 3 : 0;
+
+    windCtlRef.current.setFrame({ model: 'gfs', run: windManifest.run, hour: h0, variable: 'speed' });
+    if (windParticlesRef.current && !windParticlesRef.current.unsupported) {
+      windParticlesRef.current.setTime(h0, h1, mix);
+    }
+  }, [state.showWind, windManifest, curH]);
+
   // Geolocation: auto-select nearest region on first load
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -638,6 +718,11 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
           onSave={handleSaveUserSpot}
           onCancel={() => { setAddSpotMode(false); setAddSpotForm(null); }}
         />
+      )}
+      {state.showWind && (
+        <div className="mv-wind-legend">
+          <WindLegend variable="speed" />
+        </div>
       )}
       <Chrome
         mapRef={mapRef}

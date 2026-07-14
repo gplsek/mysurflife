@@ -7,7 +7,8 @@ import LogoPulse from './design/LogoPulse';
 import Logo from './design/Logo';
 import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
 import AISpotAnalysis from './AISpotAnalysis';
-import SwellWindRose from './components/SwellWindRose';
+import SwellWindRose, { RoseLegend } from './components/SwellWindRose';
+import WindowsEditor from './components/WindowsEditor';
 import './SpotDetail.css';
 
 // ─── Map controller ───────────────────────────────────────────────
@@ -24,6 +25,35 @@ const MapInteractionController = ({ isRelocateMode }) => {
   }, [isRelocateMode, map]);
   return null;
 };
+
+// ─── Score badge ──────────────────────────────────────────────────
+function scoreTier10(score) {
+  if (score == null) return 'flat';
+  if (score >= 8.5) return 'firing';
+  if (score >= 7.0) return 'solid';
+  if (score >= 5.0) return 'good';
+  if (score >= 3.0) return 'fair';
+  return 'flat';
+}
+
+function ScoreBadge({ score }) {
+  if (score == null) return null;
+  const tier = scoreTier10(score);
+  const tierColor = {
+    firing: 'var(--coral)',
+    solid:  'var(--gold)',
+    good:   'var(--good)',
+    fair:   'var(--accent)',
+    flat:   'var(--muted)',
+  }[tier];
+  return (
+    <div className={`sd-score-badge sd-score-${tier}`} style={{ '--tier-color': tierColor }}
+         aria-label={`Score ${score.toFixed(1)} out of 10`}>
+      <span className="sd-score-num">{score.toFixed(1)}</span>
+      <span className="sd-score-max">/10</span>
+    </div>
+  );
+}
 
 // ─── Degree helpers ───────────────────────────────────────────────
 function degreesToCardinal(deg) {
@@ -109,14 +139,18 @@ const SpotDetail = () => {
 
   const handleSignOut = async () => { setMenuOpen(false); await signOut(); navigate('/'); };
 
-  // Phase 1: critical data
+  // Phase 1: critical data. Auth headers go through so private-spot owners
+  // can read their own /api/surf-spots/{slug} and /conditions; the endpoints
+  // 404 to anyone else.
   useEffect(() => {
     const fetch_ = async () => {
       try {
         setLoading(true);
+        const { getAuthHeaders } = await import('./supabaseClient');
+        const headers = await getAuthHeaders();
         const [spotRes, condRes] = await Promise.all([
-          fetch(`/api/surf-spots/${slug}`),
-          fetch(`/api/surf-spots/${slug}/conditions`),
+          fetch(`/api/surf-spots/${slug}`, { headers }),
+          fetch(`/api/surf-spots/${slug}/conditions`, { headers }),
         ]);
         if (!spotRes.ok) throw new Error(`Failed to fetch spot: ${spotRes.status}`);
         if (!condRes.ok) throw new Error(`Failed to fetch conditions: ${condRes.status}`);
@@ -178,9 +212,17 @@ const SpotDetail = () => {
   useEffect(() => {
     if (!spot) return;
     setModelLoading(true);
-    fetch(`/api/surf-spots/${slug}/model-forecast`)
-      .then(r => r.ok ? r.json() : null).then(d => setModelForecast(d)).catch(() => {})
-      .finally(() => setModelLoading(false));
+    (async () => {
+      const { getAuthHeaders } = await import('./supabaseClient');
+      const headers = await getAuthHeaders();
+      try {
+        const r = await fetch(`/api/surf-spots/${slug}/model-forecast`, { headers });
+        const d = r.ok ? await r.json() : null;
+        setModelForecast(d);
+      } catch {} finally {
+        setModelLoading(false);
+      }
+    })();
   }, [slug, spot]);
 
   // Phase 4: timeline (168h)
@@ -192,16 +234,20 @@ const SpotDetail = () => {
     setTimelineLoading(true);
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 25000);
-    fetch(`/api/surf-spots/${slug}/forecast-timeline?hours=168`, { signal: ctrl.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.timeline) {
-          setForecastTimeline(d);
-          timelineFetchedForRef.current = slug;
-        }
-      })
-      .catch(() => {})
-      .finally(() => { clearTimeout(t); setTimelineLoading(false); });
+    (async () => {
+      const { getAuthHeaders } = await import('./supabaseClient');
+      const headers = await getAuthHeaders();
+      fetch(`/api/surf-spots/${slug}/forecast-timeline?hours=168`, { signal: ctrl.signal, headers })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.timeline) {
+            setForecastTimeline(d);
+            timelineFetchedForRef.current = slug;
+          }
+        })
+        .catch(() => {})
+        .finally(() => { clearTimeout(t); setTimelineLoading(false); });
+    })();
     return () => ctrl.abort();
   }, [slug, spot]);
 
@@ -287,7 +333,7 @@ const SpotDetail = () => {
         wave_face_ft: waveFt,
         category_label: waveFt
           ? `Cat ${getWaveCategory(waveFt)} · ${getWaveSizeLabel(waveFt)}`
-          : conditions?.rating || null,
+          : null,
         period_s: conditions?.period_sec,
         period_label: getPeriodLabel(conditions?.period_sec),
         primary_dir_deg: conditions?.swell_direction,
@@ -429,6 +475,7 @@ const SpotDetail = () => {
   );
 
   const ch = spot.spot_characteristics || {};
+  const canEdit = isAdmin || (user?.id && spot.owner_id && user.id === spot.owner_id);
   const lat = (isEditMode && editedSpot ? editedSpot.latitude : spot.latitude) ?? null;
   const lng = (isEditMode && editedSpot ? editedSpot.longitude : spot.longitude) ?? null;
   const hasCoords = lat != null && lng != null;
@@ -536,13 +583,13 @@ const SpotDetail = () => {
               <span className="sd-chip-label">{isFav ? 'Saved' : 'Save'}</span>
             </button>
           )}
-          {isAdmin && !isEditMode && (
+          {canEdit && !isEditMode && (
             <button className="sd-chip sd-chip--accent" onClick={enterEditMode}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
               <span className="sd-chip-label">Edit</span>
             </button>
           )}
-          {isAdmin && isEditMode && !isRelocateMode && (
+          {canEdit && isEditMode && !isRelocateMode && (
             <>
               <button className="sd-chip sd-chip--accent" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving…' : 'Save'}
@@ -554,7 +601,7 @@ const SpotDetail = () => {
               <button className="sd-chip" onClick={exitEditMode} disabled={isSaving}>Cancel</button>
             </>
           )}
-          {isAdmin && isEditMode && isRelocateMode && (
+          {canEdit && isEditMode && isRelocateMode && (
             <button className="sd-chip sd-chip--accent" onClick={() => setIsRelocateMode(false)}>
               Done
             </button>
@@ -583,6 +630,7 @@ const SpotDetail = () => {
         {/* Spot title */}
         <div className="sd-title-wrap">
           <SpotTitle name={spot.name} eyebrow={eyebrow} />
+          <ScoreBadge score={conditions?.overall_score} />
         </div>
 
         {/* Compass */}
@@ -662,7 +710,21 @@ const SpotDetail = () => {
             bestTide={ch.tide_position || '—'}
             hazards={Array.isArray(ch.hazards) ? ch.hazards.join(', ') : ch.hazards || '—'}
           />
-          {(spot.spot_swell_windows?.length > 0 || spot.spot_wind_windows?.length > 0) && (
+          {canEdit && isEditMode ? (
+            <div className="sd-card">
+              <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            color: 'var(--muted)', marginBottom: 12, textAlign: 'center' }}>
+                Exposure — edit windows
+              </div>
+              <WindowsEditor
+                slug={slug}
+                initialSwell={spot.spot_swell_windows || []}
+                initialWind={spot.spot_wind_windows || []}
+                currentScore={conditions?.overall_score}
+                onSaved={() => window.location.reload()}
+              />
+            </div>
+          ) : (spot.spot_swell_windows?.length > 0 || spot.spot_wind_windows?.length > 0) && (
             <div className="sd-card" style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
                             color: 'var(--muted)', marginBottom: 8 }}>Exposure</div>
@@ -671,13 +733,7 @@ const SpotDetail = () => {
                 wind={spot.spot_wind_windows || []}
                 size={180}
               />
-              <div style={{ display: 'flex', gap: 14, justifyContent: 'center',
-                            marginTop: 8, fontSize: 11, color: 'var(--fg-2)' }}>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2,
-                      background: 'var(--accent)', marginRight: 4 }} />swell</span>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2,
-                      background: 'var(--good)', marginRight: 4 }} />offshore wind</span>
-              </div>
+              <RoseLegend />
             </div>
           )}
         </div>

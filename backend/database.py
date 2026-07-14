@@ -16,8 +16,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
-# Global Supabase client
+# Global Supabase clients (anon + service-role), created once per process
 _supabase_client: Optional[Client] = None
+_supabase_admin_client: Optional[Client] = None
 
 
 def get_supabase_client() -> Optional[Client]:
@@ -53,13 +54,18 @@ def get_supabase_admin_client() -> Optional[Client]:
     Returns:
         Supabase admin client if configured, None otherwise
     """
+    global _supabase_admin_client
+
+    if _supabase_admin_client is not None:
+        return _supabase_admin_client
+
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         print("⚠️  Supabase admin access not configured")
         return None
 
     try:
-        admin_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-        return admin_client
+        _supabase_admin_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        return _supabase_admin_client
     except Exception as e:
         print(f"❌ Failed to create Supabase admin client: {e}")
         return None
@@ -67,3 +73,17 @@ def get_supabase_admin_client() -> Optional[Client]:
 
 # Initialize connection on module import
 supabase = get_supabase_client()
+
+
+# ── Spot visibility (M2 anti-leak gate) ───────────────────────────────────────
+# Migration 021 added spots.visibility ('public' | 'private'). The service-role
+# (admin) client BYPASSES RLS, so every client-facing spots list/map/search built
+# on it MUST apply this filter or a user's private spot leaks to others. On the
+# anon client it is belt-and-suspenders with the RLS policy. Owner-scoped views
+# (a user seeing their OWN private spots) must not use this — filter by owner_id.
+SPOT_VISIBILITY_PUBLIC = "public"
+
+
+def only_public_spots(query):
+    """Restrict a Supabase `spots` query to the public catalog. See note above."""
+    return query.eq("visibility", SPOT_VISIBILITY_PUBLIC)

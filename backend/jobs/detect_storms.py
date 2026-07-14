@@ -168,11 +168,12 @@ async def fetch_gfs_global_field(
     run_date: str,
     run_cycle: str,
     forecast_hour: int,
-) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray], np.ndarray, np.ndarray]]:
     """
     Download global GFS 1° GRIB2 for a single forecast hour.
-    Returns (pres_pa, u_ms, v_ms, lat_1d, lon_1d) numpy arrays, or None on failure.
-    Pressure in Pa (divide by 100 for mb), winds in m/s.
+    Returns (pres_pa, u_ms, v_ms, gust_ms, lat_1d, lon_1d) numpy arrays, or None
+    on failure. gust_ms is surface GUST (m/s) and may be None if the field is
+    missing from the run. Pressure in Pa (divide by 100 for mb), winds in m/s.
     lon_1d is 0..360; callers normalise to -180..180.
     """
     fh = max(0, int(forecast_hour))
@@ -183,6 +184,7 @@ async def fetch_gfs_global_field(
         f"{_NOMADS_BASE}?file={file_name}"
         "&lev_mean_sea_level=on&var_PRMSL=on"
         "&lev_10_m_above_ground=on&var_UGRD=on&var_VGRD=on"
+        "&lev_surface=on&var_GUST=on"
         "&leftlon=0&rightlon=360&toplat=90&bottomlat=-90"
         f"&dir={dir_param}"
     )
@@ -232,6 +234,22 @@ async def fetch_gfs_global_field(
         u_arr = ds_wind[u_name].values if u_name else np.zeros_like(pres_arr)
         v_arr = ds_wind[v_name].values if v_name else np.zeros_like(pres_arr)
 
+        gust_arr = None
+        try:
+            ds_gust = xr.open_dataset(
+                tmp_path,
+                engine="cfgrib",
+                backend_kwargs={
+                    "indexpath": "",
+                    "filter_by_keys": {"typeOfLevel": "surface"},
+                },
+            )
+            gust_name = next((v for v in ["gust", "fg10", "i10fg", "10fg"] if v in ds_gust.data_vars), None)
+            if gust_name is not None:
+                gust_arr = ds_gust[gust_name].values
+        except Exception as e:
+            print(f"⚠️  storm detector: no GUST field at f{fh:03d}: {e}")
+
         import os
         try:
             os.unlink(tmp_path)
@@ -239,7 +257,7 @@ async def fetch_gfs_global_field(
             pass
 
         print(f"✅ storm detector: fetched GFS f{fh:03d} ({len(content)//1024}KB)")
-        return pres_arr, u_arr, v_arr, lat_arr, lon_arr
+        return pres_arr, u_arr, v_arr, gust_arr, lat_arr, lon_arr
 
     except ImportError as e:
         print(f"⚠️  storm detector: missing dep ({e}); skipping")
@@ -662,6 +680,7 @@ def detect_at_hour(
     lon_1d: np.ndarray,
     hours_ahead: int,
     *,
+    gust_ms: Optional[np.ndarray] = None,
     hs_arr: Optional[np.ndarray] = None,
     per_arr: Optional[np.ndarray] = None,
     dir_arr: Optional[np.ndarray] = None,
@@ -699,6 +718,17 @@ def detect_at_hour(
             wind_box_v = np.concatenate([v_ms[r1:r2, c1:], v_ms[r1:r2, :c2]], axis=1)
         wind_spd = np.sqrt(wind_box_u ** 2 + wind_box_v ** 2)
         peak_wind_kts = round(_ms_to_kts(float(wind_spd.max())), 1) if wind_spd.size else None
+
+        # Max gust in the same box (GUST is instantaneous surface gust, m/s)
+        max_gust_kts = None
+        if gust_ms is not None:
+            if c1 < c2:
+                gust_box = gust_ms[r1:r2, c1:c2]
+            else:
+                gust_box = np.concatenate([gust_ms[r1:r2, c1:], gust_ms[r1:r2, :c2]], axis=1)
+            finite = gust_box[np.isfinite(gust_box)]
+            if finite.size:
+                max_gust_kts = round(_ms_to_kts(float(finite.max())), 1)
 
         # --- WW3 confirmation (Phase 4) ---
         peak_sea_m = None
@@ -747,6 +777,7 @@ def detect_at_hour(
             "lon":                  round(c["lon"], 2),
             "pressure_mb":          int(c["pressure_mb"]),
             "peak_wind_kts":        peak_wind_kts,
+            "max_gust_kts":         max_gust_kts,
             "warning_tier":         _warning_tier(peak_wind_kts),
             "ocean":                ocean,
             "fetch":                fetch,
@@ -887,7 +918,8 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
 
         forecast_track = [
             {"hours_ahead": d["hours_ahead"], "lat": d["lat"], "lon": d["lon"],
-             "pressure_mb": d["pressure_mb"], "peak_wind_kts": d["peak_wind_kts"]}
+             "pressure_mb": d["pressure_mb"], "peak_wind_kts": d["peak_wind_kts"],
+             "max_gust_kts": d.get("max_gust_kts")}
             for d in track
         ]
 
@@ -903,6 +935,7 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
             "lon":                  h0["lon"],
             "pressure_mb":          h0["pressure_mb"],
             "wind_kts":             h0["peak_wind_kts"],
+            "max_gust_kts":         h0.get("max_gust_kts"),
             "sea_height_ft":        None,
             "sea_range_ft":         None,
             "movement":             {"direction": direction, "speed_kts": speed_kts},
@@ -963,6 +996,7 @@ def _storm_to_row(storm: Dict, detected_at: datetime, expires_at: str) -> Dict:
         "current_lon":                  storm["lon"],
         "current_pressure_mb":          int(storm["pressure_mb"]) if storm.get("pressure_mb") is not None else None,
         "peak_wind_kts":                int(v) if (v := (storm.get("wind_kts") or storm.get("peak_wind_kts"))) is not None else None,
+        "max_gust_kts":                 int(g) if (g := storm.get("max_gust_kts")) is not None else None,
         "warning_tier":                 storm.get("warning_tier"),
         "basin_label":                  storm.get("name"),
         "is_deepening":                 storm.get("is_deepening"),
@@ -1015,6 +1049,19 @@ async def _persist_derived_storms(storms: List[Dict], detected_at: datetime) -> 
         client.table("derived_storms").upsert(rows, on_conflict="storm_id").execute()
         print(f"✅ detect_storms: persisted {len(rows)} storms to derived_storms")
     except Exception as e:
+        # The upsert is all-or-nothing, so one unknown column (e.g. deploying
+        # ahead of migration 023) would otherwise cost the whole run's rows.
+        # Strip the offending column and retry once.
+        if "max_gust_kts" in str(e):
+            print("⚠️  detect_storms: max_gust_kts column missing (apply migration 023); retrying without it")
+            for r in rows:
+                r.pop("max_gust_kts", None)
+            try:
+                client.table("derived_storms").upsert(rows, on_conflict="storm_id").execute()
+                print(f"✅ detect_storms: persisted {len(rows)} storms (without gusts)")
+                return
+            except Exception as e2:
+                e = e2
         print(f"❌ detect_storms: persistence failed: {e}")
 
 
@@ -1069,7 +1116,7 @@ async def run_detection(run_date: Optional[str] = None, run_cycle: Optional[str]
             detections_by_hour.append([])
             continue
 
-        pres_pa, u_ms, v_ms, lat_1d, lon_1d = gfs_result
+        pres_pa, u_ms, v_ms, gust_ms, lat_1d, lon_1d = gfs_result
 
         # Fetch WW3 for same forecast hour (graceful degradation on failure)
         ww3_result = await fetch_ww3_global_hs(ww3_date, ww3_cycle, fh)
@@ -1080,6 +1127,7 @@ async def run_detection(run_date: Optional[str] = None, run_cycle: Optional[str]
 
         hour_dets = detect_at_hour(
             pres_pa, u_ms, v_ms, lat_1d, lon_1d, fh,
+            gust_ms=gust_ms,
             hs_arr=hs_arr, per_arr=per_arr, dir_arr=dir_arr,
             ww3_lat=ww3_lat, ww3_lon=ww3_lon,
             config=_CFG,

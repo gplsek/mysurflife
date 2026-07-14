@@ -159,6 +159,20 @@ def calculate_swell_size_score(
         return max(0.0, 3.0 - (penalty * 2.5))  # Lose up to 2.5 points for oversized
 
 
+_WIND_CATEGORY_BASE = {
+    # Generic tiers (legacy)
+    "ideal":          2.0,
+    "tolerable":      1.2,
+    "marginal":       0.5,
+    # Directional categories (editor B2a)
+    "offshore":       2.0,
+    "side-offshore":  1.7,
+    "cross":          1.2,
+    "side-onshore":   0.6,
+    "onshore":        0.2,
+}
+
+
 def calculate_wind_score(
     wind_direction: Optional[float],
     wind_speed_ms: Optional[float],
@@ -168,7 +182,9 @@ def calculate_wind_score(
     """
     Calculate score for wind conditions (0-2 points).
 
-    Offshore = ideal, light onshore = tolerable, strong onshore = poor
+    Offshore = ideal, light onshore = tolerable, strong onshore = poor.
+    Categories: ideal/tolerable/marginal (legacy) or
+                offshore/side-offshore/cross/side-onshore/onshore (editor B2a).
     """
     if not wind_windows:
         # No wind preference defined - neutral score
@@ -184,18 +200,14 @@ def calculate_wind_score(
     for window in wind_windows:
         dir_min = window['dir_min']
         dir_max = window['dir_max']
-        category = window.get('category', 'ideal')
+        category = (window.get('category') or 'ideal').lower()
         weight = window.get('weight', 1.0)
 
         in_window, distance = is_direction_in_window(wind_direction, dir_min, dir_max)
 
         if in_window:
-            if category == 'ideal':
-                score = 2.0 * weight
-            elif category == 'tolerable':
-                score = 1.2 * weight
-            else:  # marginal
-                score = 0.5 * weight
+            base = _WIND_CATEGORY_BASE.get(category, 0.5)
+            score = base * weight
 
             # Apply wind speed penalty if too strong
             if wind_speed_ms is not None and max_onshore_mph is not None:
@@ -314,6 +326,20 @@ def calculate_wind_quality(
         quality = 0.05 + 0.55 * dir_factor      # strong → onshore 0.05, offshore 0.60
     else:
         quality = 0.35 * dir_factor             # very strong → only offshore survives
+
+    # Out-of-window penalty: if the user defined good-wind windows and the
+    # current wind isn't in *any* of them, that's a "you didn't tell me this
+    # direction is OK" signal — treat it as bad. Tapered by speed so it doesn't
+    # double-count with dir_factor at light speeds ("super light wind is OK"):
+    # no penalty at 4 kt, full 0.40x from 8 kt up. Glassy (<4 kt) is exempt.
+    if wind_windows and wind_direction is not None and spd_kt >= 4:
+        in_any = any(
+            is_direction_in_window(wind_direction, w['dir_min'], w['dir_max'])[0]
+            for w in wind_windows
+        )
+        if not in_any:
+            ramp = min(1.0, (spd_kt - 4) / 4)
+            quality *= 1.0 - 0.60 * ramp
 
     if spd_kt < 4:
         relation = "glassy"
@@ -459,7 +485,14 @@ async def blend_buoy_data(buoy_blend: Dict, buoy_data_cache: Dict) -> Optional[D
     return blended
 
 
-async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend_override: Optional[Dict] = None, size_bias: float = 1.0) -> Optional[Dict]:
+async def calculate_spot_score(
+    spot_slug: str,
+    buoy_data_cache: Dict,
+    buoy_blend_override: Optional[Dict] = None,
+    size_bias: float = 1.0,
+    swell_windows_override: Optional[List[Dict]] = None,
+    wind_windows_override: Optional[List[Dict]] = None,
+) -> Optional[Dict]:
     """
     Calculate real-time surf score for a spot.
 
@@ -467,6 +500,9 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
         spot_slug: Spot identifier (e.g., "blacks-beach")
         buoy_data_cache: Dictionary of buoy data keyed by station ID
         buoy_blend_override: Optional override for buoy blend weights (for adding WW3 etc.)
+        swell_windows_override: If provided, replaces the spot's saved swell windows
+            for this calculation (powers /score-preview without persisting).
+        wind_windows_override: Same as above for wind windows.
 
     Returns:
         Score breakdown with overall rating (0-10 scale)
@@ -474,8 +510,17 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
     if not supabase:
         return None
 
-    # Fetch spot with all related data
-    result = supabase.table("spots") \
+    # Fetch spot with all related data. Use the admin (service-role) client so
+    # private spots (visibility='private') are reachable too — RLS would hide
+    # them from the anon client. The caller (e.g. /conditions, /score-preview)
+    # is responsible for the owner-only gate before getting here.
+    try:
+        from database import get_supabase_admin_client
+        client = get_supabase_admin_client() or supabase
+    except ImportError:
+        client = supabase
+
+    rows = client.table("spots") \
         .select("""
             *,
             spot_characteristics(*),
@@ -484,17 +529,17 @@ async def calculate_spot_score(spot_slug: str, buoy_data_cache: Dict, buoy_blend
             spot_forecast_tuning(*)
         """) \
         .eq("slug", spot_slug) \
-        .single() \
-        .execute()
+        .limit(1) \
+        .execute().data or []
 
-    if not result.data:
+    if not rows:
         return None
 
-    spot = result.data
+    spot = rows[0]
     chars = spot['spot_characteristics']
     tuning = spot['spot_forecast_tuning']
-    swell_windows = spot['spot_swell_windows']
-    wind_windows = spot['spot_wind_windows']
+    swell_windows = swell_windows_override if swell_windows_override is not None else spot['spot_swell_windows']
+    wind_windows = wind_windows_override if wind_windows_override is not None else spot['spot_wind_windows']
 
     # Use override blend if provided, otherwise use database config
     buoy_blend = buoy_blend_override if buoy_blend_override is not None else tuning['buoy_blend']

@@ -116,6 +116,7 @@ async def _load_model_storms_from_db() -> List[Dict]:
                 "lon":                          r["current_lon"],
                 "pressure_mb":                  r.get("current_pressure_mb"),
                 "wind_kts":                     r.get("peak_wind_kts"),
+                "max_gust_kts":                 r.get("max_gust_kts"),
                 "warning_tier":                 r.get("warning_tier"),
                 "name":                         r.get("basin_label"),
                 "is_deepening":                 r.get("is_deepening"),
@@ -520,13 +521,14 @@ async def _find_storm(storm_id: str) -> Optional[dict]:
 async def _fetch_db_spots():
     """Fetch spots + current ratings for arrivals spot breakdown."""
     try:
-        from database import get_supabase_admin_client, supabase
+        from database import get_supabase_admin_client, supabase, only_public_spots
         client = get_supabase_admin_client() or supabase
         if not client:
             return []
-        spots_resp   = client.table("spots").select(
+        # Public catalog only — admin client bypasses RLS (M2 gate)
+        spots_resp   = only_public_spots(client.table("spots").select(
             "slug, name, region, subregion, latitude, longitude"
-        ).execute()
+        )).execute()
         ratings_resp = client.table("spot_ratings").select(
             "spot_slug, rating, wind_mph"
         ).execute()

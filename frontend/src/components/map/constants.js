@@ -25,18 +25,20 @@ export const TIER_COLORS = {
   flat:   'oklch(0.58 0.014 230)',
 };
 
+// Numbers-only display — no adjective labels per design call. Tier names
+// remain for color tiering only; the UI never shows them as text.
 export const TIER_LABELS = {
-  firing: 'Firing',
-  solid:  'Solid',
-  good:   'Fun',
-  fair:   'Fair',
-  flat:   'Flat',
+  firing: '',
+  solid:  '',
+  good:   '',
+  fair:   '',
+  flat:   '',
 };
 
 export const TIER_LEGEND = [
-  { tier: 'firing', range: '≥ 4.5' },
-  { tier: 'solid',  range: '3.5–4.5' },
-  { tier: 'good',   range: '2.5–3.5' },
-  { tier: 'fair',   range: '1.5–2.5' },
-  { tier: 'flat',   range: '< 1.5' },
+  { tier: 'firing', range: '≥ 8.5' },
+  { tier: 'solid',  range: '7.0–8.5' },
+  { tier: 'good',   range: '5.0–7.0' },
+  { tier: 'fair',   range: '3.0–5.0' },
+  { tier: 'flat',   range: '< 3.0' },
 ];

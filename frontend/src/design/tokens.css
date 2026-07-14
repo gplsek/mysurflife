@@ -57,7 +57,10 @@
   --accent:       oklch(0.80 0.17 45);
   --accent-2:     oklch(0.72 0.19 30);
   --fire:         oklch(0.72 0.20 25);
-  --good:         oklch(0.78 0.16 95);
+  /* Hue 95 collided with --gold (85) so 'good' and 'solid' tiers were
+     visually identical on Dawn. Push to 145 — still warmer than Ocean's
+     150 to stay on-theme, but unambiguously green vs yellow. */
+  --good:         oklch(0.78 0.16 145);
 }
 
 [data-theme="daylight"] {

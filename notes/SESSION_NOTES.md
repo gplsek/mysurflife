@@ -2,6 +2,38 @@
 
 ---
 
+## 📍 Jul 7–8, 2026 — Wind tiles Phase D: /map-lab → /map (session crashed mid-phase, resumed + finished)
+
+All on `feat/wind-tiles-phase-ab`, uncommitted at time of writing. Phase D of `notes/WIND_TILES_EXECUTION_PLAN.md`:
+
+- **Wind on /map (step 1)**: `WindTileController` + `WindParticlesGL` + `WindLegend` mounted in `pages/Map.jsx`, driven by the shared timeline `curH` (tiles snap to 3-hourly frames, particles crossfade the gap). `showWind` toggle added to `useMapState`, NavDrawer, **and** `LeftRail.jsx` (the always-visible Layers card — was missed pre-crash). Added an unmount-only cleanup effect: the toggle effect only tore down on `showWind` flipping off, so leaving `/map` with wind on leaked the WebGL context.
+- **Storms over wind (steps 2–3)**: verified visually — dots + ghost track markers render above tiles, and `addStormMarker`'s full-track interpolation already keys to the shared hour, so scrubbing `+3d` moves storms and wind in sync. No snap-to-minimum needed at current zooms.
+- **Max gust (step 4)**: `jobs/detect_storms.py` now requests `var_GUST` (surface) in the same GRIB slice, box-maxes it around each center → `max_gust_kts` on detections, `forecast_track` points, the storm record, and the `derived_storms` row (migration `023_storm_max_gust.sql`, **not yet applied**). DB fallback loader in `routes/storms.py` passes it through; `reconcile` spreads model dicts so it reaches the wire. StormCard "Max Winds" cell sub-line shows `gusts N kt` when present (falls back to mph). Verified live against GFS 2026-07-08 00z: 91/91 detections carried gusts (e.g. 926 mb typhoon: 78 kt sustained / 96 kt gust).
+- **Retire (step 5, partial)**: `/map-lab` route + import removed from `App.js`. `MapLab.jsx` source kept. Per plan, `/old-map` route + `WindCanvasLayer.js` / `WindParticlesLayer.js` / `WindGrid.js` + legacy `/api/wind-overlay` get deleted after ~1 week stable — **do not delete yet** (from ~Jul 8).
+
+### /review findings + fixes (Jul 8)
+
+An 8-angle review of the combined diff surfaced 10 verified findings; all fixed same-day and verified against the live backend (owner token vs anon curl probes):
+
+- **Migration 022 was an empty stub** → written: copies `user_spots` rows into `spots` (id preserved, slug `usr_<id>`, `is_published=false`), seeds characteristics, freezes the legacy table. Companion `backend/backfill_user_spot_blends.py` seeds buoy blends (Python-side, needs the buoy registry).
+- **Timeline L1 cache leaked private spots** (cache check ran before the visibility gate, key has no user component) → gate now runs first; verified owner-warm → anon-denied → owner-cache-hit.
+- **is_published gate dropped** in the admin-client rewrite → new `_spot_visible_to()` helper in main.py mirrors the RLS policy (public requires is_published; private requires owner/admin) and replaces all four inline gate copies (also killed the `_R` shim).
+- **PUT lat/lon clobbered hand-tuned buoy_blend** → auto-blend now only seeds when no tuning row exists (human edits win, cf. migration 020).
+- **PUT response dropped break_type** → final re-read with the characteristics join.
+- **Sione compare/rank lost user identity** → both wrapped with `_with_user`, user_id threaded to per-spot fetches; **buoy-history gate got the is_admin bypass**. Verified: owner's private spot scores inside compare; anon doesn't.
+- **Storm persistence wholesale failure pre-023** → upsert retries once without `max_gust_kts` when the column is missing.
+- **Wind manifest pinned forever** (backend purges runs, keep_runs=2) → 15-min manifest poll while wind is on; new run swaps tiles + invalidates particle textures.
+- **setFrame layer churn** (rebuilt an identical tile layer 2 of 3 hourly ticks) → same-URL early return in WindTileLayer.
+- Also: memoized the admin Supabase client in database.py (was constructing a fresh client per call, ~50 call sites).
+
+### What's Next
+
+- Apply migrations `022_converge_user_spots.sql` + `023_storm_max_gust.sql`, then run `backend/backfill_user_spot_blends.py` once
+- StormCard gusts appear after the first detector run with the new code
+- PR for the branch (wind Phase D + spots convergence commits are separate; cherry-pick if separate PRs wanted)
+- After 1 week stable: delete `/old-map` + legacy wind layers + `/api/wind-overlay` + `MapLab.jsx`/`map-lab.css` (dead since the route removal)
+- Deferred review cleanups: shared `_haversine_km`/client-selection helpers, static `getAuthHeaders` imports in SpotDetail/PreviewCard, dedupe `_fetch_user_spots` vs `_fmt`, manifest-driven frame cadence in Map.jsx (currently hardcoded 3-hourly GFS)
+
 ## 📍 Current Status (Apr 23–27, 2026) — Session 3
 
 ### Session Summary — Design V2 merge, Sione streaming + storm handoff, global storm detector

@@ -29,17 +29,20 @@ async def _fetch_user_storm_context(user_id: str, favorite_slugs: List[str]) -> 
     Returns {favorite_slugs, favorite_names, home_region_label} or {} on error.
     """
     try:
-        from database import get_supabase_admin_client, supabase as _sb
+        from database import get_supabase_admin_client, supabase as _sb, only_public_spots
         c = get_supabase_admin_client() or _sb
         if not c or not favorite_slugs:
             return {"favorite_slugs": favorite_slugs, "favorite_names": {}}
 
-        # Fetch spot names for the favorites
+        # Fetch spot names for the favorites — public catalog only (admin client
+        # bypasses RLS; favorites only ever reference public spots) (M2 gate)
         spots_resp = (
-            c.table("spots")
-             .select("slug,name,region,subregion")
-             .in_("slug", favorite_slugs)
-             .execute()
+            only_public_spots(
+                c.table("spots")
+                 .select("slug,name,region,subregion")
+                 .in_("slug", favorite_slugs)
+            )
+            .execute()
         )
         name_map = {row["slug"]: row["name"] for row in (spots_resp.data or [])}
 

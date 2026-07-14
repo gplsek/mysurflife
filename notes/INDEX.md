@@ -50,7 +50,8 @@ Complete index of all project documentation, organized by category.
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Earlier deployment notes
 
 ### Active Roadmap (Q2 2026)
-- **[WAVE_PERFORMANCE_V2_PLAN.md](./WAVE_PERFORMANCE_V2_PLAN.md)** - ⭐ 🚧 Windy-class overlay performance plan (tiles + WebGL)
+- **[WIND_TILES_EXECUTION_PLAN.md](./WIND_TILES_EXECUTION_PLAN.md)** - ⭐ 📋 Wind-first execution of the V2 tile/WebGL plan on Map V2 (`/map-lab` staging, gusts, storm-dot integration)
+- **[WAVE_PERFORMANCE_V2_PLAN.md](./WAVE_PERFORMANCE_V2_PLAN.md)** - ⭐ 🚧 Windy-class overlay performance plan (tiles + WebGL) — architecture source of truth
 - **[GLOBAL_DATA_EXPANSION_PLAN.md](./GLOBAL_DATA_EXPANSION_PLAN.md)** - ⭐ 🚧 Global dataset expansion (waves, wind, buoys, spots) — companion to V2
 - **[DESIGN_V2_INTEGRATION_PLAN.md](./DESIGN_V2_INTEGRATION_PLAN.md)** - ⭐ 🚧 Claude Design integration (tokens, themes, MapLibre, Supabase sequencing)
 - **[SUPABASE_SESSIONS_SCHEMA.md](./SUPABASE_SESSIONS_SCHEMA.md)** - ⭐ ✅ Session Journal + Favorites schema (Supabase Stage 1) — applied

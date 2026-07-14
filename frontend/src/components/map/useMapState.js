@@ -13,6 +13,7 @@ export function useMapState() {
     showSpots:  true,
     showBuoys:  false,
     showStorms: false,
+    showWind:   false,
     stormStrength: 'all',   // all | gale | storm | hurricane (client-side filter)
     favsOnly:   false,
     query:      '',

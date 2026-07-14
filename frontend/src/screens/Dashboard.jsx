@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { getAuthHeaders } from '../supabaseClient';
 import LogoPulse from '../design/LogoPulse';
 import { StormCard } from '../components/map/StormCard';
+import { ratingTier } from '../components/map/markers';
 import './Dashboard.css';
 import '../styles/storm-card.css';
 
@@ -61,22 +62,10 @@ function slugToLabel(slug) {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function ratingTier(r) {
-  if (r >= 5) return 'firing';
-  if (r >= 4) return 'solid';
-  if (r >= 3) return 'good';
-  if (r >= 2) return 'fair';
-  return 'flat';
-}
-
 function degToCompass(deg) {
   if (deg == null) return null;
   const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   return dirs[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
-}
-
-function tierLabel(t) {
-  return { firing: 'Firing', solid: 'Solid', good: 'Good', fair: 'Fair', flat: 'Flat' }[t] || '—';
 }
 
 function fmtDuration(min) {
@@ -209,9 +198,10 @@ function DirArrow({ dir, className }) {
 }
 
 function OutlookCard({ spot, navigate }) {
-  const score      = spot.rating    ?? null;
-  const tier       = score != null ? ratingTier(score * 2) : 'flat';
-  const dots       = score != null ? Math.round(score) : 0;
+  // Bundle delivers spot.rating on 0-5; we present everything on 0-10.
+  const score10    = spot.rating != null ? spot.rating * 2 : null;
+  const tier       = score10 != null ? ratingTier(score10) : 'flat';
+  const dots       = score10 != null ? Math.round(score10 / 2) : 0;  // 5-dot viz
   const swellFt    = spot.swell     != null ? spot.swell.toFixed(1)        : null;
   const period     = spot.period    != null ? `${spot.period.toFixed(0)}s` : null;
   const swellComp  = degToCompass(spot.swell_dir);
@@ -236,8 +226,8 @@ function OutlookCard({ spot, navigate }) {
           ))}
         </span>
         <span className="oc-score">
-          {score != null
-            ? <>{score.toFixed(1)}<span className="oc-max">/5</span></>
+          {score10 != null
+            ? <>{score10.toFixed(1)}<span className="oc-max">/10</span></>
             : <span className="oc-max">—</span>
           }
         </span>
@@ -319,7 +309,7 @@ function StormCell({ storm, onOpen }) {
   );
 }
 
-function SpotRow({ name, region, tier, isPrivate, lat, lon, onOpen, onAlert, onRemove }) {
+function SpotRow({ name, region, tier, score10, isPrivate, lat, lon, onOpen, onAlert, onRemove }) {
   const abbrev = name.substring(0, 2).toUpperCase();
   return (
     <div className="spot-row" onClick={onOpen}>
@@ -336,7 +326,11 @@ function SpotRow({ name, region, tier, isPrivate, lat, lon, onOpen, onAlert, onR
           {lat && lon && <span className="latlon">{lat.toFixed(3)}, {lon.toFixed(3)}</span>}
         </div>
       </div>
-      {tier && <span className={`now-pill ${tier}`}>{tierLabel(tier)}</span>}
+      {score10 != null && tier && (
+        <span className={`now-pill ${tier}`} aria-label={`Score ${score10.toFixed(1)} out of 10`}>
+          {score10.toFixed(1)}<span style={{ opacity: 0.6, marginLeft: 2 }}>/10</span>
+        </span>
+      )}
       <div className="row-actions" onClick={e => e.stopPropagation()}>
         {onOpen && (
           <button title="Open" onClick={onOpen}><IconArrow /></button>
@@ -576,14 +570,15 @@ export default function Dashboard({ onOpenMap }) {
               ) : (
                 favorites.map(slug => {
                   const sp = outlookSpots.find(s => s.slug === slug);
-                  const score = sp?.rating ?? null;
-                  const tier  = score != null ? ratingTier(score * 2) : null;
+                  const score10 = sp?.rating != null ? sp.rating * 2 : null;
+                  const tier    = score10 != null ? ratingTier(score10) : null;
                   return (
                     <SpotRow
                       key={slug}
                       name={sp?.name || slugToLabel(slug)}
                       region={sp?.region || ''}
                       tier={tier}
+                      score10={score10}
                       isPrivate={false}
                       onOpen={() => navigate(`/spots/${slug}`)}
                       onAlert={() => navigate('/alerts')}
