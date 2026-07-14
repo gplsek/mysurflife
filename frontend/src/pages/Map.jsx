@@ -112,7 +112,15 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
   // Wind overlay (tiles + GL particles), driven by the shared timeline curH
   const windCtlRef       = useRef(null);
   const windParticlesRef = useRef(null);
+  const coastRef         = useRef(null);
   const [windManifest, setWindManifest] = useState(null);
+  const [windVar, setWindVar] = useState(() =>
+    localStorage.getItem('mv-wind-variable') === 'gust' ? 'gust' : 'speed'
+  );
+  const pickWindVar = (v) => {
+    localStorage.setItem('mv-wind-variable', v);
+    setWindVar(v);
+  };
 
   const location = useLocation();
 
@@ -554,11 +562,36 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     return () => { alive = false; clearInterval(refresh); };
   }, [state.showWind, windManifest]);
 
+  // Coastline stroke above the wind tiles — keeps land/ocean separation crisp
+  // under the ramp colors (same Natural Earth outline map-lab used).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!state.showWind) {
+      if (coastRef.current) { coastRef.current.remove(); coastRef.current = null; }
+      return;
+    }
+    if (coastRef.current) return;
+    let alive = true;
+    fetch('/geojson/ne_50m_land.geojson')
+      .then((r) => r.json())
+      .then((geo) => {
+        if (!alive || !mapRef.current || coastRef.current) return;
+        coastRef.current = L.geoJSON(geo, {
+          interactive: false,
+          style: { color: 'rgba(10, 18, 24, 0.55)', weight: 1, fill: false },
+        }).addTo(mapRef.current);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [state.showWind]);
+
   // Tear down wind layers on unmount (the toggle effect above only handles
   // showWind flipping off, not leaving the page with wind still on)
   useEffect(() => () => {
     if (windCtlRef.current) { windCtlRef.current.remove(); windCtlRef.current = null; }
     if (windParticlesRef.current) { windParticlesRef.current.destroy(); windParticlesRef.current = null; }
+    if (coastRef.current) { coastRef.current.remove(); coastRef.current = null; }
   }, []);
 
   // Wind frame follows the shared timeline. curH is hourly (0-168); tiles are
@@ -570,11 +603,11 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     const h1 = Math.min(maxHour, h0 + 3);
     const mix = h1 > h0 ? (curH - h0) / 3 : 0;
 
-    windCtlRef.current.setFrame({ model: 'gfs', run: windManifest.run, hour: h0, variable: 'speed' });
+    windCtlRef.current.setFrame({ model: 'gfs', run: windManifest.run, hour: h0, variable: windVar });
     if (windParticlesRef.current && !windParticlesRef.current.unsupported) {
       windParticlesRef.current.setTime(h0, h1, mix);
     }
-  }, [state.showWind, windManifest, curH]);
+  }, [state.showWind, windManifest, curH, windVar]);
 
   // Geolocation: auto-select nearest region on first load
   useEffect(() => {
@@ -721,7 +754,17 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
       )}
       {state.showWind && (
         <div className="mv-wind-legend">
-          <WindLegend variable="speed" />
+          <div className="mv-wind-var-toggle" role="group" aria-label="Wind layer variable">
+            <button
+              className={windVar === 'speed' ? 'on' : ''}
+              onClick={() => pickWindVar('speed')}
+            >Wind</button>
+            <button
+              className={windVar === 'gust' ? 'on' : ''}
+              onClick={() => pickWindVar('gust')}
+            >Gusts</button>
+          </div>
+          <WindLegend variable={windVar} />
         </div>
       )}
       <Chrome

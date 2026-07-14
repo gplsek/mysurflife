@@ -22,10 +22,10 @@ const UV_SCALE_MS = 40.0;      // must match backend overlay_tiles.UV_SCALE_MS
 const RAMP_MAX_KTS = UV_SCALE_MS * 1.94384;
 const DEFAULT_PARTICLES = 10000;
 const MOBILE_MAX_PARTICLES = 5000;
-const FADE_OPACITY = 0.96;     // trail persistence per frame
-const SPEED_FACTOR = 0.25;     // advection speed tuning
+const FADE_OPACITY = 0.97;     // trail persistence per frame
+const SPEED_FACTOR = 0.11;     // advection speed tuning (Windy-like calm drift)
 const DROP_RATE = 0.003;       // base respawn probability per frame
-const DROP_RATE_BUMP = 0.01;   // extra respawn for fast particles
+const DROP_RATE_BUMP = 0.005;  // extra respawn for fast particles
 const TEXTURE_LRU_MAX = 6;
 
 export function windUVUrl({ model, run, hour }) {
