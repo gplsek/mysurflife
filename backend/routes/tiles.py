@@ -122,7 +122,7 @@ async def wind_uv_texture(model: str, run: str, hour: int, request: Request):
     _validate(model, hour)
     run_id = await _resolve_run(model, run)
 
-    headers = _cache_headers(model, run_id, f"uv:{hour}")
+    headers = _cache_headers(model, run_id, f"uv:v2:{hour}")
     not_modified = _maybe_304(request, headers)
     if not_modified:
         return not_modified
@@ -247,7 +247,7 @@ async def wave_uv_texture(run: str, hour: int, request: Request, var: str = "hei
     _validate_wave(hour, var)
     run_id = await _resolve_wave_run(run)
 
-    headers = _wave_cache_headers(run_id, f"uv:{var}:{hour}")
+    headers = _wave_cache_headers(run_id, f"uv:v2:{var}:{hour}")
     not_modified = _maybe_304(request, headers)
     if not_modified:
         return not_modified

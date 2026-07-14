@@ -38,7 +38,11 @@ TILE_HOURS: List[int] = list(range(0, 241, 3))
 
 TILE_SIZE = 256
 MAX_TILE_ZOOM = 8          # 0.25° data has no detail beyond ~z7; Leaflet upscales
-UV_TEXTURE_SIZE = (2048, 1024)  # equirectangular u/v texture for GL particles
+# Equirectangular u/v texture for GL particles. 1024×512 is a hair under the
+# 1440×721 native GFS grid — indistinguishable for particle advection, and the
+# PNG drops from ~2 MB to a few hundred KB, which is what makes timeline play
+# viable (one texture per 3-hourly step).
+UV_TEXTURE_SIZE = (1024, 512)
 
 # u/v encode range for the uv.png texture (m/s). ±40 m/s covers hurricane force.
 UV_SCALE_MS = 40.0
@@ -398,12 +402,13 @@ def render_f32_tile(grids: Dict[str, np.ndarray], z: int, x: int, y: int,
 def render_uv_texture(grids: Dict[str, np.ndarray]) -> Tuple[bytes, Dict[str, Any]]:
     """Global equirectangular u/v texture for the GL particle layer (Phase C).
 
-    Encoding: R = u, G = v (both (val + UV_SCALE)/(2*UV_SCALE) × 255),
-    B = gust (val/GUST_SCALE × 255), A = 255. Layout: lon −180..180 left→right,
-    lat 90..−90 top→bottom.
+    Encoding: R = u, G = v (both (val + UV_SCALE)/(2*UV_SCALE) × 255), B = 0,
+    A = 255. Layout: lon −180..180 left→right, lat 90..−90 top→bottom.
+    B used to carry gust, but no shader reads it and the high-entropy channel
+    tripled the PNG size — the texture is fetched per 3-hourly step, so its
+    weight directly gates timeline playback.
     """
     u, v = grids["u"], grids["v"]
-    gust = grids.get("gust")
     lons = grids["lons"]
 
     # Reorder longitude to −180..180 and flip latitude to image orientation
@@ -415,8 +420,6 @@ def render_uv_texture(grids: Dict[str, np.ndarray]) -> Tuple[bytes, Dict[str, An
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
     rgba[..., 0] = np.clip((_prep(u) + UV_SCALE_MS) / (2 * UV_SCALE_MS) * 255, 0, 255).astype(np.uint8)
     rgba[..., 1] = np.clip((_prep(v) + UV_SCALE_MS) / (2 * UV_SCALE_MS) * 255, 0, 255).astype(np.uint8)
-    if gust is not None:
-        rgba[..., 2] = np.clip(_prep(gust) / GUST_SCALE_MS * 255, 0, 255).astype(np.uint8)
     rgba[..., 3] = 255
 
     img = Image.fromarray(rgba, "RGBA").resize(UV_TEXTURE_SIZE, Image.BILINEAR)
@@ -428,7 +431,7 @@ def render_uv_texture(grids: Dict[str, np.ndarray]) -> Tuple[bytes, Dict[str, An
         "height": UV_TEXTURE_SIZE[1],
         "u_min": -UV_SCALE_MS, "u_max": UV_SCALE_MS,
         "v_min": -UV_SCALE_MS, "v_max": UV_SCALE_MS,
-        "gust_max": GUST_SCALE_MS if gust is not None else None,
+        "gust_max": None,
         "units": "m/s",
         "layout": "equirectangular lon[-180,180] lat[90,-90]",
     }
@@ -446,7 +449,9 @@ def png_tile_path(model: str, run_id: str, hour: int, variable: str,
 
 
 def uv_texture_path(model: str, run_id: str, hour: int) -> Path:
-    return PNG_CACHE_DIR / model / run_id / "uv" / f"{hour}.png"
+    # .v2: slim encoding (1024×512, B channel zeroed). The version bump makes
+    # pre-existing 2 MB textures on disk invisible so they regenerate slim.
+    return PNG_CACHE_DIR / model / run_id / "uv" / f"{hour}.v2.png"
 
 
 def purge_old_runs(model: str, keep_runs: int = 2) -> int:

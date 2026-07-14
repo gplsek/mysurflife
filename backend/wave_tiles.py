@@ -331,13 +331,14 @@ def render_uv_texture(grids: Dict[str, np.ndarray],
     R/G encode u/v of the wave propagation vector at deep-water group velocity
     (Cg = g·T/(4π)), same ±UV_SCALE_MS encoding the wind texture uses so the
     particle shader is shared unchanged. Direction grids hold FROM-direction;
-    propagation is FROM + 180°, hence the negated sin/cos. B encodes height.
+    propagation is FROM + 180°, hence the negated sin/cos. B stays zero — no
+    shader reads it, and a data-bearing channel triples the PNG weight.
     Land (NaN) encodes as zero velocity — particles there sit still and fade.
     """
     if variable == "swell":
-        dir_f, per_f, h_f = grids.get("sw_dir"), grids.get("sw_per"), grids.get("sw_h")
+        dir_f, per_f = grids.get("sw_dir"), grids.get("sw_per")
     else:
-        dir_f, per_f, h_f = grids.get("dir"), grids.get("per"), grids.get("hs")
+        dir_f, per_f = grids.get("dir"), grids.get("per")
     if dir_f is None or per_f is None:
         return None
 
@@ -358,9 +359,6 @@ def render_uv_texture(grids: Dict[str, np.ndarray],
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
     rgba[..., 0] = np.clip((_prep(u) + UV_SCALE_MS) / (2 * UV_SCALE_MS) * 255, 0, 255).astype(np.uint8)
     rgba[..., 1] = np.clip((_prep(v) + UV_SCALE_MS) / (2 * UV_SCALE_MS) * 255, 0, 255).astype(np.uint8)
-    if h_f is not None:
-        h_clean = np.where(np.isfinite(h_f), h_f, 0.0)
-        rgba[..., 2] = np.clip(_prep(h_clean) / UV_HEIGHT_SCALE_M * 255, 0, 255).astype(np.uint8)
     rgba[..., 3] = 255
 
     img = Image.fromarray(rgba, "RGBA").resize(UV_TEXTURE_SIZE, Image.BILINEAR)
@@ -372,7 +370,7 @@ def render_uv_texture(grids: Dict[str, np.ndarray],
         "height": UV_TEXTURE_SIZE[1],
         "u_min": -UV_SCALE_MS, "u_max": UV_SCALE_MS,
         "v_min": -UV_SCALE_MS, "v_max": UV_SCALE_MS,
-        "height_max_m": UV_HEIGHT_SCALE_M,
+        "height_max_m": None,
         "units": "m/s (group velocity)",
         "layout": "equirectangular lon[-180,180] lat[90,-90]",
     }
@@ -389,7 +387,8 @@ def wave_png_tile_path(run_id: str, hour: int, variable: str,
 
 
 def wave_uv_texture_path(run_id: str, hour: int, variable: str) -> Path:
-    return PNG_CACHE_DIR / WAVE_MODEL / run_id / "uv" / f"{hour}-{variable}.png"
+    # .v2: slim encoding (see overlay_tiles.uv_texture_path)
+    return PNG_CACHE_DIR / WAVE_MODEL / run_id / "uv" / f"{hour}-{variable}.v2.png"
 
 
 def baked_hours(run_id: str) -> List[int]:
