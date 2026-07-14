@@ -1212,6 +1212,28 @@
   background: oklch(0.82 0.16 195 / 0.22);
   pointer-events: none;
 }
+.mv-tl-tip {
+  position: absolute; bottom: 30px;
+  transform: translateX(-50%);
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 5px 10px;
+  background: var(--panel); backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  box-shadow: 0 6px 18px oklch(0 0 0 / 0.5);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  white-space: nowrap; pointer-events: none;
+  z-index: 2;
+}
+.mv-tl-tip::after {
+  content: '';
+  position: absolute; top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border-strong);
+}
+.mv-tl-tip-day { color: var(--muted); }
+.mv-tl-tip-time { color: var(--fg); font-weight: 600; }
 .mv-tl-range {
   position: absolute; left: 0; right: 0; top: -3px;
   width: 100%; height: 24px;

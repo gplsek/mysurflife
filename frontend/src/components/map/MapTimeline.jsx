@@ -28,6 +28,7 @@ function shortDay(date) {
  */
 export default function MapTimeline({ curH, onCurHChange }) {
   const [playing, setPlaying] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const rafRef  = useRef(null);
   const lastTRef = useRef(0);
   const NOW      = useRef(new Date());
@@ -109,6 +110,14 @@ export default function MapTimeline({ curH, onCurHChange }) {
         </div>
         <div className="mv-tl-rail">
           <div className="mv-tl-fill" style={{ width: `${pct}%` }} />
+          {dragging && (
+            /* Bubble tracks the thumb center: pct% of track minus the thumb's
+               own 14px width creeping in at the far end. */
+            <div className="mv-tl-tip" style={{ left: `calc(${pct}% + ${7 - (pct / 100) * 14}px)` }}>
+              <span className="mv-tl-tip-day">{curH === 0 ? 'Now' : shortDay(curDate)}</span>
+              <span className="mv-tl-tip-time">{fmtTime(curDate)}</span>
+            </div>
+          )}
           <input
             className="mv-tl-range"
             type="range"
@@ -117,6 +126,10 @@ export default function MapTimeline({ curH, onCurHChange }) {
             step="1"
             value={curH}
             onChange={e => setCurH(parseInt(e.target.value, 10))}
+            onPointerDown={() => setDragging(true)}
+            onPointerUp={() => setDragging(false)}
+            onPointerCancel={() => setDragging(false)}
+            onBlur={() => setDragging(false)}
             aria-label="Forecast hours from now"
           />
         </div>
