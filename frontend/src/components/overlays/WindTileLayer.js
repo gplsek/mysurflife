@@ -154,7 +154,7 @@ export class WindTileController {
  * Warm the browser HTTP cache for the tiles currently in view at another
  * forecast hour, so scrubbing to hour±N paints instantly.
  */
-export function prefetchFrame(map, frame, { maxNativeZoom = 7 } = {}) {
+export function prefetchFrame(map, frame, { maxNativeZoom = 7, urlBuilder = windTileUrl } = {}) {
   const zoom = Math.min(map.getZoom(), maxNativeZoom);
   const n = 2 ** zoom;
   const bounds = map.getBounds();
@@ -171,7 +171,7 @@ export function prefetchFrame(map, frame, { maxNativeZoom = 7 } = {}) {
   const y0 = Math.max(0, latToY(bounds.getNorth()));
   const y1 = Math.min(n - 1, latToY(bounds.getSouth()));
 
-  const template = windTileUrl(frame);
+  const template = urlBuilder(frame);
   let count = 0;
   for (let x = x0; x <= x1 && count < 32; x++) {
     for (let y = y0; y <= y1 && count < 32; y++) {

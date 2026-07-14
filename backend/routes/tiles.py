@@ -92,6 +92,7 @@ async def wind_runs(model: str):
     run_id = await ot.resolve_latest_run(model)
     if not run_id:
         raise HTTPException(503, "could not resolve latest model run")
+    ot.ensure_run_warm(model, run_id)
     return {
         "model": model,
         "run": run_id,
@@ -227,6 +228,7 @@ async def wave_runs():
     run_id = await wt.resolve_latest_run()
     if not run_id:
         raise HTTPException(503, "could not resolve latest wave model run")
+    wt.ensure_run_warm(run_id)
     return {
         "model": wt.WAVE_MODEL,
         "run": run_id,

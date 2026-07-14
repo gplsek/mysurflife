@@ -1440,6 +1440,13 @@
   color: rgba(244, 241, 234, 0.95);
 }
 
+.mv-overlay-loading {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 6px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
 .mv-wind-legend .wind-legend-bar {
   width: 200px;
   height: 8px;

@@ -403,3 +403,48 @@ def baked_hours(run_id: str) -> List[int]:
         except ValueError:
             continue
     return sorted(hours)
+
+
+# ---------------------------------------------------------------------------
+# Self-warming: bake a whole run's grids in the background
+# ---------------------------------------------------------------------------
+
+_warm_tasks: Dict[str, "asyncio.Task"] = {}
+_WARM_CONCURRENCY = 2
+
+
+async def _warm_run(run_id: str) -> None:
+    missing = [h for h in WAVE_TILE_HOURS if not _grid_path(run_id, h).exists()]
+    if not missing:
+        return
+    print(f"🔥 wave tiles: self-warm {run_id} — {len(missing)} hours missing")
+    sem = asyncio.Semaphore(_WARM_CONCURRENCY)
+
+    async def _one(hour: int) -> None:
+        async with sem:
+            grids = await get_grids(run_id, hour)
+            if grids is None:
+                return
+            for variable in ("height", "swell"):
+                uv = wave_uv_texture_path(run_id, hour, variable)
+                if uv.exists():
+                    continue
+                rendered = render_uv_texture(grids, variable=variable)
+                if rendered is None:
+                    continue
+                uv.parent.mkdir(parents=True, exist_ok=True)
+                uv.write_bytes(rendered[0])
+
+    await asyncio.gather(*[_one(h) for h in missing])
+    print(f"🏁 wave tiles: self-warm {run_id} complete")
+
+
+def ensure_run_warm(run_id: str) -> None:
+    """Background bake of missing wave grid hours (see overlay_tiles version)."""
+    key = f"{WAVE_MODEL}/{run_id}"
+    task = _warm_tasks.get(key)
+    if task and not task.done():
+        return
+    for k in [k for k, t in _warm_tasks.items() if t.done()]:
+        del _warm_tasks[k]
+    _warm_tasks[key] = asyncio.create_task(_warm_run(run_id))

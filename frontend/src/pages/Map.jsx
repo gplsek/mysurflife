@@ -9,11 +9,12 @@ import { stormMarkerHtml }                                from '../components/ma
 import { useMapBundle }                                   from '../components/map/useMapBundle';
 import Chrome                                             from '../components/map/Chrome';
 import { StormCard }                                      from '../components/map/StormCard';
-import { WindTileController, fetchWindManifest,
+import { WindTileController, fetchWindManifest, prefetchFrame,
          waveTileUrl, waveUVUrl, fetchWaveManifest }      from '../components/overlays/WindTileLayer';
-import { WindParticlesGL }                                from '../components/overlays/WindParticlesLayerGL';
+import { WindParticlesGL, windUVUrl }                     from '../components/overlays/WindParticlesLayerGL';
 import WindLegend                                         from '../components/overlays/WindLegend';
 import WaveLegend                                         from '../components/overlays/WaveLegend';
+import LogoPulse                                          from '../design/LogoPulse';
 import '../styles/map-v2.css';
 import '../styles/storm-card.css';
 
@@ -137,6 +138,19 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     ramp: 'wave_period',
     valueAt: (t) => (t * 40 * 4 * Math.PI) / 9.8,  // group vel m/s → period s
   }), []);
+
+  // True while the visible overlay's next frame is still loading tiles —
+  // drives a small pulse in the legend so a cold hour reads as "loading",
+  // not "the slider is broken".
+  const [overlayLoading, setOverlayLoading] = useState(false);
+
+  // Warm the browser cache for the frames the user is about to hit: the next
+  // two 3-hourly steps' tiles in view, plus the +6h uv texture (the particle
+  // layer itself keeps the current pair loaded).
+  const idlePrefetch = useCallback((fn) => {
+    if (window.requestIdleCallback) window.requestIdleCallback(fn, { timeout: 1500 });
+    else setTimeout(fn, 300);
+  }, []);
 
   const location = useLocation();
 
@@ -536,6 +550,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     if (!state.showWind) {
       if (windCtlRef.current) { windCtlRef.current.remove(); windCtlRef.current = null; }
       if (windParticlesRef.current) { windParticlesRef.current.destroy(); windParticlesRef.current = null; }
+      setOverlayLoading(false);
       return;
     }
 
@@ -556,6 +571,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
         opacity: 0.85,
         maxNativeZoom: Math.min(windManifest.max_zoom ?? 7, 7),
         zIndex: 210,
+        onLoading: () => setOverlayLoading(true),
+        onLoad: () => setOverlayLoading(false),
       });
     }
     if (!windParticlesRef.current) {
@@ -586,6 +603,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     if (!waveActive) {
       if (waveCtlRef.current) { waveCtlRef.current.remove(); waveCtlRef.current = null; }
       if (waveParticlesRef.current) { waveParticlesRef.current.destroy(); waveParticlesRef.current = null; }
+      setOverlayLoading(false);
       return;
     }
 
@@ -606,6 +624,8 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
         maxNativeZoom: Math.min(waveManifest.max_zoom ?? 7, 7),
         zIndex: 210,
         urlBuilder: waveTileUrl,
+        onLoading: () => setOverlayLoading(true),
+        onLoad: () => setOverlayLoading(false),
       });
     }
     // Particles advect against the selected variable's direction field, so a
@@ -645,7 +665,22 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     if (waveParticlesRef.current && !waveParticlesRef.current.unsupported) {
       waveParticlesRef.current.setTime(h0, h1, mix);
     }
-  }, [waveActive, waveManifest, curH, waveVar]);
+
+    idlePrefetch(() => {
+      const map = mapRef.current;
+      if (!map || !waveCtlRef.current) return;
+      const zoomOpts = {
+        maxNativeZoom: Math.min(waveManifest.max_zoom ?? 7, 7),
+        urlBuilder: waveTileUrl,
+      };
+      for (const ahead of [3, 6]) {
+        const h = Math.min(maxHour, h0 + ahead);
+        if (h > h0) prefetchFrame(map, { run: waveManifest.run, hour: h, variable: waveVar }, zoomOpts);
+      }
+      const hUv = Math.min(maxHour, h0 + 6);
+      if (hUv > h1) new Image().src = waveUVUrl(waveVar)({ run: waveManifest.run, hour: hUv });
+    });
+  }, [waveActive, waveManifest, curH, waveVar, idlePrefetch]);
 
   // Coastline stroke above the overlay tiles — keeps land/ocean separation
   // crisp under the ramp colors (same Natural Earth outline map-lab used).
@@ -694,7 +729,19 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     if (windParticlesRef.current && !windParticlesRef.current.unsupported) {
       windParticlesRef.current.setTime(h0, h1, mix);
     }
-  }, [state.showWind, windManifest, curH, windVar]);
+
+    idlePrefetch(() => {
+      const map = mapRef.current;
+      if (!map || !windCtlRef.current) return;
+      const zoomOpts = { maxNativeZoom: Math.min(windManifest.max_zoom ?? 7, 7) };
+      for (const ahead of [3, 6]) {
+        const h = Math.min(maxHour, h0 + ahead);
+        if (h > h0) prefetchFrame(map, { model: 'gfs', run: windManifest.run, hour: h, variable: windVar }, zoomOpts);
+      }
+      const hUv = Math.min(maxHour, h0 + 6);
+      if (hUv > h1) new Image().src = windUVUrl({ model: 'gfs', run: windManifest.run, hour: hUv });
+    });
+  }, [state.showWind, windManifest, curH, windVar, idlePrefetch]);
 
   // Geolocation: auto-select nearest region on first load
   useEffect(() => {
@@ -852,11 +899,13 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
             >Gusts</button>
           </div>
           <WindLegend variable={windVar} />
+          {overlayLoading && <div className="mv-overlay-loading"><LogoPulse size={12} compact /> loading forecast…</div>}
         </div>
       )}
       {waveActive && (
         <div className="mv-wind-legend">
           <WaveLegend variable={waveVar} />
+          {overlayLoading && <div className="mv-overlay-loading"><LogoPulse size={12} compact /> loading forecast…</div>}
         </div>
       )}
       <Chrome
