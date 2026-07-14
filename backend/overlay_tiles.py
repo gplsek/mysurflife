@@ -511,27 +511,64 @@ def baked_hours(model: str, run_id: str) -> List[int]:
 _warm_tasks: Dict[str, "asyncio.Task"] = {}
 _WARM_CONCURRENCY = 2
 
+# One warmer per BOX, not per process. Four uvicorn workers each running a
+# full-run warm (plus the cron prewarm) pinned a 2-vCPU host flat and held
+# ~1.5 GB per worker — the per-process task guard alone is not enough. The
+# lock file is the SAME one the prewarm cron wraps itself in (flock -n), so
+# cron job and in-server warmers mutually exclude across the whole machine.
+WARM_LOCK_PATH = "/tmp/mysurflife-prewarm.lock"
+
+
+def acquire_warm_lock() -> Optional[Any]:
+    """Non-blocking exclusive flock; returns an open fd to hold, or None."""
+    import fcntl
+
+    try:
+        fd = os.open(WARM_LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o664)
+    except OSError:
+        return None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fd
+    except OSError:
+        os.close(fd)
+        return None
+
+
+def release_warm_lock(fd: Any) -> None:
+    try:
+        os.close(fd)  # closing releases the flock
+    except OSError:
+        pass
+
 
 async def _warm_run(model: str, run_id: str) -> None:
     missing = [h for h in TILE_HOURS if not _grid_path(model, run_id, h).exists()]
     if not missing:
         return
-    print(f"🔥 tiles: self-warm {model}/{run_id} — {len(missing)} hours missing")
-    sem = asyncio.Semaphore(_WARM_CONCURRENCY)
+    lock_fd = acquire_warm_lock()
+    if lock_fd is None:
+        print(f"⏭️ tiles: self-warm {model}/{run_id} skipped — another warmer holds the lock")
+        return
+    try:
+        print(f"🔥 tiles: self-warm {model}/{run_id} — {len(missing)} hours missing")
+        sem = asyncio.Semaphore(_WARM_CONCURRENCY)
 
-    async def _one(hour: int) -> None:
-        async with sem:
-            grids = await get_grids(model, run_id, hour)
-            if grids is None:
-                return
-            uv = uv_texture_path(model, run_id, hour)
-            if not uv.exists():
-                png, _meta = render_uv_texture(grids)
-                uv.parent.mkdir(parents=True, exist_ok=True)
-                uv.write_bytes(png)
+        async def _one(hour: int) -> None:
+            async with sem:
+                grids = await get_grids(model, run_id, hour)
+                if grids is None:
+                    return
+                uv = uv_texture_path(model, run_id, hour)
+                if not uv.exists():
+                    png, _meta = render_uv_texture(grids)
+                    uv.parent.mkdir(parents=True, exist_ok=True)
+                    uv.write_bytes(png)
 
-    await asyncio.gather(*[_one(h) for h in missing])
-    print(f"🏁 tiles: self-warm {model}/{run_id} complete")
+        await asyncio.gather(*[_one(h) for h in missing])
+        print(f"🏁 tiles: self-warm {model}/{run_id} complete")
+    finally:
+        release_warm_lock(lock_fd)
 
 
 def ensure_run_warm(model: str, run_id: str) -> None:
@@ -541,8 +578,9 @@ def ensure_run_warm(model: str, run_id: str) -> None:
     (or a deploy) starts the warm-up instead of waiting for the prewarm cron —
     scrubbing stops hitting cold 15-30 s GRIB fetches within a few minutes.
     Grids are the expensive part; PNG tiles render on demand in ~5 ms once
-    they exist. Guard is per-process: multiple uvicorn workers may overlap,
-    but path.exists() makes duplicated work cheap and the results identical.
+    they exist. Guarded twice: a per-process task registry, and the box-wide
+    flock in _warm_run (shared with the cron prewarm) so at most ONE warmer
+    runs per machine no matter how many workers serve manifests.
     """
     key = f"{model}/{run_id}"
     task = _warm_tasks.get(key)
