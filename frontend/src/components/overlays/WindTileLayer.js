@@ -15,22 +15,40 @@ export function windTileUrl({ model, run, hour, variable = 'speed' }) {
   return `${TILE_API_BASE}/api/tiles/wind/${model}/${run}/${hour}/{z}/{x}/{y}.png${query}`;
 }
 
+export function waveTileUrl({ run, hour, variable = 'height' }) {
+  const query = variable === 'height' ? '' : `?var=${variable}`;
+  return `${TILE_API_BASE}/api/tiles/waves/${run}/${hour}/{z}/{x}/{y}.png${query}`;
+}
+
+export function waveUVUrl(variable = 'height') {
+  return ({ run, hour }) =>
+    `${TILE_API_BASE}/api/tiles/waves/${run}/${hour}/uv.png?var=${variable}`;
+}
+
 export async function fetchWindManifest(model = 'gfs') {
   const resp = await fetch(`${TILE_API_BASE}/api/tiles/wind/${model}/runs`);
   if (!resp.ok) throw new Error(`wind manifest ${resp.status}`);
   return resp.json();
 }
 
+export async function fetchWaveManifest() {
+  const resp = await fetch(`${TILE_API_BASE}/api/tiles/waves/runs`);
+  if (!resp.ok) throw new Error(`wave manifest ${resp.status}`);
+  return resp.json();
+}
+
 const SWAP_FADE_MS = 180;
 
 export class WindTileController {
-  constructor(map, { opacity = 0.8, maxNativeZoom = 7, zIndex = 210, onLoading, onLoad } = {}) {
+  constructor(map, { opacity = 0.8, maxNativeZoom = 7, zIndex = 210, onLoading, onLoad,
+                     urlBuilder = windTileUrl } = {}) {
     this.map = map;
     this.opacity = opacity;
     this.maxNativeZoom = maxNativeZoom;
     this.zIndex = zIndex;
     this.onLoading = onLoading;
     this.onLoad = onLoad;
+    this.urlBuilder = urlBuilder;
     this.layer = null;        // currently visible layer
     this.pending = null;      // next-hour layer, loading behind the scenes
     this.frame = null;
@@ -58,7 +76,7 @@ export class WindTileController {
    * flash between hours — rapid scrubs cancel superseded pending layers.
    */
   setFrame(frame) {
-    const url = windTileUrl(frame);
+    const url = this.urlBuilder(frame);
     // Same frame as the last request (e.g. hourly timeline ticks over
     // 3-hourly tiles): the visible or pending layer already targets it.
     if (this._url === url) return;
