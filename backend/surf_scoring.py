@@ -329,15 +329,17 @@ def calculate_wind_quality(
 
     # Out-of-window penalty: if the user defined good-wind windows and the
     # current wind isn't in *any* of them, that's a "you didn't tell me this
-    # direction is OK" signal — treat it as bad. Glassy (<4 kt) is genuinely
-    # clean regardless, so exempt that band only.
+    # direction is OK" signal — treat it as bad. Tapered by speed so it doesn't
+    # double-count with dir_factor at light speeds ("super light wind is OK"):
+    # no penalty at 4 kt, full 0.40x from 8 kt up. Glassy (<4 kt) is exempt.
     if wind_windows and wind_direction is not None and spd_kt >= 4:
         in_any = any(
             is_direction_in_window(wind_direction, w['dir_min'], w['dir_max'])[0]
             for w in wind_windows
         )
         if not in_any:
-            quality *= 0.40
+            ramp = min(1.0, (spd_kt - 4) / 4)
+            quality *= 1.0 - 0.60 * ramp
 
     if spd_kt < 4:
         relation = "glassy"
