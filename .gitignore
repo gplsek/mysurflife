@@ -78,6 +78,12 @@ backend/test_*.py
 !backend/test_spot_config_api.py
 !backend/test_detect_storms_ww3.py
 !backend/test_storm_reconciliation.py
+!backend/test_migration.py
+!backend/test_region_impact.py
+!backend/test_smoke.py
+# Local one-off diagnostic scripts (moved out of test_*.py so pytest doesn't
+# execute them during collection — several make live API/DB calls at import)
+backend/scratch/
 backend/migrate_*.py
 backend/add_*.py
 backend/fix_*.py
