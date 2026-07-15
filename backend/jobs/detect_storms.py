@@ -115,6 +115,11 @@ _MAX_PRESSURE_MB       = _CFG.get("max_pressure_mb",          1005)
 _CLUSTER_RADIUS_KM     = _CFG.get("cluster_radius_km",          200)
 _TRACK_RADIUS_KM       = _CFG.get("track_radius_km",            600)
 _TRACK_PRESSURE_DELTA  = _CFG.get("track_pressure_delta_mb",     20)
+# Missed 6h scan steps a track may coast through before it is retired.
+# Detection flickers near the pressure threshold; killing a track on one
+# missed hour splits real systems into short fragments (~48-72h tracks
+# against a 168h scan) and inflates the active-storm count with duplicates.
+_TRACK_MAX_GAP_STEPS   = _CFG.get("track_max_gap_steps",          2)
 _HS_CONFIRM_MIN_M      = _CFG.get("hs_confirm_min_m",           3.0)
 _CONE_HALF_ANGLE_DEG   = _CFG.get("cone_half_angle_deg",          45)
 _CONE_RANGE_NM         = tuple(_CFG.get("cone_range_nm",    [100, 800]))
@@ -874,36 +879,49 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
     if not detections_by_hour:
         return []
 
-    active_tracks: List[List[Dict]] = [[d] for d in detections_by_hour[0]]
+    # Track state: dets = matched detections, misses = consecutive scan steps
+    # with no match. A track coasts through up to _TRACK_MAX_GAP_STEPS missed
+    # steps (search radius and pressure tolerance widen while coasting, since
+    # the storm kept moving/deepening unobserved) before it is retired.
+    active:  List[Dict] = [{"dets": [d], "misses": 0} for d in detections_by_hour[0]]
+    retired: List[Dict] = []
 
     for hour_dets in detections_by_hour[1:]:
         matched = [False] * len(hour_dets)
-        new_tracks: List[List[Dict]] = []
+        next_active: List[Dict] = []
 
-        for track in active_tracks:
-            last = track[-1]
-            best_j, best_dist = None, _TRACK_RADIUS_KM + 1
+        for tr in active:
+            last = tr["dets"][-1]
+            widen = 1 + tr["misses"]
+            best_j, best_dist = None, _TRACK_RADIUS_KM * widen + 1
 
             for j, det in enumerate(hour_dets):
                 if matched[j]:
                     continue
                 dist = _haversine_km(last["lat"], last["lon"], det["lat"], det["lon"])
                 dp   = abs((det["pressure_mb"] or 1000) - (last["pressure_mb"] or 1000))
-                if dist < best_dist and dp <= _TRACK_PRESSURE_DELTA:
+                if dist < best_dist and dp <= _TRACK_PRESSURE_DELTA * widen:
                     best_dist = dist
                     best_j    = j
 
             if best_j is not None:
-                track.append(hour_dets[best_j])
+                tr["dets"].append(hour_dets[best_j])
+                tr["misses"] = 0
                 matched[best_j] = True
-
-            new_tracks.append(track)
+                next_active.append(tr)
+            elif tr["misses"] < _TRACK_MAX_GAP_STEPS:
+                tr["misses"] += 1
+                next_active.append(tr)
+            else:
+                retired.append(tr)
 
         for j, det in enumerate(hour_dets):
             if not matched[j]:
-                new_tracks.append([det])
+                next_active.append({"dets": [det], "misses": 0})
 
-        active_tracks = new_tracks
+        active = next_active
+
+    active_tracks: List[List[Dict]] = [tr["dets"] for tr in active + retired]
 
     storms = []
     for track in active_tracks:
