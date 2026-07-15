@@ -216,6 +216,309 @@
         "SE",
         "S"
       ]
+    },
+    "portugal": {
+      "label": "Portugal",
+      "centroid": [
+        39.4,
+        -9.4
+      ],
+      "swell_window_deg": [
+        250,
+        340
+      ],
+      "facing": [
+        "W",
+        "NW"
+      ]
+    },
+    "france-sw": {
+      "label": "SW France",
+      "centroid": [
+        43.7,
+        -1.4
+      ],
+      "swell_window_deg": [
+        260,
+        320
+      ],
+      "facing": [
+        "W",
+        "NW"
+      ]
+    },
+    "spain-north": {
+      "label": "North Spain",
+      "centroid": [
+        43.4,
+        -2.7
+      ],
+      "swell_window_deg": [
+        280,
+        350
+      ],
+      "facing": [
+        "N",
+        "NW"
+      ]
+    },
+    "uk-ireland": {
+      "label": "UK & Ireland",
+      "centroid": [
+        52.5,
+        -9.5
+      ],
+      "swell_window_deg": [
+        230,
+        320
+      ],
+      "facing": [
+        "W",
+        "SW"
+      ]
+    },
+    "morocco": {
+      "label": "Morocco",
+      "centroid": [
+        30.5,
+        -9.7
+      ],
+      "swell_window_deg": [
+        270,
+        330
+      ],
+      "facing": [
+        "W",
+        "NW"
+      ]
+    },
+    "canary-islands": {
+      "label": "Canary Islands",
+      "centroid": [
+        28.5,
+        -16.3
+      ],
+      "swell_window_deg": [
+        270,
+        360
+      ],
+      "facing": [
+        "N",
+        "NW",
+        "W"
+      ]
+    },
+    "west-africa": {
+      "label": "West Africa",
+      "centroid": [
+        14.7,
+        -17.5
+      ],
+      "swell_window_deg": [
+        270,
+        340
+      ],
+      "facing": [
+        "W",
+        "NW"
+      ]
+    },
+    "south-africa": {
+      "label": "South Africa",
+      "centroid": [
+        -34.0,
+        24.9
+      ],
+      "swell_window_deg": [
+        180,
+        260
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "us-east": {
+      "label": "US East Coast",
+      "centroid": [
+        35.2,
+        -75.5
+      ],
+      "swell_window_deg": [
+        40,
+        160
+      ],
+      "facing": [
+        "E",
+        "SE",
+        "NE"
+      ]
+    },
+    "caribbean-north": {
+      "label": "Caribbean North",
+      "centroid": [
+        18.5,
+        -66.5
+      ],
+      "swell_window_deg": [
+        330,
+        60
+      ],
+      "facing": [
+        "N",
+        "NE"
+      ]
+    },
+    "japan": {
+      "label": "Japan",
+      "centroid": [
+        35.3,
+        140.4
+      ],
+      "swell_window_deg": [
+        90,
+        200
+      ],
+      "facing": [
+        "E",
+        "SE",
+        "S"
+      ]
+    },
+    "philippines": {
+      "label": "Philippines",
+      "centroid": [
+        9.8,
+        126.2
+      ],
+      "swell_window_deg": [
+        45,
+        135
+      ],
+      "facing": [
+        "E",
+        "NE"
+      ]
+    },
+    "sri-lanka": {
+      "label": "Sri Lanka",
+      "centroid": [
+        5.9,
+        80.5
+      ],
+      "swell_window_deg": [
+        150,
+        220
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "maldives": {
+      "label": "Maldives",
+      "centroid": [
+        3.5,
+        73.3
+      ],
+      "swell_window_deg": [
+        120,
+        200
+      ],
+      "facing": [
+        "S",
+        "SE"
+      ]
+    },
+    "fiji": {
+      "label": "Fiji",
+      "centroid": [
+        -17.9,
+        177.2
+      ],
+      "swell_window_deg": [
+        180,
+        250
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "new-zealand-west": {
+      "label": "New Zealand West",
+      "centroid": [
+        -37.8,
+        174.8
+      ],
+      "swell_window_deg": [
+        200,
+        290
+      ],
+      "facing": [
+        "W",
+        "SW"
+      ]
+    },
+    "australia-west": {
+      "label": "West Australia",
+      "centroid": [
+        -33.9,
+        115.0
+      ],
+      "swell_window_deg": [
+        180,
+        270
+      ],
+      "facing": [
+        "SW",
+        "W"
+      ]
+    },
+    "australia-south": {
+      "label": "South Australia",
+      "centroid": [
+        -38.4,
+        144.3
+      ],
+      "swell_window_deg": [
+        160,
+        250
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "micronesia": {
+      "label": "Micronesia",
+      "centroid": [
+        7.0,
+        158.2
+      ],
+      "swell_window_deg": [
+        330,
+        60
+      ],
+      "facing": [
+        "N",
+        "NE"
+      ]
+    },
+    "ecuador": {
+      "label": "Ecuador",
+      "centroid": [
+        -2.2,
+        -81.0
+      ],
+      "swell_window_deg": [
+        190,
+        280
+      ],
+      "facing": [
+        "SW",
+        "W"
+      ]
     }
   }
 }

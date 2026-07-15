@@ -59,8 +59,13 @@ def _in_window(bearing: float, wmin: float, wmax: float) -> bool:
 
 
 def _angular_offset_from_center(bearing: float, wmin: float, wmax: float) -> float:
-    """Angular offset from window center in degrees (-180..180)."""
-    center = ((wmin + wmax) / 2) % 360
+    """Angular offset from window center in degrees (-180..180).
+
+    Wraparound-safe: for a window like [330, 60] the center is 15° (north),
+    not (330+60)/2 = 195° (south) — walk half the wrapped span from wmin.
+    """
+    span = (wmax - wmin) % 360 or 360
+    center = (wmin + span / 2) % 360
     return (bearing - center + 180) % 360 - 180
 
 
