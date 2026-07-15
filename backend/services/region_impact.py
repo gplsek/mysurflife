@@ -64,12 +64,57 @@ def _angular_offset_from_center(bearing: float, wmin: float, wmax: float) -> flo
     return (bearing - center + 180) % 360 - 180
 
 
+# Swell windows are judgment calls, not walls: a bearing a few degrees outside
+# still delivers refracted/angular-spread energy. Taper exposure over this many
+# degrees beyond the window edge instead of snapping to zero — a hurricane at
+# bearing 174.8° vs a [180, 290] window used to score exactly 0.0 for SoCal.
+_SOFT_EDGE_DEG = 25.0
+
+
 def _exposure_factor(bearing: float, wmin: float, wmax: float) -> float:
-    """cos² of angular offset from window center; 0 if outside window."""
-    if not _in_window(bearing, wmin, wmax):
+    """cos² of angular offset from window center, with a soft shoulder that
+    tapers to 0 over _SOFT_EDGE_DEG beyond the window edges."""
+    offset = abs(_angular_offset_from_center(bearing, wmin, wmax))
+    half_width = (((wmax - wmin) % 360) or 360) / 2
+    if offset <= half_width:
+        return math.cos(math.radians(offset)) ** 2
+    beyond = offset - half_width
+    if beyond >= _SOFT_EDGE_DEG:
         return 0.0
-    offset_rad = math.radians(_angular_offset_from_center(bearing, wmin, wmax))
-    return math.cos(offset_rad) ** 2
+    edge = math.cos(math.radians(half_width)) ** 2
+    return edge * math.cos(math.radians(90.0 * beyond / _SOFT_EDGE_DEG)) ** 2
+
+
+# Storms don't radiate swell isotropically: energy is strongest downwind of
+# the fetch. Full weight within this half-angle of the storm's primary swell
+# propagation direction, cos²-tapering to a floor beyond it. The floor stays
+# well above zero — cyclone fetch rotates around the low and real storms leak
+# energy over a wide fan, so off-axis regions get reduced, not erased.
+_SOURCE_CONE_HALF_DEG = 45.0
+_SOURCE_TAPER_DEG     = 60.0
+_SOURCE_FLOOR         = 0.25
+
+
+def _source_factor(swell_from_deg: Optional[float], transit_bearing: float) -> float:
+    """Directional radiation weight for the storm→region path.
+
+    swell_from_deg is WW3 DIRPW at the storm center (FROM-direction, project
+    convention); propagation is FROM + 180°. transit_bearing is the great-
+    circle direction from storm to region. Returns 1.0 when the region lies
+    downwind of the fetch, tapering to _SOURCE_FLOOR off-axis. Isotropic
+    (1.0) when the detector has no swell direction for the storm.
+    """
+    if swell_from_deg is None:
+        return 1.0
+    prop = (swell_from_deg + 180.0) % 360.0
+    off = abs((transit_bearing - prop + 180.0) % 360.0 - 180.0)
+    if off <= _SOURCE_CONE_HALF_DEG:
+        return 1.0
+    beyond = off - _SOURCE_CONE_HALF_DEG
+    if beyond >= _SOURCE_TAPER_DEG:
+        return _SOURCE_FLOOR
+    t = math.cos(math.radians(90.0 * beyond / _SOURCE_TAPER_DEG)) ** 2
+    return _SOURCE_FLOOR + (1.0 - _SOURCE_FLOOR) * t
 
 
 # ---------------------------------------------------------------------------
@@ -145,9 +190,11 @@ def score_storm_against_regions(storm: Dict) -> List[Dict]:
         wmin, wmax = region["swell_window_deg"]
         exposure  = _exposure_factor(bearing, wmin, wmax)
         decay_fac = _decay(distance, period_s)
+        source    = _source_factor(storm.get("swell_direction_deg"), transit_bearing)
 
         # Projected significant wave height at region (height attenuates as sqrt(energy))
-        proj_hs = hs_m * decay_fac * math.sqrt(max(0.0, exposure)) if exposure > 0 else 0.0
+        proj_hs = (hs_m * decay_fac * math.sqrt(max(0.0, exposure * source))
+                   if exposure > 0 else 0.0)
 
         # Energy index (0-1): normalized by a "solid swell" reference (3m × 14s ≈ 126)
         energy_raw   = (proj_hs ** 2) * period_s
@@ -177,7 +224,10 @@ def score_storm_against_regions(storm: Dict) -> List[Dict]:
             "is_best_exposure":   False,
         })
 
-    impacts.sort(key=lambda x: -x["energy_index"])
+    # Energy index saturates at 1.0 for strong swell trains — break ties by
+    # projected height so "best exposure" names the biggest surf, not the
+    # region that happens to come first in the config.
+    impacts.sort(key=lambda x: (-x["energy_index"], -x["projected_hs_m"]))
 
     # Mark single best-exposure region (highest energy among direct hits only)
     for r in impacts:
@@ -256,6 +306,17 @@ def compose_narrative(storm: Dict, region_impacts: List[Dict]) -> str:
         "LOW":                 "Low pressure system",
     }.get(storm_type, "Low pressure system")
 
+    # Model-derived systems all carry type "LOW"; the warning tier knows
+    # better. 64 kt deserves "Hurricane-force storm", not "low pressure".
+    if storm_type == "LOW":
+        tier_label = {
+            "hurricane": "Hurricane-force storm",
+            "storm":     "Storm-force low",
+            "gale":      "Gale-force low",
+        }.get(storm.get("warning_tier"))
+        if tier_label:
+            type_label = tier_label
+
     ns = f"{abs(storm_lat):.0f}°{'N' if storm_lat >= 0 else 'S'}"
     ew = f"{abs(storm_lon):.0f}°{'E' if storm_lon >= 0 else 'W'}"
     ocean_phrase = f" ({ocean.replace('-', ' ').title()})" if ocean else ""
@@ -263,6 +324,16 @@ def compose_narrative(storm: Dict, region_impacts: List[Dict]) -> str:
 
     direct_hits = [r for r in region_impacts if r["impact_tier"] == "direct"]
     if not direct_hits:
+        # Partial/glancing energy is still surf-relevant — say so instead of
+        # writing the storm off entirely.
+        lesser = [r for r in region_impacts if r["impact_tier"] in ("glancing", "partial")]
+        if lesser:
+            names = ", ".join(r["label"] for r in lesser[:3])
+            return (
+                f"{type_label} at {position_phrase}. "
+                f"Sends modest swell toward {names} — no direct hits in the "
+                f"{len(region_impacts)}-region forecast window."
+            )
         return (
             f"{type_label} at {position_phrase}. "
             f"No surf-relevant regions in the {len(region_impacts)}-region forecast window."
