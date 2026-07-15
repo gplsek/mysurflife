@@ -1,17 +1,221 @@
 {
-  "$comment": "Per-region swell exposure windows. Bearings in degrees from storm to region. See GLOBAL_STORM_DETECTION_PLAN.md §7.1.",
+  "$comment": "Per-region swell exposure windows. Bearings in degrees from storm to region. See GLOBAL_STORM_DETECTION_PLAN.md \u00a77.1.",
   "regions": {
-    "so-cal":           { "label": "Southern California", "centroid": [33.5, -118.0], "swell_window_deg": [180, 290], "facing": ["S", "SW", "W"] },
-    "n-cal":            { "label": "Northern California", "centroid": [38.0, -123.0], "swell_window_deg": [220, 320], "facing": ["W", "NW"] },
-    "pnw":              { "label": "Pacific Northwest",   "centroid": [46.0, -124.0], "swell_window_deg": [230, 330], "facing": ["W", "NW"] },
-    "hawaii-n-shore":   { "label": "Hawaii N Shore",      "centroid": [21.7, -158.0], "swell_window_deg": [280, 360], "facing": ["N", "NW"] },
-    "hawaii-s-shore":   { "label": "Hawaii S Shore",      "centroid": [21.3, -157.8], "swell_window_deg": [160, 230], "facing": ["S", "SW"] },
-    "central-america":  { "label": "Central America",     "centroid": [11.0,  -86.0], "swell_window_deg": [180, 250], "facing": ["S", "SW"] },
-    "mainland-mx":      { "label": "Mainland Mexico",     "centroid": [16.5,  -99.5], "swell_window_deg": [200, 280], "facing": ["S", "SW", "W"] },
-    "indo":             { "label": "Indonesia",           "centroid": [-8.5,  115.0], "swell_window_deg": [180, 240], "facing": ["S", "SW"] },
-    "australia-east":   { "label": "Australia East Coast","centroid": [-33.0, 151.5], "swell_window_deg": [120, 220], "facing": ["E", "SE", "S"] },
-    "peru":             { "label": "Peru",                 "centroid": [-12.0,  -77.3], "swell_window_deg": [185, 320], "facing": ["S", "SW", "W"] },
-    "chile-central":    { "label": "Central Chile",        "centroid": [-34.0,  -72.0], "swell_window_deg": [180, 300], "facing": ["SW", "W"] },
-    "s-brazil":         { "label": "Southern Brazil",      "centroid": [-27.6,  -48.5], "swell_window_deg": [70, 200],  "facing": ["E", "SE", "S"] }
+    "so-cal": {
+      "label": "Southern California",
+      "centroid": [
+        33.5,
+        -118.0
+      ],
+      "swell_window_deg": [
+        155,
+        290
+      ],
+      "facing": [
+        "S",
+        "SW",
+        "W"
+      ]
+    },
+    "baja": {
+      "label": "Baja California",
+      "centroid": [
+        27.5,
+        -114.5
+      ],
+      "swell_window_deg": [
+        150,
+        300
+      ],
+      "facing": [
+        "S",
+        "SW",
+        "W"
+      ]
+    },
+    "n-cal": {
+      "label": "Northern California",
+      "centroid": [
+        38.0,
+        -123.0
+      ],
+      "swell_window_deg": [
+        220,
+        320
+      ],
+      "facing": [
+        "W",
+        "NW"
+      ]
+    },
+    "pnw": {
+      "label": "Pacific Northwest",
+      "centroid": [
+        46.0,
+        -124.0
+      ],
+      "swell_window_deg": [
+        230,
+        330
+      ],
+      "facing": [
+        "W",
+        "NW"
+      ]
+    },
+    "hawaii-n-shore": {
+      "label": "Hawaii N Shore",
+      "centroid": [
+        21.7,
+        -158.0
+      ],
+      "swell_window_deg": [
+        280,
+        360
+      ],
+      "facing": [
+        "N",
+        "NW"
+      ]
+    },
+    "hawaii-s-shore": {
+      "label": "Hawaii S Shore",
+      "centroid": [
+        21.3,
+        -157.8
+      ],
+      "swell_window_deg": [
+        160,
+        230
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "tahiti": {
+      "label": "Tahiti",
+      "centroid": [
+        -17.6,
+        -149.4
+      ],
+      "swell_window_deg": [
+        170,
+        260
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "central-america": {
+      "label": "Central America",
+      "centroid": [
+        11.0,
+        -86.0
+      ],
+      "swell_window_deg": [
+        180,
+        250
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "mainland-mx": {
+      "label": "Mainland Mexico",
+      "centroid": [
+        16.5,
+        -99.5
+      ],
+      "swell_window_deg": [
+        200,
+        280
+      ],
+      "facing": [
+        "S",
+        "SW",
+        "W"
+      ]
+    },
+    "indo": {
+      "label": "Indonesia",
+      "centroid": [
+        -8.5,
+        115.0
+      ],
+      "swell_window_deg": [
+        180,
+        240
+      ],
+      "facing": [
+        "S",
+        "SW"
+      ]
+    },
+    "australia-east": {
+      "label": "Australia East Coast",
+      "centroid": [
+        -33.0,
+        151.5
+      ],
+      "swell_window_deg": [
+        120,
+        220
+      ],
+      "facing": [
+        "E",
+        "SE",
+        "S"
+      ]
+    },
+    "peru": {
+      "label": "Peru",
+      "centroid": [
+        -12.0,
+        -77.3
+      ],
+      "swell_window_deg": [
+        185,
+        320
+      ],
+      "facing": [
+        "S",
+        "SW",
+        "W"
+      ]
+    },
+    "chile-central": {
+      "label": "Central Chile",
+      "centroid": [
+        -34.0,
+        -72.0
+      ],
+      "swell_window_deg": [
+        180,
+        300
+      ],
+      "facing": [
+        "SW",
+        "W"
+      ]
+    },
+    "s-brazil": {
+      "label": "Southern Brazil",
+      "centroid": [
+        -27.6,
+        -48.5
+      ],
+      "swell_window_deg": [
+        70,
+        200
+      ],
+      "facing": [
+        "E",
+        "SE",
+        "S"
+      ]
+    }
   }
 }

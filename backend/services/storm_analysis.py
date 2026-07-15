@@ -89,6 +89,7 @@ def _build_user_prompt(storm: Dict, region_timeline: List[Dict]) -> str:
     facts: Dict = {
         "storm": {
             "type":        storm.get("type"),
+            "warning_tier": storm.get("warning_tier"),
             "name":        storm.get("name"),
             "basin":       storm.get("ocean"),
             "lat":         storm.get("lat"),
