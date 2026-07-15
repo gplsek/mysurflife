@@ -52,7 +52,7 @@ export default function Chrome({
       <LeftRail
         tierCounts={tierCounts}
         buoyCount={buoys.length}
-        stormCount={storms.length}
+        stormCount={storms.filter(s => s.surf_relevant !== false).length}
         state={state}
         onToggle={onToggle}
         onStormStrength={onStormStrength}

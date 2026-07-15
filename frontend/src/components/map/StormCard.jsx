@@ -56,7 +56,7 @@ function prepareTrack(forecast_track) {
       lat:    p.lat,
       lon:    p.lon,
       mb:     p.pressure_mb   || '—',
-      kt:     p.wind_kts      || '—',
+      kt:     p.peak_wind_kts ?? p.wind_kts ?? '—',
     }))
     .slice(0, 3);
 }

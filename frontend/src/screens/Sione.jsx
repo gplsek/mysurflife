@@ -691,6 +691,10 @@ export default function Copilot({ context }) {
           if (frame.type === 'token') {
             accumulated += frame.text;
             setStreamText(accumulated);
+          } else if (frame.type === 'answer_start') {
+            // Final answer begins — drop interim "let me check…" narration
+            accumulated = '';
+            setStreamText('');
           } else if (frame.type === 'tool_start') {
             setLiveTools(prev => [...prev, { name: frame.name, params: frame.params, done: false }]);
           } else if (frame.type === 'tool_done') {

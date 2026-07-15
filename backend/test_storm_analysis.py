@@ -32,7 +32,9 @@ _TL = [{"region_id": "central-america", "region": "Central America", "tier": "di
 def _storm(**over):
     s = {"id": "np-1", "type": "LOW", "lat": 45.0, "lon": -150.0,
          "pressure_mb": 982, "is_deepening": True, "narrative": "templated narrative",
-         "region_timeline": _TL}
+         "region_timeline": _TL,
+         # significant by default — the LLM gate requires surf_relevant + gale+
+         "surf_relevant": True, "warning_tier": "storm"}
     s.update(over)
     return s
 
@@ -122,3 +124,32 @@ def test_enrich_falls_back_to_narrative(monkeypatch):
     assert storm["analysis_text"] == "templated narrative"
     assert storm["analysis_input_hash"] is None  # left unset so next run retries
     assert storm["analysis_model"] is None
+
+
+# ── significance gate (Phase B) ─────────────────────────────────────────────────
+
+def test_enrich_skips_non_relevant_storms(monkeypatch):
+    """Threshold lows that hit no region never cost an LLM call."""
+    gen_calls = []
+    async def fake_gen(s, tl, client=None):
+        gen_calls.append(s["id"]); return "SHOULD NOT HAPPEN"
+    monkeypatch.setattr(sa, "generate_analysis", fake_gen)
+
+    storm = _storm(surf_relevant=False)
+    asyncio.run(sa.enrich_with_analysis([storm], {}))
+    assert gen_calls == []
+    assert storm["analysis_text"] == "templated narrative"
+    assert storm["analysis_model"] is None
+
+
+def test_enrich_skips_sub_gale_storms(monkeypatch):
+    """Relevant but weak systems (below gale) keep the templated narrative."""
+    gen_calls = []
+    async def fake_gen(s, tl, client=None):
+        gen_calls.append(s["id"]); return "SHOULD NOT HAPPEN"
+    monkeypatch.setattr(sa, "generate_analysis", fake_gen)
+
+    storm = _storm(warning_tier="none")
+    asyncio.run(sa.enrich_with_analysis([storm], {}))
+    assert gen_calls == []
+    assert storm["analysis_text"] == "templated narrative"

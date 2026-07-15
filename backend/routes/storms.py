@@ -132,6 +132,8 @@ async def _load_model_storms_from_db() -> List[Dict]:
                 "max_cone_hs_m":                r.get("max_cone_hs_m"),
                 "confirmation_status":          r.get("confirmation_status"),
                 "region_impacts":               r.get("region_impacts") or [],
+                "region_timeline":              r.get("region_timeline") or [],
+                "surf_relevant":                r.get("surf_relevant", False),
                 "narrative":                    r.get("narrative"),
                 "type":                         "LOW",
                 "ocean":                        "model",

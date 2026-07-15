@@ -7,6 +7,26 @@
  */
 import L from 'leaflet';
 
+// Leaflet grid layers crash inside _animateZoom when a zoom-animation event
+// reaches a layer that has been removed mid-animation (this._map is null →
+// "Cannot read properties of null (reading 'project')"). Our double-buffered
+// frame swaps add/remove tile layers constantly, and deferring removals to
+// zoomend (#30) still left a race. Guard the handler itself: a detached
+// layer has nothing to animate.
+const _origAnimateZoom = L.GridLayer.prototype._animateZoom;
+L.GridLayer.prototype._animateZoom = function (e) {
+  if (!this._map) return;
+  _origAnimateZoom.call(this, e);
+};
+// Same detached-layer race on the zoom-end side: _resetView reads
+// this._map.getCenter() and fires from zoomend, which can run after a
+// same-event removal has already nulled the map ref.
+const _origResetView = L.GridLayer.prototype._resetView;
+L.GridLayer.prototype._resetView = function (e) {
+  if (!this._map) return;
+  _origResetView.call(this, e);
+};
+
 // Override for CDN cutover or non-default backend port during development.
 export const TILE_API_BASE = process.env.REACT_APP_TILE_API || '';
 
@@ -87,7 +107,10 @@ export class WindTileController {
     if (!layer) return;
     layer.off();
     if (this.map?._animatingZoom) {
-      this.map.once('zoomend', () => layer.remove());
+      // setTimeout(0) so removal lands AFTER every zoomend handler (including
+      // the layer's own _resetView) has run for this animation — removing
+      // inside the zoomend dispatch detaches the layer mid-event.
+      this.map.once('zoomend', () => setTimeout(() => layer.remove(), 0));
     } else {
       layer.remove();
     }

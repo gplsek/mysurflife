@@ -123,7 +123,10 @@ function stormStateAtHour(storm, track, curH) {
   const sorted = (track || [])
     .filter(w => w.hours_ahead != null && w.lat != null && w.lon != null)
     .sort((a, b) => a.hours_ahead - b.hours_ahead);
-  if (!sorted.length || curH <= 0) return base;
+  if (!sorted.length) return base;
+  base.firstH = sorted[0].hours_ahead;
+  base.lastH = sorted[sorted.length - 1].hours_ahead;
+  if (curH <= 0) return base;
 
   const lerp = (a, b, frac) => ({
     lat: a.lat + (b.lat - a.lat) * frac,
@@ -140,7 +143,8 @@ function stormStateAtHour(storm, track, curH) {
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
   if (curH <= first.hours_ahead) {
-    return lerp(base, first, first.hours_ahead > 0 ? curH / first.hours_ahead : 1);
+    const at = lerp(base, first, first.hours_ahead > 0 ? curH / first.hours_ahead : 1);
+    return { ...at, firstH: base.firstH, lastH: base.lastH };
   }
   if (curH >= last.hours_ahead) {
     return {
@@ -148,15 +152,29 @@ function stormStateAtHour(storm, track, curH) {
       windKts: last.peak_wind_kts ?? null,
       pressureMb: last.pressure_mb ?? null,
       beyond: curH > last.hours_ahead,
+      firstH: base.firstH, lastH: base.lastH,
     };
   }
   for (let i = 0; i < sorted.length - 1; i++) {
     const a = sorted[i], b = sorted[i + 1];
     if (curH >= a.hours_ahead && curH <= b.hours_ahead) {
-      return lerp(a, b, (curH - a.hours_ahead) / (b.hours_ahead - a.hours_ahead));
+      const at = lerp(a, b, (curH - a.hours_ahead) / (b.hours_ahead - a.hours_ahead));
+      return { ...at, firstH: base.firstH, lastH: base.lastH };
     }
   }
   return base;
+}
+
+// A storm segment only exists on the timeline while its forecast track does
+// (with a little grace on each side). Outside that span the marker is hidden —
+// the tracker splits long-lived systems into segments, and without this the
+// dead segment's dot lingers next to the live one showing stale data.
+const TRACK_LEAD_GRACE_H = 12;   // show this long before the first waypoint
+const TRACK_TAIL_GRACE_H = 24;   // keep this long past the last waypoint
+
+function stormAliveAtHour(at, curH) {
+  if (at.firstH == null || at.lastH == null) return true;  // no track: always show
+  return curH >= at.firstH - TRACK_LEAD_GRACE_H && curH <= at.lastH + TRACK_TAIL_GRACE_H;
 }
 
 export default function Map({ state, stateRef, toggleState, setRegion, setQuery, setStormStrength }) {
@@ -351,6 +369,10 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     const track = Array.isArray(storm.forecast_track) ? storm.forecast_track : [];
     const at = stormStateAtHour(storm, track, curH);
 
+    // Segment not alive at this hour: no marker at all. The next segment of
+    // the same physical system takes over when its own track begins.
+    if (!stormAliveAtHour(at, curH)) return;
+
     // Intensity at the scrubbed hour drives the ring tier — a system that
     // spins up from gale to hurricane recolors as the timeline advances.
     const tierAtHour = at.windKts == null ? (storm.warning_tier || 'none')
@@ -361,7 +383,12 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
 
     // Past the end of its forecast track the model has lost the system —
     // fade the dot hard rather than pretending it's parked there.
-    const opacity = at.beyond ? 0.25
+    // Non-swell-producers (surf_relevant === false from track-aware region
+    // scoring) stay visible but whisper — the map should spotlight storms
+    // that matter to surf. Bulletin storms without the flag stay full-strength.
+    const notRelevant = storm.surf_relevant === false;
+    const opacity = notRelevant ? 0.3
+      : at.beyond ? 0.25
       : curH === 0 ? 1
       : Math.max(0.4, 1 - curH / 240);
     const atStorm = { ...storm, warning_tier: tierAtHour };
@@ -393,8 +420,9 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     }
     markersRef.current.push(marker);
 
-    // Draw forecast track polyline + ghost waypoints
-    if (track.length > 0) {
+    // Draw forecast track polyline + ghost waypoints (skip for noise lows —
+    // their tracks just clutter the basin)
+    if (track.length > 0 && !notRelevant) {
       const sorted = [...track].filter(w => w.hours_ahead != null && w.lat != null && w.lon != null)
         .sort((a, b) => a.hours_ahead - b.hours_ahead);
       if (sorted.length > 0) {
