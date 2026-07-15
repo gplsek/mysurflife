@@ -280,7 +280,7 @@ async def wave_tile(run: str, hour: int, z: int, x: int, y_spec: str,
         raise HTTPException(404, "tile out of range")
 
     run_id = await _resolve_wave_run(run)
-    headers = _wave_cache_headers(run_id, f"{var}:{hour}:{z}:{x}:{y_spec}")
+    headers = _wave_cache_headers(run_id, f"{var}:v2:{hour}:{z}:{x}:{y_spec}")
     not_modified = _maybe_304(request, headers)
     if not_modified:
         return not_modified

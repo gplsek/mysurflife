@@ -257,6 +257,34 @@ async def _fetch_grids_from_nomads(run_id: str, hour: int) -> Optional[Dict[str,
             pass
 
 
+def _fill_coast(field: np.ndarray, iterations: int = 4) -> np.ndarray:
+    """Extend ocean values into land (NaN) cells by iterative neighbor-mean.
+
+    The 0.25° grid leaves the coastline as a blocky NaN staircase; bilinear
+    sampling then goes NaN wherever ANY of the 4 surrounding cells is land,
+    pulling the rendered field ~25 km back from shore in visible steps.
+    Filling a few cells inland gives the sampler clean support all the way to
+    the real coastline — which the renderer then cuts per-pixel with a 1 km
+    land mask. Display masking, not this fill, decides what's visible.
+    """
+    f = field.copy()
+    for _ in range(iterations):
+        nan = ~np.isfinite(f)
+        if not nan.any():
+            break
+        shifted = [
+            np.roll(np.roll(f, dy, axis=0), dx, axis=1)
+            for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+            if not (dy == 0 and dx == 0)
+        ]
+        import warnings
+        with warnings.catch_warnings(), np.errstate(invalid="ignore"):
+            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN neighborhoods
+            neigh = np.nanmean(np.stack(shifted), axis=0)
+        f = np.where(nan & np.isfinite(neigh), neigh, f)
+    return f
+
+
 async def get_grids(run_id: str, hour: int) -> Optional[Dict[str, np.ndarray]]:
     key = f"{WAVE_MODEL}/{run_id}/{hour}"
     if key in _grid_mem:
@@ -272,6 +300,12 @@ async def get_grids(run_id: str, hour: int) -> Optional[Dict[str, np.ndarray]]:
         if grids is None:
             grids = await _fetch_grids_from_nomads(run_id, hour)
         if grids is not None:
+            # Height fields feed the PNG renderer: give them coast support.
+            # Direction/period stay raw — the uv texture wants land at zero
+            # velocity so swell particles stop at the shore.
+            for k in ("hs", "sw_h"):
+                if k in grids:
+                    grids[k] = _fill_coast(grids[k])
             _mem_put(key, grids)
         return grids
 
@@ -287,9 +321,31 @@ def _variable_field_ft(grids: Dict[str, np.ndarray], variable: str) -> Optional[
     return grids[key] * M_TO_FT
 
 
+def _ocean_fraction(z: int, x: int, y: int, size: int) -> Optional[np.ndarray]:
+    """Per-pixel ocean coverage in [0,1], anti-aliased by 2x supersampling.
+
+    Uses the ~1 km GLOBE land mask instead of the model's 25 km NaN staircase,
+    so the wave field cuts off at the real coastline with a soft one-pixel
+    feather. Returns None if global_land_mask is unavailable (falls back to
+    the coarse NaN mask).
+    """
+    try:
+        from global_land_mask import globe
+    except ImportError:
+        return None
+    fine = size * 2
+    lat_pts, lon_pts = _tile_latlon_mesh(z, x, y, fine)
+    land = globe.is_land(
+        np.clip(lat_pts, -89.99, 89.99),
+        ((lon_pts + 180.0) % 360.0) - 180.0,
+    )
+    return 1.0 - land.reshape(size, 2, size, 2).mean(axis=(1, 3))
+
+
 def render_png_tile(grids: Dict[str, np.ndarray], z: int, x: int, y: int,
                     variable: str = "height", scale: int = 1) -> Optional[bytes]:
-    """One colored RGBA PNG tile; land (NaN) renders fully transparent."""
+    """One colored RGBA PNG tile; land renders transparent along the real
+    (1 km) coastline, not the model grid's blocky NaN edge."""
     field = _variable_field_ft(grids, variable)
     if field is None:
         return None
@@ -303,10 +359,13 @@ def render_png_tile(grids: Dict[str, np.ndarray], z: int, x: int, y: int,
     nan_mask = ~np.isfinite(idx)
     idx = np.where(nan_mask, 0, idx).astype(np.int32)
 
-    rgba = lut[idx]
+    rgba = lut[idx].copy()
     if nan_mask.any():
-        rgba = rgba.copy()
-        rgba[nan_mask, 3] = 0
+        rgba[nan_mask, 3] = 0  # deep-interior land the coast fill didn't reach
+
+    ocean = _ocean_fraction(z, x, y, size)
+    if ocean is not None:
+        rgba[..., 3] = (rgba[..., 3] * ocean).astype(np.uint8)
 
     buf = io.BytesIO()
     Image.fromarray(rgba, "RGBA").save(buf, format="PNG", compress_level=6)
@@ -383,7 +442,8 @@ def render_uv_texture(grids: Dict[str, np.ndarray],
 
 def wave_png_tile_path(run_id: str, hour: int, variable: str,
                        z: int, x: int, y: int, scale: int) -> Path:
-    return png_tile_path(WAVE_MODEL, run_id, hour, variable, z, x, y, scale)
+    # -v2: feathered 1km coastline (pre-existing blocky tiles must regenerate)
+    return png_tile_path(WAVE_MODEL, run_id, hour, f"{variable}-v2", z, x, y, scale)
 
 
 def wave_uv_texture_path(run_id: str, hour: int, variable: str) -> Path:
