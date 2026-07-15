@@ -136,3 +136,55 @@ def test_typhoon_hits_japan_and_philippines():
     impacts = _impacts_by_id(score_storm_against_regions(storm))
     assert impacts["japan"]["impact_tier"] in ("direct", "glancing")
     assert impacts["us-east"]["impact_tier"] == "miss"
+
+
+# ---------------------------------------------------------------------------
+# Track-aware scoring (Phase B)
+# ---------------------------------------------------------------------------
+
+def test_track_aware_scores_future_window_entry():
+    """A storm whose h0 sits outside every SoCal window but whose +72h
+    position moves into it must register — with arrival timed from +72h."""
+    from services.region_impact import score_storm_track_against_regions
+
+    storm = _storm(lat=-50.0, lon=-170.0, period_s=16.0, hs_m=9.0)
+    storm["swell_direction_deg"] = 200.0
+    storm["forecast_track"] = [
+        # Storm tracks NE across the S Pacific, fetch rotating toward SoCal
+        {"hours_ahead": 24, "lat": -45.0, "lon": -160.0,
+         "peak_sea_m": 9.5, "peak_period_s": 17.0, "swell_direction_deg": 205.0},
+        {"hours_ahead": 72, "lat": -38.0, "lon": -140.0,
+         "peak_sea_m": 11.0, "peak_period_s": 18.0, "swell_direction_deg": 215.0},
+    ]
+    impacts = {r["region_id"]: r for r in score_storm_track_against_regions(storm)}
+
+    socal = impacts["so-cal"]
+    assert socal["impact_tier"] != "miss"
+    # Swell departs when the storm is at its best waypoint, not at h0
+    assert socal["arrival_hours"] >= socal["impact_from_hour"]
+    assert socal["impact_from_hour"] > 0
+
+
+def test_track_aware_falls_back_to_h0_for_legacy_tracks():
+    """Old rows lack per-point WW3 fields — waypoints inherit storm-level
+    sea state and scoring still works."""
+    from services.region_impact import score_storm_track_against_regions
+
+    storm = _storm(lat=15.0, lon=-116.0, period_s=15.0, hs_m=8.0)
+    storm["swell_direction_deg"] = 155.0
+    storm["forecast_track"] = [
+        {"hours_ahead": 24, "lat": 17.0, "lon": -118.0},   # legacy shape
+    ]
+    impacts = {r["region_id"]: r for r in score_storm_track_against_regions(storm)}
+    assert impacts["so-cal"]["impact_tier"] == "direct"
+
+
+def test_track_aware_matches_single_point_when_no_track():
+    from services.region_impact import (
+        score_storm_against_regions, score_storm_track_against_regions,
+    )
+    storm = _storm(lat=15.0, lon=-116.0, period_s=15.0, hs_m=8.0)
+    a = score_storm_against_regions(storm)
+    b = score_storm_track_against_regions(storm)
+    assert [(r["region_id"], r["impact_tier"]) for r in a] == \
+           [(r["region_id"], r["impact_tier"]) for r in b]

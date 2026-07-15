@@ -172,75 +172,142 @@ def _impact_tier(energy_index: float, landfall_blocked: bool) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
-def score_storm_against_regions(storm: Dict) -> List[Dict]:
-    """Returns region_impacts list sorted by energy_index descending."""
-    cfg = _load_region_config()
-    regions = cfg.get("regions", {})
+def _score_point_against_region(region_id: str, region: Dict, *,
+                                lat: float, lon: float, period_s: float,
+                                hs_m: float, swell_dir: Optional[float],
+                                blocked: bool, hours_ahead: float) -> Dict:
+    """Evaluate one storm state (position + sea state at a forecast hour)
+    against one region. Arrival timing accounts for when the storm is at
+    this state: swell leaves at hours_ahead, then travels at group velocity.
+    """
+    c_lat, c_lon = region["centroid"]
+    # swell_window_deg is the direction swell arrives AT the region.
+    transit_bearing = _bearing_to_region(lat, lon, c_lat, c_lon)
+    bearing = (transit_bearing + 180) % 360   # arrival direction at region
+    distance = _haversine_km(lat, lon, c_lat, c_lon)
 
-    storm_lat = float(storm.get("lat") or 0)
-    storm_lon = float(storm.get("lon") or 0)
-    period_s  = float(storm.get("peak_period_s") or 12.0)
-    hs_m      = float(storm.get("peak_sea_m")    or 2.0)
-    blocked   = bool(storm.get("landfall_before_peak", False))
+    wmin, wmax = region["swell_window_deg"]
+    exposure  = _exposure_factor(bearing, wmin, wmax)
+    decay_fac = _decay(distance, period_s)
+    source    = _source_factor(swell_dir, transit_bearing)
 
-    impacts: List[Dict] = []
-    for region_id, region in regions.items():
-        c_lat, c_lon = region["centroid"]
-        # swell_window_deg is the direction swell arrives AT the region (from the storm's direction).
-        # Compute the arrival bearing: direction from region back to storm.
-        transit_bearing  = _bearing_to_region(storm_lat, storm_lon, c_lat, c_lon)
-        bearing = (transit_bearing + 180) % 360   # arrival direction at region
-        distance = _haversine_km(storm_lat, storm_lon, c_lat, c_lon)
+    # Projected significant wave height at region (height attenuates as sqrt(energy))
+    proj_hs = (hs_m * decay_fac * math.sqrt(max(0.0, exposure * source))
+               if exposure > 0 else 0.0)
 
-        wmin, wmax = region["swell_window_deg"]
-        exposure  = _exposure_factor(bearing, wmin, wmax)
-        decay_fac = _decay(distance, period_s)
-        source    = _source_factor(storm.get("swell_direction_deg"), transit_bearing)
+    # Energy index (0-1): normalized by a "solid swell" reference (3m × 14s ≈ 126)
+    energy_raw   = (proj_hs ** 2) * period_s
+    energy_index = min(1.0, energy_raw / 126.0)
 
-        # Projected significant wave height at region (height attenuates as sqrt(energy))
-        proj_hs = (hs_m * decay_fac * math.sqrt(max(0.0, exposure * source))
-                   if exposure > 0 else 0.0)
+    # Arrival timing: departure hour + transit time
+    cg = _group_velocity_km_per_h(period_s)
+    arrival_hours      = hours_ahead + (distance / cg if cg > 0 else 9999)
+    peak_arrival_hours = arrival_hours + 12.0
+    fade_hours         = peak_arrival_hours + max(24.0, 0.3 * 168.0)
 
-        # Energy index (0-1): normalized by a "solid swell" reference (3m × 14s ≈ 126)
-        energy_raw   = (proj_hs ** 2) * period_s
-        energy_index = min(1.0, energy_raw / 126.0)
+    return {
+        "region_id":          region_id,
+        "label":              region["label"],
+        "facing":             region["facing"],
+        "impact_tier":        _impact_tier(energy_index, blocked),
+        "energy_index":       round(energy_index, 3),
+        "bearing_deg":        round(bearing, 1),
+        "distance_km":        round(distance),
+        "arrival_hours":      round(arrival_hours, 1),
+        "peak_arrival_hours": round(peak_arrival_hours, 1),
+        "fade_hours":         round(fade_hours, 1),
+        "projected_hs_m":     round(proj_hs, 2),
+        "exposure_factor":    round(exposure, 3),
+        "impact_from_hour":   round(hours_ahead, 1),
+        "is_best_exposure":   False,
+    }
 
-        # Arrival timing
-        cg = _group_velocity_km_per_h(period_s)
-        arrival_hours     = distance / cg if cg > 0 else 9999
-        peak_arrival_hours = arrival_hours + 12.0
-        fade_hours         = peak_arrival_hours + max(24.0, 0.3 * 168.0)
 
-        tier = _impact_tier(energy_index, blocked)
-
-        impacts.append({
-            "region_id":          region_id,
-            "label":              region["label"],
-            "facing":             region["facing"],
-            "impact_tier":        tier,
-            "energy_index":       round(energy_index, 3),
-            "bearing_deg":        round(bearing, 1),
-            "distance_km":        round(distance),
-            "arrival_hours":      round(arrival_hours, 1),
-            "peak_arrival_hours": round(peak_arrival_hours, 1),
-            "fade_hours":         round(fade_hours, 1),
-            "projected_hs_m":     round(proj_hs, 2),
-            "exposure_factor":    round(exposure, 3),
-            "is_best_exposure":   False,
-        })
-
+def _rank_impacts(impacts: List[Dict]) -> List[Dict]:
     # Energy index saturates at 1.0 for strong swell trains — break ties by
     # projected height so "best exposure" names the biggest surf, not the
     # region that happens to come first in the config.
     impacts.sort(key=lambda x: (-x["energy_index"], -x["projected_hs_m"]))
-
-    # Mark single best-exposure region (highest energy among direct hits only)
     for r in impacts:
         if r["impact_tier"] == "direct":
             r["is_best_exposure"] = True
             break
-
     return impacts
+
+
+def _storm_track_points(storm: Dict) -> List[Dict]:
+    """Storm states to evaluate: h0 (storm-level fields) plus every
+    forecast_track waypoint, each falling back to storm-level sea state when
+    the waypoint predates per-point WW3 capture (older rows)."""
+    base_period = float(storm.get("peak_period_s") or 12.0)
+    base_hs     = float(storm.get("peak_sea_m")    or 2.0)
+    base_dir    = storm.get("swell_direction_deg")
+
+    points = [{
+        "lat": float(storm.get("lat") or 0),
+        "lon": float(storm.get("lon") or 0),
+        "period_s": base_period, "hs_m": base_hs,
+        "swell_dir": base_dir, "hours_ahead": 0.0,
+    }]
+    for wp in (storm.get("forecast_track") or []):
+        if wp.get("lat") is None or wp.get("lon") is None:
+            continue
+        points.append({
+            "lat": float(wp["lat"]), "lon": float(wp["lon"]),
+            "period_s": float(wp.get("peak_period_s") or base_period),
+            "hs_m": float(wp.get("peak_sea_m") or base_hs),
+            "swell_dir": wp.get("swell_direction_deg", base_dir),
+            "hours_ahead": float(wp.get("hours_ahead") or 0.0),
+        })
+    return points
+
+
+def score_storm_against_regions(storm: Dict) -> List[Dict]:
+    """Single-state scoring: the storm's current position + sea state only.
+    Kept for callers/tests that reason about one snapshot; the detector uses
+    score_storm_track_against_regions."""
+    cfg = _load_region_config()
+    regions = cfg.get("regions", {})
+    blocked = bool(storm.get("landfall_before_peak", False))
+    p = _storm_track_points(storm)[0]
+
+    impacts = [
+        _score_point_against_region(rid, region, lat=p["lat"], lon=p["lon"],
+                                    period_s=p["period_s"], hs_m=p["hs_m"],
+                                    swell_dir=p["swell_dir"], blocked=blocked,
+                                    hours_ahead=0.0)
+        for rid, region in regions.items()
+    ]
+    return _rank_impacts(impacts)
+
+
+def score_storm_track_against_regions(storm: Dict) -> List[Dict]:
+    """Track-aware scoring: evaluate every forecast_track waypoint per region
+    and keep the best-energy state. A Southern Ocean low whose h0 sits outside
+    a region's swell window still registers when its +72h position moves into
+    the window — with arrival timed from that hour, not from now.
+    """
+    cfg = _load_region_config()
+    regions = cfg.get("regions", {})
+    blocked = bool(storm.get("landfall_before_peak", False))
+    points = _storm_track_points(storm)
+
+    impacts: List[Dict] = []
+    for rid, region in regions.items():
+        best: Optional[Dict] = None
+        for p in points:
+            cand = _score_point_against_region(
+                rid, region, lat=p["lat"], lon=p["lon"],
+                period_s=p["period_s"], hs_m=p["hs_m"],
+                swell_dir=p["swell_dir"], blocked=blocked,
+                hours_ahead=p["hours_ahead"],
+            )
+            if best is None or (cand["energy_index"], cand["projected_hs_m"]) > (
+                best["energy_index"], best["projected_hs_m"]
+            ):
+                best = cand
+        impacts.append(best)
+    return _rank_impacts(impacts)
 
 
 # Tiers worth surfacing in the trajectory timeline (everything but a clean miss).

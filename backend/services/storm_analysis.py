@@ -182,6 +182,17 @@ async def enrich_with_analysis(
             client = None
 
     for storm in storms:
+        # Significant storms only: most detected lows are not swell producers.
+        # Non-relevant or sub-gale systems keep the templated narrative and
+        # never cost an API call.
+        if not (storm.get("surf_relevant")
+                and storm.get("warning_tier") in ("gale", "storm", "hurricane")):
+            storm["analysis_text"]         = storm.get("narrative")
+            storm["analysis_input_hash"]   = None
+            storm["analysis_model"]        = None
+            storm["analysis_generated_at"] = None
+            continue
+
         timeline = storm.get("region_timeline") or []
         new_hash = compute_input_hash(storm, timeline)
         prev = existing.get(storm.get("id")) or {}

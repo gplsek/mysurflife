@@ -934,10 +934,16 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
         speed_kts = round(_ms_to_kts(dt_km * 1000 / (6 * 3600)), 1)
         direction = _bearing_deg(h6["lat"] - h0["lat"], h6["lon"] - h0["lon"])
 
+        # Carry the per-point WW3 fields detect_at_hour already computed —
+        # track-aware region scoring needs the storm's sea state at each
+        # waypoint, not just at genesis (h0).
         forecast_track = [
             {"hours_ahead": d["hours_ahead"], "lat": d["lat"], "lon": d["lon"],
              "pressure_mb": d["pressure_mb"], "peak_wind_kts": d["peak_wind_kts"],
-             "max_gust_kts": d.get("max_gust_kts")}
+             "max_gust_kts": d.get("max_gust_kts"),
+             "peak_sea_m": d.get("peak_sea_m"),
+             "peak_period_s": d.get("peak_period_s"),
+             "swell_direction_deg": d.get("swell_direction_deg")}
             for d in track
         ]
 
@@ -982,9 +988,9 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
         # Phase 2 (LLM analysis plan): deterministic region_timeline alongside.
         try:
             from services.region_impact import (
-                score_storm_against_regions, compose_narrative, build_region_timeline,
+                score_storm_track_against_regions, compose_narrative, build_region_timeline,
             )
-            storm["region_impacts"]  = score_storm_against_regions(storm)
+            storm["region_impacts"]  = score_storm_track_against_regions(storm)
             storm["region_timeline"] = build_region_timeline(storm, storm["region_impacts"])
             storm["narrative"]       = compose_narrative(storm, storm["region_impacts"])
         except Exception as e:
@@ -992,6 +998,11 @@ def match_tracks(detections_by_hour: List[List[Dict]]) -> List[Dict]:
             storm["region_impacts"]  = []
             storm["region_timeline"] = []
             storm["narrative"] = None
+        # Swell producers get the spotlight; threshold lows that hit nothing
+        # get dimmed on the map and skip LLM analysis.
+        storm["surf_relevant"] = any(
+            r.get("impact_tier") != "miss" for r in storm["region_impacts"]
+        )
 
         storms.append(storm)
 
@@ -1032,6 +1043,7 @@ def _storm_to_row(storm: Dict, detected_at: datetime, expires_at: str) -> Dict:
         "confirmation_status":          storm.get("confirmation_status"),
         "region_impacts":               storm.get("region_impacts") or [],
         "region_timeline":              storm.get("region_timeline") or [],
+        "surf_relevant":                bool(storm.get("surf_relevant", False)),
         "narrative":                    storm.get("narrative"),
         "analysis_text":                storm.get("analysis_text"),
         "analysis_generated_at":        storm.get("analysis_generated_at"),

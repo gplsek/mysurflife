@@ -361,7 +361,12 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
 
     // Past the end of its forecast track the model has lost the system —
     // fade the dot hard rather than pretending it's parked there.
-    const opacity = at.beyond ? 0.25
+    // Non-swell-producers (surf_relevant === false from track-aware region
+    // scoring) stay visible but whisper — the map should spotlight storms
+    // that matter to surf. Bulletin storms without the flag stay full-strength.
+    const notRelevant = storm.surf_relevant === false;
+    const opacity = notRelevant ? 0.3
+      : at.beyond ? 0.25
       : curH === 0 ? 1
       : Math.max(0.4, 1 - curH / 240);
     const atStorm = { ...storm, warning_tier: tierAtHour };
@@ -393,8 +398,9 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     }
     markersRef.current.push(marker);
 
-    // Draw forecast track polyline + ghost waypoints
-    if (track.length > 0) {
+    // Draw forecast track polyline + ghost waypoints (skip for noise lows —
+    // their tracks just clutter the basin)
+    if (track.length > 0 && !notRelevant) {
       const sorted = [...track].filter(w => w.hours_ahead != null && w.lat != null && w.lon != null)
         .sort((a, b) => a.hours_ahead - b.hours_ahead);
       if (sorted.length > 0) {
