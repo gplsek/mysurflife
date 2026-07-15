@@ -35,6 +35,7 @@ export default function Chrome({
   onAddSpotToggle,
   curH,
   onCurHChange,
+  overlayBusy,
 }) {
   const tierCounts = TIER_LEGEND.reduce((acc, { tier }) => {
     acc[tier] = spots.filter(sp => {
@@ -70,6 +71,7 @@ export default function Chrome({
       <MapTimeline
         curH={curH}
         onCurHChange={onCurHChange}
+        busy={overlayBusy}
       />
       <StatusBar
         loading={loading}

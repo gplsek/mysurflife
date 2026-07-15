@@ -936,6 +936,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
         onAddSpotToggle={() => { setAddSpotMode(m => !m); setAddSpotForm(null); }}
         curH={curH}
         onCurHChange={setCurH}
+        overlayBusy={overlayLoading}
       />
       {detailStorm && (
         <StormCard
