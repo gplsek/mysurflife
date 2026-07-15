@@ -684,55 +684,47 @@
 .marker-storm.wt-storm     { --sc: oklch(0.72 0.16 30); }
 .marker-storm.wt-hurricane { --sc: oklch(0.65 0.22 25); }
 
-/* Model-derived storms: dashed rings + reduced opacity to signal unconfirmed provenance */
-.marker-storm.source-model .ring   { border-style: dashed; opacity: 0.6; }
-.marker-storm.source-model .core   { opacity: 0.7; box-shadow: none; }
-.marker-storm.source-model .core:hover { box-shadow: 0 0 10px var(--sc); }
-
-.marker-storm .ring {
-  position: absolute;
-  inset: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  border: 2px solid var(--sc);
-  animation: stormPulse 4s ease-out infinite;
-}
-.marker-storm .ring:nth-child(2) { animation-delay: 1.3s; }
-.marker-storm .ring:nth-child(3) { animation-delay: 2.6s; }
-
-@keyframes stormPulse {
-  0%   { width: 0;     height: 0;     inset: 50%; opacity: 0.7; border-width: 2px;   }
-  100% { width: 120px; height: 120px; inset: 0;   opacity: 0;   border-width: 0.5px; }
-}
-
-.marker-storm .core {
+/* Cyclone glyph markers — tier-colored, tier-sized, slow spin. Replaces the
+   old 8px dot + pulse rings, which vanished against busy overlay colors. */
+.marker-storm .cyclone {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-4px, -4px);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--sc);
-  box-shadow: 0 0 10px var(--sc);
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: pointer;
+  animation: cycloneSpin 7s linear infinite;
+  filter: drop-shadow(0 0 4px oklch(0.14 0.02 230 / 0.9)) drop-shadow(0 0 6px var(--sc));
 }
-.marker-storm .core::after {
-  content: '';
-  position: absolute;
-  inset: -14px;
-  border-radius: 50%;
+.marker-storm .cyclone .arm { fill: var(--sc); }
+.marker-storm .cyclone .eye {
+  fill: oklch(0.14 0.02 230);
+  stroke: var(--sc);
+  stroke-width: 3;
 }
-.marker-storm .core:hover {
-  box-shadow: 0 0 14px var(--sc), 0 0 0 4px oklch(0.72 0.16 20 / 0.25);
+.marker-storm.wt-hurricane .cyclone { width: 38px; height: 38px; }
+.marker-storm.wt-storm     .cyclone { width: 32px; height: 32px; }
+.marker-storm.wt-gale      .cyclone { width: 26px; height: 26px; }
+.marker-storm.wt-none      .cyclone { width: 18px; height: 18px; animation-duration: 12s; }
+
+.marker-storm .cyclone:hover {
+  filter: drop-shadow(0 0 4px oklch(0.14 0.02 230 / 0.9)) drop-shadow(0 0 10px var(--sc));
+}
+
+/* Model-derived storms: slightly damped to signal unconfirmed provenance */
+.marker-storm.source-model .cyclone { opacity: 0.85; }
+
+@keyframes cycloneSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 /* ─── Preview card ─── */
 .mv-preview {
   position: absolute;
-  bottom: 70px;
+  bottom: 128px;
   left: 50%;
   transform: translateX(-50%) translateY(16px);
   z-index: 15;
@@ -877,7 +869,7 @@
 /* ─── Storm preview card ─── */
 .mv-storm-preview {
   position: absolute;
-  bottom: 70px;
+  bottom: 128px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
