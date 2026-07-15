@@ -53,32 +53,11 @@ pip install -r requirements.txt
 echo -e "${GREEN}✅ Backend dependencies installed${NC}"
 
 echo ""
-echo "⚛️  Step 3: Frontend Build"
-echo "-------------------------"
-cd $DEPLOY_DIR/frontend
-
-# Install Node dependencies
-echo "Installing Node dependencies..."
-npm install
-
-# Build production frontend
-echo "Building React app..."
-npm run build
-echo -e "${GREEN}✅ Frontend built${NC}"
-
-echo ""
-echo "📦 Step 4: Copy Frontend Build to Web Root"
-echo "-------------------------------------------"
-# Create web root if it doesn't exist
-mkdir -p $DEPLOY_DIR/public
-
-# Copy built files to public directory
-cp -r $DEPLOY_DIR/frontend/build/* $DEPLOY_DIR/public/
-echo -e "${GREEN}✅ Frontend deployed to $DEPLOY_DIR/public${NC}"
-
-echo ""
-echo "🔄 Step 5: Restart Backend Service"
+echo "🔄 Step 3: Restart Backend Service"
 echo "-----------------------------------"
+# Restart BEFORE the frontend build: the build is the slowest, most
+# memory-hungry, most failure-prone step — if it wedges, the backend must
+# already be running the pulled code, not the previous release.
 if systemctl is-active --quiet $BACKEND_SERVICE; then
     echo "Restarting backend service..."
     sudo systemctl restart $BACKEND_SERVICE
@@ -86,6 +65,32 @@ if systemctl is-active --quiet $BACKEND_SERVICE; then
 else
     echo -e "${YELLOW}⚠️  Backend service not running. Start with: sudo systemctl start $BACKEND_SERVICE${NC}"
 fi
+
+echo ""
+echo "⚛️  Step 4: Frontend Build"
+echo "-------------------------"
+cd $DEPLOY_DIR/frontend
+
+# Install Node dependencies
+echo "Installing Node dependencies..."
+npm install
+
+# Build production frontend. Cap node's heap: an uncapped CRA build wants
+# ~2 GB and has OOM-wedged the whole box when it landed on top of the
+# backend workers + prewarm job (2026-07-14 outage).
+echo "Building React app..."
+NODE_OPTIONS=--max-old-space-size=1536 npm run build
+echo -e "${GREEN}✅ Frontend built${NC}"
+
+echo ""
+echo "📦 Step 5: Copy Frontend Build to Web Root"
+echo "-------------------------------------------"
+# Create web root if it doesn't exist
+mkdir -p $DEPLOY_DIR/public
+
+# Copy built files to public directory
+cp -r $DEPLOY_DIR/frontend/build/* $DEPLOY_DIR/public/
+echo -e "${GREEN}✅ Frontend deployed to $DEPLOY_DIR/public${NC}"
 
 echo ""
 echo "🔍 Step 6: Service Status Check"

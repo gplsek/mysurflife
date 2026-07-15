@@ -413,29 +413,38 @@ _WARM_CONCURRENCY = 2
 
 
 async def _warm_run(run_id: str) -> None:
+    from overlay_tiles import acquire_warm_lock, release_warm_lock
+
     missing = [h for h in WAVE_TILE_HOURS if not _grid_path(run_id, h).exists()]
     if not missing:
         return
-    print(f"🔥 wave tiles: self-warm {run_id} — {len(missing)} hours missing")
-    sem = asyncio.Semaphore(_WARM_CONCURRENCY)
+    lock_fd = acquire_warm_lock()
+    if lock_fd is None:
+        print(f"⏭️ wave tiles: self-warm {run_id} skipped — another warmer holds the lock")
+        return
+    try:
+        print(f"🔥 wave tiles: self-warm {run_id} — {len(missing)} hours missing")
+        sem = asyncio.Semaphore(_WARM_CONCURRENCY)
 
-    async def _one(hour: int) -> None:
-        async with sem:
-            grids = await get_grids(run_id, hour)
-            if grids is None:
-                return
-            for variable in ("height", "swell"):
-                uv = wave_uv_texture_path(run_id, hour, variable)
-                if uv.exists():
-                    continue
-                rendered = render_uv_texture(grids, variable=variable)
-                if rendered is None:
-                    continue
-                uv.parent.mkdir(parents=True, exist_ok=True)
-                uv.write_bytes(rendered[0])
+        async def _one(hour: int) -> None:
+            async with sem:
+                grids = await get_grids(run_id, hour)
+                if grids is None:
+                    return
+                for variable in ("height", "swell"):
+                    uv = wave_uv_texture_path(run_id, hour, variable)
+                    if uv.exists():
+                        continue
+                    rendered = render_uv_texture(grids, variable=variable)
+                    if rendered is None:
+                        continue
+                    uv.parent.mkdir(parents=True, exist_ok=True)
+                    uv.write_bytes(rendered[0])
 
-    await asyncio.gather(*[_one(h) for h in missing])
-    print(f"🏁 wave tiles: self-warm {run_id} complete")
+        await asyncio.gather(*[_one(h) for h in missing])
+        print(f"🏁 wave tiles: self-warm {run_id} complete")
+    finally:
+        release_warm_lock(lock_fd)
 
 
 def ensure_run_warm(run_id: str) -> None:
