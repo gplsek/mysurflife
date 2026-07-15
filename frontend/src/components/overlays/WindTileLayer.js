@@ -15,8 +15,13 @@ export function windTileUrl({ model, run, hour, variable = 'speed' }) {
   return `${TILE_API_BASE}/api/tiles/wind/${model}/${run}/${hour}/{z}/{x}/{y}.png${query}`;
 }
 
+// r=2: coastline-feathered renders. Tile responses are cached immutable by
+// the browser, so renderer changes MUST bump the URL — versioned ETags alone
+// never get consulted before the cache expires.
+const WAVE_TILE_REV = 2;
+
 export function waveTileUrl({ run, hour, variable = 'height' }) {
-  const query = variable === 'height' ? '' : `?var=${variable}`;
+  const query = variable === 'height' ? `?r=${WAVE_TILE_REV}` : `?var=${variable}&r=${WAVE_TILE_REV}`;
   return `${TILE_API_BASE}/api/tiles/waves/${run}/${hour}/{z}/{x}/{y}.png${query}`;
 }
 
