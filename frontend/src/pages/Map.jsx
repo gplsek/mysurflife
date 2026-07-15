@@ -144,6 +144,25 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
   // not "the slider is broken".
   const [overlayLoading, setOverlayLoading] = useState(false);
 
+  // True while the map is panning/zooming (region fly-tos included). Playback
+  // holds during motion: a fly-to needs ~20 fresh viewport tiles, and letting
+  // play keep swapping frames makes both compete for the browser's connection
+  // budget — the overlay goes black over the new area until one side wins.
+  const [mapMoving, setMapMoving] = useState(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || (!state.showWind && !waveActive)) return;
+    const onStart = () => setMapMoving(true);
+    const onEnd = () => setMapMoving(false);
+    map.on('movestart zoomstart', onStart);
+    map.on('moveend zoomend', onEnd);
+    return () => {
+      map.off('movestart zoomstart', onStart);
+      map.off('moveend zoomend', onEnd);
+      setMapMoving(false);
+    };
+  }, [state.showWind, waveActive]);
+
   // Warm the browser cache for the frames the user is about to hit: the next
   // two 3-hourly steps' tiles in view, plus the +6h uv texture (the particle
   // layer itself keeps the current pair loaded).
@@ -936,7 +955,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
         onAddSpotToggle={() => { setAddSpotMode(m => !m); setAddSpotForm(null); }}
         curH={curH}
         onCurHChange={setCurH}
-        overlayBusy={overlayLoading}
+        overlayBusy={overlayLoading || mapMoving}
       />
       {detailStorm && (
         <StormCard

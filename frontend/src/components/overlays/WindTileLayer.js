@@ -64,6 +64,10 @@ export class WindTileController {
       tileSize: 256,
       crossOrigin: true,
       updateWhenZooming: false,
+      // Don't fetch mid-pan: during a region fly-to every intermediate
+      // viewport otherwise queues tiles that are stale on arrival, starving
+      // the 6-connection budget the destination tiles need.
+      updateWhenIdle: true,
       keepBuffer: 4,
       className: 'wind-tile-layer',
     });
