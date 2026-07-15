@@ -83,6 +83,7 @@ backend/test_*.py
 !backend/test_region_impact.py
 !backend/test_smoke.py
 !backend/test_point_forecast.py
+!backend/test_copilot_stream.py
 # Local one-off diagnostic scripts (moved out of test_*.py so pytest doesn't
 # execute them during collection — several make live API/DB calls at import)
 backend/scratch/
