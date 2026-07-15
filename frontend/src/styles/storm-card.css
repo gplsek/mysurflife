@@ -60,9 +60,11 @@ body.dimmed #dim-layer {
   position: absolute;
   left: 380px;
   top: 92px;
-  bottom: 96px;
+  /* Clear the always-visible timeline bar (bottom 48 + ~64px tall) and sit
+     above it in the stack — it previously covered the card's lower third. */
+  bottom: 128px;
   width: 420px;
-  z-index: 20;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   background: var(--panel-strong);
@@ -1008,3 +1010,105 @@ body.dimmed #dim-layer {
 .sc-traj-region { color: var(--fg); font-weight: 500; }
 .sc-traj-size   { color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .sc-traj-dir    { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+/* ─── Phase 8 sections: Storm Dynamics · Landfall · Regional Impact ──
+   These sections shipped unstyled (raw stacked divs). Same design language
+   as .sc-analysis: bg-3 panel, mono uppercase heads, k/v cells. */
+.sc-section {
+  margin: 10px 0 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+.sc-section-head {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 9px;
+}
+
+/* Dynamics: responsive k/v cell grid */
+.sc-row-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 10px 14px;
+}
+.sc-cell .k {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.sc-cell .v {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sc-cell .v .sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sc-cell .v.deepening { color: var(--fire); }
+.sc-cell .v.sc-confirm-confirmed { color: var(--good); }
+
+/* Landfall */
+.sc-landfall-body { font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.sc-section.sc-landfall.before-peak { border-color: oklch(0.72 0.16 30 / 0.6); }
+
+/* Regional impact rows: name · energy bar · arrival */
+.sc-region-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(60px, 110px) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.sc-region-row + .sc-region-row { border-top: 1px solid oklch(1 0 0 / 0.04); }
+.sc-region-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sc-best-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: oklch(0.16 0.018 230);
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 2px 5px;
+  flex-shrink: 0;
+}
+.sc-region-bar-wrap {
+  height: 5px;
+  border-radius: 3px;
+  background: oklch(1 0 0 / 0.07);
+  overflow: hidden;
+}
+.sc-region-bar { height: 100%; border-radius: 3px; background: var(--muted); }
+.sc-region-bar.tier-direct   { background: var(--accent); }
+.sc-region-bar.tier-glancing { background: var(--fire); }
+.sc-region-bar.tier-partial,
+.sc-region-bar.tier-landfall_blocked { background: var(--muted); }
+.sc-region-arrival {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
