@@ -172,3 +172,62 @@ def test_landfall_before_peak_flag():
     if storm["will_make_landfall"]:
         if storm["landfall_eta_hours"] < 24:
             assert storm["landfall_before_peak"] is True
+
+
+# ---------------------------------------------------------------------------
+# match_tracks gap tolerance
+# ---------------------------------------------------------------------------
+
+def _det(hour, lat=40.0, lon=-150.0, p=990):
+    """Minimal detection dict for match_tracks."""
+    return {
+        "hours_ahead": hour, "lat": lat, "lon": lon,
+        "pressure_mb": p, "peak_wind_kts": 40.0, "max_gust_kts": None,
+        "ocean": "north-pacific", "warning_tier": "gale",
+        "fetch": {"radius_nm": 200, "quadrant": "NW"},
+    }
+
+
+def test_track_survives_single_missed_scan():
+    """A detection flicker (one empty scan hour) must not split the track."""
+    from jobs.detect_storms import match_tracks
+    hours = [
+        [_det(0)],
+        [_det(6, lat=41.0)],
+        [],                                # storm missed this scan
+        [_det(18, lat=43.0)],
+        [_det(24, lat=44.0)],
+    ]
+    storms = match_tracks(hours)
+    assert len(storms) == 1
+    track = storms[0]["forecast_track"]
+    assert [w["hours_ahead"] for w in track] == [0, 6, 18, 24]
+
+
+def test_track_retires_after_gap_limit():
+    """Three consecutive missed scans exceed the coast budget: later detections
+    start a NEW storm rather than teleporting the old track forward."""
+    from jobs.detect_storms import match_tracks
+    hours = [
+        [_det(0)],
+        [_det(6, lat=41.0)],
+        [], [], [],                        # 3 missed scans > _TRACK_MAX_GAP_STEPS
+        [_det(30, lat=46.0)],
+        [_det(36, lat=47.0)],
+    ]
+    storms = match_tracks(hours)
+    assert len(storms) == 2
+    lengths = sorted(len(s["forecast_track"]) for s in storms)
+    assert lengths == [2, 2]
+
+
+def test_distinct_storms_stay_distinct():
+    """Two far-apart systems must never merge through the gap window."""
+    from jobs.detect_storms import match_tracks
+    hours = [
+        [_det(0, lat=40.0, lon=-150.0), _det(0, lat=-40.0, lon=60.0, p=980)],
+        [_det(6, lat=41.0, lon=-149.0), _det(6, lat=-41.0, lon=61.0, p=978)],
+        [_det(12, lat=42.0, lon=-148.0), _det(12, lat=-42.0, lon=62.0, p=976)],
+    ]
+    storms = match_tracks(hours)
+    assert len(storms) == 2
