@@ -26,18 +26,23 @@ function shortDay(date) {
  * selected time, and a 7-day track banded by day. Always visible — the old
  * two-state compact/expanded design (with its synthetic sparkline) is gone.
  */
-export default function MapTimeline({ curH, onCurHChange }) {
+export default function MapTimeline({ curH, onCurHChange, busy = false }) {
   const [playing, setPlaying] = useState(false);
   const [dragging, setDragging] = useState(false);
   const rafRef  = useRef(null);
   const lastTRef = useRef(0);
   const NOW      = useRef(new Date());
+  const busyRef  = useRef(busy);
+  useEffect(() => { busyRef.current = busy; }, [busy]);
 
   const setCurH = useCallback((h) => {
     onCurHChange?.(Math.max(0, Math.min(MAX_H, h)));
   }, [onCurHChange]);
 
-  // Play: advance one forecast hour every 200 ms, wrap at the end
+  // Play: advance one forecast hour every 200 ms, wrap at the end. Frame-gated:
+  // while the overlay reports a frame still loading (busy), hold at the current
+  // hour instead of racing ahead — advancing faster than tiles arrive made the
+  // pending layer cancel every swap, so playback looked frozen on a cold cache.
   useEffect(() => {
     if (!playing) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -46,7 +51,7 @@ export default function MapTimeline({ curH, onCurHChange }) {
     lastTRef.current = 0;
     const tick = (t) => {
       if (!lastTRef.current) lastTRef.current = t;
-      if (t - lastTRef.current > 200) {
+      if (t - lastTRef.current > 200 && !busyRef.current) {
         setCurH((curH + 1) % (MAX_H + 1));
         lastTRef.current = t;
       }
