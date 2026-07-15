@@ -79,6 +79,21 @@ export class WindTileController {
   }
 
   /**
+   * Removing a grid layer while Leaflet is mid zoom-animation crashes inside
+   * _animateZoom (the layer's map ref is nulled but the zoomanim event still
+   * reaches it). Defer removals until the animation completes.
+   */
+  _safeRemove(layer) {
+    if (!layer) return;
+    layer.off();
+    if (this.map?._animatingZoom) {
+      this.map.once('zoomend', () => layer.remove());
+    } else {
+      layer.remove();
+    }
+  }
+
+  /**
    * Double-buffered frame swap: the old layer stays fully visible while the
    * new hour loads on a second layer underneath; once every visible tile of
    * the new layer is in, it fades up and the old layer is removed. No blank
@@ -101,8 +116,7 @@ export class WindTileController {
     }
 
     if (this.pending) {
-      this.pending.off();
-      this.pending.remove();
+      this._safeRemove(this.pending);
       this.pending = null;
     }
     if (this._fadeRaf) {
@@ -131,8 +145,7 @@ export class WindTileController {
           this._fadeRaf = requestAnimationFrame(fade);
         } else {
           this._fadeRaf = null;
-          old.off();
-          old.remove();
+          this._safeRemove(old);
         }
       };
       this._fadeRaf = requestAnimationFrame(fade);
@@ -148,10 +161,7 @@ export class WindTileController {
   remove() {
     if (this._fadeRaf) cancelAnimationFrame(this._fadeRaf);
     for (const layer of [this.layer, this.pending]) {
-      if (layer) {
-        layer.off();
-        layer.remove();
-      }
+      this._safeRemove(layer);
     }
     this.layer = null;
     this.pending = null;
