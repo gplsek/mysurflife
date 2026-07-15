@@ -61,7 +61,7 @@ TOOL_DEFS: List[Dict] = [
                 },
                 "hours": {
                     "type": "integer",
-                    "description": "How many hours to forecast (6-72). Default 24.",
+                    "description": "How many hours to forecast (6-168). Default 24.",
                     "default": 24
                 }
             },
@@ -176,6 +176,68 @@ TOOL_DEFS: List[Dict] = [
                 "small_fetch": {"type": "boolean", "description": "Storm has a small fetch area (reduces size ×0.75)"}
             },
             "required": ["spot_slug", "storm_positions"]
+        }
+    },
+    {
+        "name": "list_active_storms",
+        "description": (
+            "List currently tracked storms and low-pressure systems worldwide, with "
+            "position, intensity tier, movement, whether each is surf-relevant, and "
+            "its top region impacts. Use when the user asks what storms are out there, "
+            "what's brewing for a region, or about competing swells."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "region": {
+                    "type": "string",
+                    "description": (
+                        "Optional region_id filter, e.g. 'so-cal', 'baja', 'hawaii-n-shore', "
+                        "'portugal'. Only storms with a non-miss impact on that region are returned."
+                    )
+                }
+            }
+        }
+    },
+    {
+        "name": "get_storm_detail",
+        "description": (
+            "Full detail for one tracked storm: forecast track (position + intensity "
+            "per hour), region impact timeline (arrival/peak/size per region), "
+            "narrative, and WW3 sea state. Use after list_active_storms when the user "
+            "asks about a specific storm."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "storm_id": {
+                    "type": "string",
+                    "description": "Storm id from list_active_storms, e.g. 'gfs-15.0-116.0-985'"
+                }
+            },
+            "required": ["storm_id"]
+        }
+    },
+    {
+        "name": "get_model_point_forecast",
+        "description": (
+            "Raw GFS/GFSWave model forecast sampled at an exact point, out to 10 days: "
+            "wind speed/gust + direction, total wave height/period/direction, and "
+            "primary swell height/period/direction per 3-6h step. This is the same "
+            "model data the map overlays render. Use for model-grounded questions "
+            "('how big Saturday at Oceanside?', 'when does the wind switch offshore?') "
+            "at a spot (pass spot_id) or any ocean location (pass lat/lon)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "spot_id":    {"type": "string", "description": "Spot slug (preferred when asking about a spot)"},
+                "lat":        {"type": "number", "description": "Latitude (used when no spot_id)"},
+                "lon":        {"type": "number", "description": "Longitude (used when no spot_id)"},
+                "start_hour": {"type": "integer", "description": "First forecast hour (default 0 = now)", "default": 0},
+                "end_hour":   {"type": "integer", "description": "Last forecast hour (default 120, max 240)", "default": 120},
+                "step_hours": {"type": "integer", "description": "Step between samples in hours (default 6, min 3)", "default": 6}
+            }
         }
     },
     {

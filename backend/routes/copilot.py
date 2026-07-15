@@ -89,7 +89,7 @@ async def _copilot_get_conditions_window(spot_id: str, hours: int = 24, user_id:
         from tides import _resolve_station, fetch_tide_timeline, fetch_hilo
         from main import get_surf_spot_forecast_timeline  # temp: moves in Phase 4
 
-        hours = max(6, min(hours, 72))
+        hours = max(6, min(hours, 168))
         synthetic_user = {"user_id": user_id} if user_id else None
 
         # Resolve tide station in parallel with forecast fetch
@@ -450,6 +450,125 @@ async def _copilot_save_session(
         return {"error": str(e)}
 
 
+async def _copilot_list_active_storms(region: Optional[str] = None) -> Dict:
+    """Compact worldwide storm list for the LLM, optionally filtered to storms
+    that impact one region. Reuses the /api/storms/active snapshot path."""
+    try:
+        from routes.storms import get_active_storms
+
+        payload = await get_active_storms()
+        storms = payload.get("storms") or []
+        out = []
+        for s in storms:
+            impacts = [
+                {"region": r.get("region_id"), "tier": r.get("impact_tier"),
+                 "arrival_hours": r.get("arrival_hours"),
+                 "size_ft": round((r.get("projected_hs_m") or 0) * 3.28084, 1)}
+                for r in (s.get("region_impacts") or [])
+                if r.get("impact_tier") not in (None, "miss")
+            ][:4]
+            if region and not any(i["region"] == region for i in impacts):
+                continue
+            out.append({
+                "storm_id":       s.get("id"),
+                "name":           s.get("name"),
+                "tier":           s.get("warning_tier"),
+                "surf_relevant":  s.get("surf_relevant"),
+                "lat":            s.get("lat"),
+                "lon":            s.get("lon"),
+                "pressure_mb":    s.get("pressure_mb"),
+                "wind_kts":       s.get("wind_kts"),
+                "movement":       s.get("movement"),
+                "top_impacts":    impacts,
+            })
+        # Surf-relevant, strongest first; cap the payload
+        out.sort(key=lambda x: (not x["surf_relevant"], -(x["wind_kts"] or 0)))
+        return {"count": len(out), "storms": out[:25],
+                "note": "Filtered to non-miss impacts; use get_storm_detail for tracks."}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _copilot_get_storm_detail(storm_id: str) -> Dict:
+    """Full storm record, compacted for the LLM context."""
+    try:
+        from routes.storms import get_storm_detail
+
+        d = await get_storm_detail(storm_id)
+        if not isinstance(d, dict) or d.get("error"):
+            return {"error": f"storm '{storm_id}' not found"}
+        track = [
+            {k: wp.get(k) for k in
+             ("hours_ahead", "lat", "lon", "pressure_mb", "peak_wind_kts",
+              "peak_sea_m", "peak_period_s", "swell_direction_deg")}
+            for wp in (d.get("forecast_track") or [])
+        ]
+        return {
+            "storm_id":            storm_id,
+            "name":                d.get("basin_label") or d.get("name"),
+            "tier":                d.get("warning_tier"),
+            "surf_relevant":       d.get("surf_relevant"),
+            "position":            {"lat": d.get("current_lat") or d.get("lat"),
+                                    "lon": d.get("current_lon") or d.get("lon")},
+            "pressure_mb":         d.get("current_pressure_mb") or d.get("pressure_mb"),
+            "peak_wind_kts":       d.get("peak_wind_kts"),
+            "max_gust_kts":        d.get("max_gust_kts"),
+            "peak_sea_m":          d.get("peak_sea_m"),
+            "peak_period_s":       d.get("peak_period_s"),
+            "swell_from_deg":      d.get("swell_direction_deg"),
+            "is_deepening":        d.get("is_deepening"),
+            "will_make_landfall":  d.get("will_make_landfall"),
+            "landfall_eta_hours":  d.get("landfall_eta_hours"),
+            "forecast_track":      track,
+            "region_timeline":     d.get("region_timeline") or [],
+            "narrative":           d.get("narrative"),
+            "analysis":            d.get("analysis_text"),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def _copilot_get_model_point_forecast(
+    spot_id: Optional[str] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    start_hour: int = 0,
+    end_hour: int = 120,
+    step_hours: int = 6,
+    user_id: Optional[str] = None,
+) -> Dict:
+    """Grid-sampled model series at a spot or arbitrary point."""
+    try:
+        spot_name = None
+        if spot_id:
+            from database import supabase
+            if not supabase:
+                return {"error": "database unavailable"}
+            res = (supabase.table("spots")
+                   .select("name, latitude, longitude, visibility, owner_id")
+                   .eq("slug", spot_id).limit(1).execute())
+            if not res.data:
+                return {"error": f"spot '{spot_id}' not found"}
+            spot = res.data[0]
+            if spot.get("visibility") == "private" and spot.get("owner_id") != user_id:
+                return {"error": f"spot '{spot_id}' not found"}
+            lat, lon = spot["latitude"], spot["longitude"]
+            spot_name = spot.get("name")
+        if lat is None or lon is None:
+            return {"error": "provide spot_id or lat+lon"}
+
+        from services.point_forecast import sample_point_forecast
+        result = await sample_point_forecast(
+            float(lat), float(lon),
+            start_hour=start_hour, end_hour=end_hour, step_hours=step_hours,
+        )
+        if spot_name:
+            result["spot"] = spot_name
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def _build_tool_registry(user_id: Optional[str]) -> Dict:
     """Build the tool registry dict for a given user_id.
 
@@ -473,6 +592,9 @@ def _build_tool_registry(user_id: Optional[str]) -> Dict:
         "compare_spots":             _with_user(_copilot_compare_spots),
         "rank_spots":                _with_user(_copilot_rank_spots),
         "calculate_swell_arrival":   _copilot_calculate_swell_arrival,
+        "list_active_storms":        _copilot_list_active_storms,
+        "get_storm_detail":          _copilot_get_storm_detail,
+        "get_model_point_forecast":  _with_user(_copilot_get_model_point_forecast),
         "save_session":              functools.partial(_copilot_save_session, user_id),
     }
 
