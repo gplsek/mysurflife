@@ -18,6 +18,14 @@ L.GridLayer.prototype._animateZoom = function (e) {
   if (!this._map) return;
   _origAnimateZoom.call(this, e);
 };
+// Same detached-layer race on the zoom-end side: _resetView reads
+// this._map.getCenter() and fires from zoomend, which can run after a
+// same-event removal has already nulled the map ref.
+const _origResetView = L.GridLayer.prototype._resetView;
+L.GridLayer.prototype._resetView = function (e) {
+  if (!this._map) return;
+  _origResetView.call(this, e);
+};
 
 // Override for CDN cutover or non-default backend port during development.
 export const TILE_API_BASE = process.env.REACT_APP_TILE_API || '';
@@ -99,7 +107,10 @@ export class WindTileController {
     if (!layer) return;
     layer.off();
     if (this.map?._animatingZoom) {
-      this.map.once('zoomend', () => layer.remove());
+      // setTimeout(0) so removal lands AFTER every zoomend handler (including
+      // the layer's own _resetView) has run for this animation — removing
+      // inside the zoomend dispatch detaches the layer mid-event.
+      this.map.once('zoomend', () => setTimeout(() => layer.remove(), 0));
     } else {
       layer.remove();
     }
