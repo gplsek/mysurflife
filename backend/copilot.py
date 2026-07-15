@@ -21,7 +21,7 @@ from anthropic import AsyncAnthropic
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-6"
-MAX_TOOL_ITERATIONS = 8  # prevent infinite loops
+MAX_TOOL_ITERATIONS = 12  # prevent infinite loops
 
 # ── Tool definitions ──────────────────────────────────────────────────────────
 
@@ -674,7 +674,7 @@ async def handle_chat_stream(
 
         async with client.messages.stream(
             model=MODEL,
-            max_tokens=2000,
+            max_tokens=4000,
             system=system,
             tools=TOOL_DEFS,
             messages=current_messages,
@@ -724,6 +724,17 @@ async def handle_chat_stream(
             return
 
         if final.stop_reason != "tool_use":
+            # max_tokens etc. — if part of the answer already streamed, end
+            # cleanly with what the user has instead of an error banner.
+            if streamed_len > 0:
+                yield _sse_event({
+                    "type": "done",
+                    "artifacts": [],
+                    "follow_ups": [],
+                    "tools_called": tools_called,
+                })
+                return
+            print(f"⚠️ copilot stream: unexpected stop_reason={final.stop_reason}")
             break
 
         # Process tool calls in this turn

@@ -35,6 +35,42 @@ class CopilotChatRequest(BaseModel):
 
 # ── Tool helpers (called by the Copilot tool registry) ────────────────────────
 
+async def _suggest_spots(query: str, user_id: Optional[str] = None) -> List[str]:
+    """Fuzzy spot suggestions for a missed slug — 'oceanside' → the model
+    guessed a slug, got a bare not-found, and burned tool iterations retrying
+    blind. One did_you_mean list turns that into a single self-correction."""
+    try:
+        from database import supabase
+        if not supabase or not query:
+            return []
+        needle = query.replace("-", " ").strip()
+        res = (supabase.table("spots")
+               .select("slug, name, visibility, owner_id")
+               .ilike("name", f"%{needle}%")
+               .limit(8).execute())
+        out = []
+        for s in (res.data or []):
+            if s.get("visibility") == "private" and s.get("owner_id") != user_id:
+                continue
+            out.append(s["slug"])
+        return out[:5]
+    except Exception:
+        return []
+
+
+async def _with_spot_suggestions(result: Dict, spot_id: str,
+                                 user_id: Optional[str] = None) -> Dict:
+    """Attach did_you_mean suggestions to a spot-not-found error result."""
+    if isinstance(result, dict) and result.get("error") and spot_id:
+        err = str(result["error"]).lower()
+        if "not found" in err or "unknown" in err or "no spot" in err:
+            suggestions = await _suggest_spots(spot_id, user_id)
+            if suggestions:
+                result = {**result, "did_you_mean": suggestions,
+                          "hint": "Retry with one of the did_you_mean slugs."}
+    return result
+
+
 async def _copilot_get_spot_conditions(spot_id: str, user_id: Optional[str] = None) -> Dict:
     """Fetch current scored conditions for a spot.
 
@@ -47,7 +83,7 @@ async def _copilot_get_spot_conditions(spot_id: str, user_id: Optional[str] = No
         synthetic_user = {"user_id": user_id} if user_id else None
         result = await get_surf_spot_conditions(spot_id, user=synthetic_user)
         if "error" in result:
-            return result
+            return await _with_spot_suggestions(result, spot_id, user_id)
 
         # Separate live buoy readings from model data so the Copilot
         # can lead with observed data and flag model-only conditions.
@@ -107,9 +143,10 @@ async def _copilot_get_conditions_window(spot_id: str, hours: int = 24, user_id:
         )
 
         if isinstance(result, Exception):
-            return {"error": str(result), "spot_id": spot_id}
+            return await _with_spot_suggestions(
+                {"error": str(result), "spot_id": spot_id}, spot_id, user_id)
         if "error" in result:
-            return result
+            return await _with_spot_suggestions(result, spot_id, user_id)
 
         # Build tide lookup keyed by CO-OPS wall-clock string "YYYY-MM-DD HH:00"
         # CO-OPS returns lst_ldt (Pacific local) so we convert UTC→Pacific (UTC-7 PDT approx)
@@ -148,6 +185,12 @@ async def _copilot_get_conditions_window(spot_id: str, hours: int = 24, user_id:
                 row["wind_sea"] = wave["wind_sea"]
             points.append(row)
 
+        # Long windows at hourly resolution flood the model's context (168
+        # rows ≈ many thousands of tokens) and push answers into max_tokens
+        # truncation. Beyond 48h, 3-hourly resolution carries the same signal.
+        if hours > 48 and len(points) > 48:
+            points = [p for p in points if (p.get("hour") or 0) % 3 == 0]
+
         # Next 8 hi/lo events from now
         tide_hilo: list = []
         if isinstance(hilo_points, list):
@@ -158,6 +201,7 @@ async def _copilot_get_conditions_window(spot_id: str, hours: int = 24, user_id:
             "spot_id": spot_id,
             "spot_name": result.get("spot_name"),
             "hours": hours,
+            "resolution_hours": 3 if hours > 48 else 1,
             "points": points,
             "tide_hilo": tide_hilo,
         }
@@ -548,7 +592,8 @@ async def _copilot_get_model_point_forecast(
                    .select("name, latitude, longitude, visibility, owner_id")
                    .eq("slug", spot_id).limit(1).execute())
             if not res.data:
-                return {"error": f"spot '{spot_id}' not found"}
+                return await _with_spot_suggestions(
+                    {"error": f"spot '{spot_id}' not found"}, spot_id, user_id)
             spot = res.data[0]
             if spot.get("visibility") == "private" and spot.get("owner_id") != user_id:
                 return {"error": f"spot '{spot_id}' not found"}
