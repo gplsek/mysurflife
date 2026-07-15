@@ -93,6 +93,72 @@ function stormPassesStrength(storm, level) {
   return tierKts != null ? tierKts >= min : false;   // hide unknown-strength when filtering
 }
 
+// Shortest-path longitude interpolation — a West Pacific track crossing the
+// antimeridian must not sweep the dot across the whole map.
+function lerpLon(a, b, frac) {
+  let d = b - a;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  let lon = a + d * frac;
+  if (lon > 180) lon -= 360;
+  if (lon < -180) lon += 360;
+  return lon;
+}
+
+/**
+ * Storm state at a forecast hour, interpolated along forecast_track.
+ * Track waypoints carry {hours_ahead, lat, lon, pressure_mb, peak_wind_kts},
+ * in the same forecast-hour frame the tile overlays use, so the dot stays
+ * on top of the wind/wave field as the timeline advances.
+ * Returns {lat, lon, windKts, pressureMb, beyond} — beyond=true once curH
+ * passes the last waypoint (the model lost the system).
+ */
+function stormStateAtHour(storm, track, curH) {
+  const base = {
+    lat: storm.lat, lon: storm.lon,
+    windKts: storm.wind_kts ?? storm.peak_wind_kts ?? null,
+    pressureMb: storm.pressure_mb ?? null,
+    beyond: false,
+  };
+  const sorted = (track || [])
+    .filter(w => w.hours_ahead != null && w.lat != null && w.lon != null)
+    .sort((a, b) => a.hours_ahead - b.hours_ahead);
+  if (!sorted.length || curH <= 0) return base;
+
+  const lerp = (a, b, frac) => ({
+    lat: a.lat + (b.lat - a.lat) * frac,
+    lon: lerpLon(a.lon, b.lon, frac),
+    windKts: (a.windKts ?? a.peak_wind_kts) != null && (b.windKts ?? b.peak_wind_kts) != null
+      ? (a.windKts ?? a.peak_wind_kts) + ((b.windKts ?? b.peak_wind_kts) - (a.windKts ?? a.peak_wind_kts)) * frac
+      : (b.windKts ?? b.peak_wind_kts ?? a.windKts ?? a.peak_wind_kts ?? null),
+    pressureMb: (a.pressureMb ?? a.pressure_mb) != null && (b.pressureMb ?? b.pressure_mb) != null
+      ? (a.pressureMb ?? a.pressure_mb) + ((b.pressureMb ?? b.pressure_mb) - (a.pressureMb ?? a.pressure_mb)) * frac
+      : (b.pressureMb ?? b.pressure_mb ?? a.pressureMb ?? a.pressure_mb ?? null),
+    beyond: false,
+  });
+
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (curH <= first.hours_ahead) {
+    return lerp(base, first, first.hours_ahead > 0 ? curH / first.hours_ahead : 1);
+  }
+  if (curH >= last.hours_ahead) {
+    return {
+      lat: last.lat, lon: last.lon,
+      windKts: last.peak_wind_kts ?? null,
+      pressureMb: last.pressure_mb ?? null,
+      beyond: curH > last.hours_ahead,
+    };
+  }
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i + 1];
+    if (curH >= a.hours_ahead && curH <= b.hours_ahead) {
+      return lerp(a, b, (curH - a.hours_ahead) / (b.hours_ahead - a.hours_ahead));
+    }
+  }
+  return base;
+}
+
 export default function Map({ state, stateRef, toggleState, setRegion, setQuery, setStormStrength }) {
   const mapContainerRef  = useRef(null);
   const mapRef           = useRef(null);
@@ -283,54 +349,46 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     if (!map) return;
 
     const track = Array.isArray(storm.forecast_track) ? storm.forecast_track : [];
+    const at = stormStateAtHour(storm, track, curH);
 
-    // Interpolate position at curH if track data is available
-    let displayLat = storm.lat;
-    let displayLon = storm.lon;
-    if (track.length > 0 && curH > 0) {
-      // Find surrounding waypoints
-      const sorted = [...track].filter(w => w.hours_ahead != null).sort((a, b) => a.hours_ahead - b.hours_ahead);
-      if (sorted.length > 0) {
-        if (curH <= sorted[0].hours_ahead) {
-          // Before first waypoint — interpolate from current pos to first wp
-          const frac = curH / sorted[0].hours_ahead;
-          displayLat = storm.lat + (sorted[0].lat - storm.lat) * frac;
-          displayLon = storm.lon + (sorted[0].lon - storm.lon) * frac;
-        } else if (curH >= sorted[sorted.length - 1].hours_ahead) {
-          displayLat = sorted[sorted.length - 1].lat;
-          displayLon = sorted[sorted.length - 1].lon;
-        } else {
-          for (let i = 0; i < sorted.length - 1; i++) {
-            const a = sorted[i];
-            const b = sorted[i + 1];
-            if (curH >= a.hours_ahead && curH <= b.hours_ahead) {
-              const frac = (curH - a.hours_ahead) / (b.hours_ahead - a.hours_ahead);
-              displayLat = a.lat + (b.lat - a.lat) * frac;
-              displayLon = a.lon + (b.lon - a.lon) * frac;
-              break;
-            }
-          }
-        }
-      }
-    }
+    // Intensity at the scrubbed hour drives the ring tier — a system that
+    // spins up from gale to hurricane recolors as the timeline advances.
+    const tierAtHour = at.windKts == null ? (storm.warning_tier || 'none')
+      : at.windKts >= 64 ? 'hurricane'
+      : at.windKts >= 48 ? 'storm'
+      : at.windKts >= 34 ? 'gale'
+      : 'none';
 
-    const opacity = curH === 0 ? 1 : Math.max(0.4, 1 - curH / 240);
+    // Past the end of its forecast track the model has lost the system —
+    // fade the dot hard rather than pretending it's parked there.
+    const opacity = at.beyond ? 0.25
+      : curH === 0 ? 1
+      : Math.max(0.4, 1 - curH / 240);
+    const atStorm = { ...storm, warning_tier: tierAtHour };
     const icon = L.divIcon({
-      html: stormMarkerHtml(storm, opacity),
+      html: stormMarkerHtml(atStorm, opacity),
       className: '',
       iconSize: [120, 120],
       iconAnchor: [60, 60],
     });
     // Outer container is non-interactive (rings cover too much area).
     // Click is wired directly to the .core dot via L.DomEvent after addTo.
-    const marker = L.marker([displayLat, displayLon], { icon, interactive: false });
+    const marker = L.marker([at.lat, at.lon], { icon, interactive: false });
     marker.addTo(map);
     const core = marker.getElement()?.querySelector('.core');
     if (core) {
       L.DomEvent.on(core, 'click', (e) => {
         L.DomEvent.stopPropagation(e);
         setPreview(null);
-        setStormPreview(storm);
+        // Preview reflects the scrubbed hour, not detection time
+        setStormPreview(curH > 0 ? {
+          ...storm,
+          warning_tier: tierAtHour,
+          wind_kts: at.windKts != null ? Math.round(at.windKts) : storm.wind_kts,
+          pressure_mb: at.pressureMb != null ? Math.round(at.pressureMb) : storm.pressure_mb,
+          at_hour: curH,
+          track_ended: at.beyond,
+        } : storm);
       });
     }
     markersRef.current.push(marker);

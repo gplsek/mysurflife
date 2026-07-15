@@ -32,11 +32,18 @@ export function StormPreviewCard({ storm, onClose, onOpenDetail }) {
         <button className="mv-prev-close" onClick={onClose} aria-label="Close">×</button>
       </div>
 
-      {tierInfo && (
+      {(tierInfo || storm.at_hour > 0) && (
         <div className="mv-storm-preview-strip">
-          <span className="mv-storm-preview-pill" style={{ background: tierInfo.bg }}>
-            {tierInfo.label}
-          </span>
+          {tierInfo && (
+            <span className="mv-storm-preview-pill" style={{ background: tierInfo.bg }}>
+              {tierInfo.label}
+            </span>
+          )}
+          {storm.at_hour > 0 && (
+            <span className="mv-storm-preview-tag">
+              {storm.track_ended ? `track ends before +${storm.at_hour}h` : `forecast +${storm.at_hour}h`}
+            </span>
+          )}
           {fetchTag && <span className="mv-storm-preview-tag">{fetchTag}</span>}
         </div>
       )}
