@@ -13,6 +13,7 @@ Usage (from main.py):
 import asyncio
 import json
 import os
+import re
 import time
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
@@ -20,7 +21,7 @@ from anthropic import AsyncAnthropic
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-6"
-MAX_TOOL_ITERATIONS = 8  # prevent infinite loops
+MAX_TOOL_ITERATIONS = 12  # prevent infinite loops
 
 # ── Tool definitions ──────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ TOOL_DEFS: List[Dict] = [
                 },
                 "hours": {
                     "type": "integer",
-                    "description": "How many hours to forecast (6-72). Default 24.",
+                    "description": "How many hours to forecast (6-168). Default 24.",
                     "default": 24
                 }
             },
@@ -176,6 +177,68 @@ TOOL_DEFS: List[Dict] = [
                 "small_fetch": {"type": "boolean", "description": "Storm has a small fetch area (reduces size ×0.75)"}
             },
             "required": ["spot_slug", "storm_positions"]
+        }
+    },
+    {
+        "name": "list_active_storms",
+        "description": (
+            "List currently tracked storms and low-pressure systems worldwide, with "
+            "position, intensity tier, movement, whether each is surf-relevant, and "
+            "its top region impacts. Use when the user asks what storms are out there, "
+            "what's brewing for a region, or about competing swells."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "region": {
+                    "type": "string",
+                    "description": (
+                        "Optional region_id filter, e.g. 'so-cal', 'baja', 'hawaii-n-shore', "
+                        "'portugal'. Only storms with a non-miss impact on that region are returned."
+                    )
+                }
+            }
+        }
+    },
+    {
+        "name": "get_storm_detail",
+        "description": (
+            "Full detail for one tracked storm: forecast track (position + intensity "
+            "per hour), region impact timeline (arrival/peak/size per region), "
+            "narrative, and WW3 sea state. Use after list_active_storms when the user "
+            "asks about a specific storm."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "storm_id": {
+                    "type": "string",
+                    "description": "Storm id from list_active_storms, e.g. 'gfs-15.0-116.0-985'"
+                }
+            },
+            "required": ["storm_id"]
+        }
+    },
+    {
+        "name": "get_model_point_forecast",
+        "description": (
+            "Raw GFS/GFSWave model forecast sampled at an exact point, out to 10 days: "
+            "wind speed/gust + direction, total wave height/period/direction, and "
+            "primary swell height/period/direction per 3-6h step. This is the same "
+            "model data the map overlays render. Use for model-grounded questions "
+            "('how big Saturday at Oceanside?', 'when does the wind switch offshore?') "
+            "at a spot (pass spot_id) or any ocean location (pass lat/lon)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "spot_id":    {"type": "string", "description": "Spot slug (preferred when asking about a spot)"},
+                "lat":        {"type": "number", "description": "Latitude (used when no spot_id)"},
+                "lon":        {"type": "number", "description": "Longitude (used when no spot_id)"},
+                "start_hour": {"type": "integer", "description": "First forecast hour (default 0 = now)", "default": 0},
+                "end_hour":   {"type": "integer", "description": "Last forecast hour (default 120, max 240)", "default": 120},
+                "step_hours": {"type": "integer", "description": "Step between samples in hours (default 6, min 3)", "default": 6}
+            }
         }
     },
     {
@@ -526,6 +589,48 @@ def _sse_event(data: Dict) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
 
 
+_JSON_ESCAPES = {'n': '\n', 't': '\t', 'r': '\r', '"': '"', '\\': '\\', '/': '/',
+                 'b': '\b', 'f': '\f'}
+
+
+def _extract_respond_message(buf: str) -> str:
+    """Extract the (possibly still-growing) value of the "message" field from
+    a partial JSON string, unescaping as we go. Trailing incomplete escape
+    sequences are dropped until the next delta completes them — this is what
+    lets the answer stream while the model is still writing the respond tool's
+    input JSON instead of waiting the full generation to parse it.
+    """
+    m = re.search(r'"message"\s*:\s*"', buf)
+    if not m:
+        return ""
+    s = buf[m.end():]
+    out: List[str] = []
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c == '"':
+            break                       # message value closed
+        if c == '\\':
+            if i + 1 >= len(s):
+                break                   # escape truncated at buffer edge
+            e = s[i + 1]
+            if e == 'u':
+                if i + 6 > len(s):
+                    break               # \uXXXX truncated
+                try:
+                    out.append(chr(int(s[i + 2:i + 6], 16)))
+                except ValueError:
+                    pass
+                i += 6
+                continue
+            out.append(_JSON_ESCAPES.get(e, e))
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 async def handle_chat_stream(
     messages: List[Dict[str, Any]],
     context: Optional[Dict[str, Any]],
@@ -563,20 +668,49 @@ async def handle_chat_stream(
     tools_called: List[Dict[str, Any]] = []
 
     for _ in range(MAX_TOOL_ITERATIONS):
+        respond_index = None      # content block index of an in-flight respond call
+        respond_buf = ""          # its partial input JSON
+        streamed_len = 0          # chars of the message already emitted as tokens
+
         async with client.messages.stream(
             model=MODEL,
-            max_tokens=2000,
+            max_tokens=4000,
             system=system,
             tools=TOOL_DEFS,
             messages=current_messages,
         ) as stream:
-            # Stream text tokens as they arrive (present on end_turn steps)
             async for event in stream:
+                # Plain text tokens (end_turn answers)
                 if (event.type == "content_block_delta"
                         and hasattr(event.delta, "type")
                         and event.delta.type == "text_delta"
                         and event.delta.text):
                     yield _sse_event({"type": "token", "text": event.delta.text})
+                    continue
+
+                # The final answer arrives as the respond tool's input JSON.
+                # Stream its "message" field AS THE MODEL WRITES IT — waiting
+                # for the complete JSON meant a minute of progress bubbles
+                # followed by the whole answer popping in at once.
+                if (event.type == "content_block_start"
+                        and getattr(event.content_block, "type", None) == "tool_use"
+                        and event.content_block.name == "respond"):
+                    respond_index = event.index
+                    respond_buf = ""
+                    # The final answer begins here — tell the UI to clear any
+                    # interim "let me check..." narration from the bubble.
+                    yield _sse_event({"type": "answer_start"})
+                    continue
+
+                if (event.type == "content_block_delta"
+                        and getattr(event, "index", None) == respond_index
+                        and hasattr(event.delta, "type")
+                        and event.delta.type == "input_json_delta"):
+                    respond_buf += event.delta.partial_json or ""
+                    text = _extract_respond_message(respond_buf)
+                    if len(text) > streamed_len:
+                        yield _sse_event({"type": "token", "text": text[streamed_len:]})
+                        streamed_len = len(text)
 
             final = await stream.get_final_message()
 
@@ -590,6 +724,17 @@ async def handle_chat_stream(
             return
 
         if final.stop_reason != "tool_use":
+            # max_tokens etc. — if part of the answer already streamed, end
+            # cleanly with what the user has instead of an error banner.
+            if streamed_len > 0:
+                yield _sse_event({
+                    "type": "done",
+                    "artifacts": [],
+                    "follow_ups": [],
+                    "tools_called": tools_called,
+                })
+                return
+            print(f"⚠️ copilot stream: unexpected stop_reason={final.stop_reason}")
             break
 
         # Process tool calls in this turn
@@ -642,13 +787,20 @@ async def handle_chat_stream(
             })
 
         if respond_payload:
-            # Stream the respond message word-by-word so users see text appear
             msg = respond_payload.get("message", "")
-            words = msg.split(" ")
-            for i, word in enumerate(words):
-                chunk = word + ("" if i == len(words) - 1 else " ")
-                yield _sse_event({"type": "token", "text": chunk})
-                await asyncio.sleep(0.018)  # ~55 words/sec — readable without feeling slow
+            if streamed_len > 0:
+                # Already streamed live from the input JSON deltas; flush any
+                # tail the extractor missed (e.g. a final truncated escape).
+                if len(msg) > streamed_len:
+                    yield _sse_event({"type": "token", "text": msg[streamed_len:]})
+            else:
+                # Fallback: no deltas were streamed (shouldn't happen) —
+                # replay word-by-word so the answer still reads as flowing.
+                words = msg.split(" ")
+                for i, word in enumerate(words):
+                    chunk = word + ("" if i == len(words) - 1 else " ")
+                    yield _sse_event({"type": "token", "text": chunk})
+                    await asyncio.sleep(0.018)
 
             yield _sse_event({
                 "type": "done",
