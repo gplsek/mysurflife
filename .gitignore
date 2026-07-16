@@ -58,6 +58,10 @@ backend/cache/
 
 # Development tools
 .claude/
+# ...but project skills are shared via the repo
+!.claude/
+.claude/*
+!.claude/skills/
 .cursor/
 .cursorrules
 .mcp.json
