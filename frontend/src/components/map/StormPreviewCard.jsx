@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDraggable } from './useDraggable';
 
 const TIER_INFO = {
   gale:      { label: 'Gale Force',      bg: 'oklch(0.82 0.14 85)',  btnBg: 'oklch(0.82 0.14 85)' },
@@ -7,6 +8,7 @@ const TIER_INFO = {
 };
 
 export function StormPreviewCard({ storm, onClose, onOpenDetail }) {
+  const { dragStyle, dragHandleProps } = useDraggable(storm.id);
   const tier     = storm.warning_tier || 'none';
   const tierInfo = TIER_INFO[tier];
   const fetchNm  = storm.fetch?.radius_nm;
@@ -21,8 +23,8 @@ export function StormPreviewCard({ storm, onClose, onOpenDetail }) {
     : '';
 
   return (
-    <div className="mv-storm-preview">
-      <div className="mv-storm-preview-head">
+    <div className="mv-storm-preview" style={dragStyle}>
+      <div className="mv-storm-preview-head" {...dragHandleProps}>
         <div className="mv-storm-preview-title-block">
           <span className="mv-storm-preview-name" style={{ color: tierInfo ? 'oklch(0.94 0.03 25)' : 'var(--fg)' }}>
             {name}
