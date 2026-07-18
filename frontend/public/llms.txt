@@ -1,0 +1,40 @@
+# mysurflife
+
+> AI surf forecasting for California. Real-time NOAA buoy observations, 16-day
+> wind and wave model forecasts, live storm tracking, and Sione — an AI surf
+> forecaster that synthesizes all of it and personalizes to how each surfer
+> actually surfs.
+
+mysurflife combines live ocean data with numerical weather models and an AI
+layer on top:
+
+- **Live buoys**: 18+ NOAA NDBC stations along the California coast — wave
+  height, period, direction, and wind, updated in near real time.
+- **Model forecasts**: NOAA GFS wind (16 days) and WaveWatch III / GFSWave wave
+  models rendered as interactive map overlays with a scrubbing timeline.
+- **Storm tracking**: named tropical systems and extratropical lows parsed from
+  NHC/NWS High Seas bulletins, with forecast tracks and per-region swell
+  arrival estimates for California surf spots.
+- **Sione (AI forecaster)**: a conversational assistant that reads the buoys,
+  models, and storm data, answers questions like "when should I paddle out this
+  week?", and learns each surfer's preferences from their logged sessions.
+- **Session journal**: surfers log sessions; the forecast personalizes over
+  time — board choice suggestions, spot ranking, and alert tuning.
+
+The app is free during beta. Full functionality (map, forecasts, Sione)
+requires a signed-in account; the public homepage explains the product.
+
+## Pages
+
+- [Homepage](https://mysurflife.com/): product overview, how it works, sign-in.
+
+## Data sources
+
+Forecast and observation data come from NOAA (NDBC buoys, GFS, GFSWave/WW3,
+NHC/NWS High Seas Forecast bulletins), CDIP, NOS CO-OPS stations, and
+Open-Meteo. mysurflife adds interpolation, per-spot calibration, swell-arrival
+physics, and AI synthesis on top.
+
+## Contact
+
+- Email: support@mysurflife.com
