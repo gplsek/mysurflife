@@ -172,9 +172,14 @@ function stormStateAtHour(storm, track, curH) {
 const TRACK_LEAD_GRACE_H = 12;   // show this long before the first waypoint
 const TRACK_TAIL_GRACE_H = 24;   // keep this long past the last waypoint
 
-function stormAliveAtHour(at, curH) {
+function stormAliveAtHour(at, curH, storm) {
   if (at.firstH == null || at.lastH == null) return true;  // no track: always show
-  return curH >= at.firstH - TRACK_LEAD_GRACE_H && curH <= at.lastH + TRACK_TAIL_GRACE_H;
+  // Bulletin/reconciled storms carry an authoritative current position — they
+  // are alive at Now even when their first forecast waypoint is 24h out (NHC
+  // bulletins list only +24/+48h positions). Only pure model-tracker segments,
+  // whose track defines the segment's lifetime, wait for their track to begin.
+  const bornH = storm?.source === 'model' ? at.firstH - TRACK_LEAD_GRACE_H : 0;
+  return curH >= bornH && curH <= at.lastH + TRACK_TAIL_GRACE_H;
 }
 
 export default function Map({ state, stateRef, toggleState, setRegion, setQuery, setStormStrength }) {
@@ -371,7 +376,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
 
     // Segment not alive at this hour: no marker at all. The next segment of
     // the same physical system takes over when its own track begins.
-    if (!stormAliveAtHour(at, curH)) return;
+    if (!stormAliveAtHour(at, curH, storm)) return;
 
     // Intensity at the scrubbed hour drives the ring tier — a system that
     // spins up from gale to hurricane recolors as the timeline advances.
