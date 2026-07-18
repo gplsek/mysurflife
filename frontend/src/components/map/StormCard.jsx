@@ -5,6 +5,7 @@ import { StormFetchWedge }    from './StormFetchWedge';
 import { StormForecastTrack } from './StormForecastTrack';
 import { RegionalScorecard }  from './RegionalScorecard';
 import { ArrivalSpotList }    from './ArrivalSpotList';
+import { useDraggable }       from './useDraggable';
 import Logo                   from '../../design/Logo';
 
 const DIR_DEGREES = {
@@ -94,6 +95,7 @@ function timelineToArrivals(regionTimeline) {
 
 export function StormCard({ storm, mapRef, onClose }) {
   const navigate = useNavigate();
+  const { dragStyle, dragHandleProps } = useDraggable(storm.id);
   const [l2Status,       setL2Status]       = useState('idle');
   const [arrivals,       setArrivals]       = useState(null);
   const [selectedRegion, setSelectedRegion] = useState(null);
@@ -332,6 +334,7 @@ export function StormCard({ storm, mapRef, onClose }) {
       role="dialog"
       aria-modal="false"
       aria-labelledby="sc-title"
+      style={dragStyle}
     >
       {/* Warning bar */}
       {storm.warning_tier && storm.warning_tier !== 'none' && (
@@ -341,7 +344,7 @@ export function StormCard({ storm, mapRef, onClose }) {
       <div className="storm-card-body">
 
         {/* ─── L1: Header ─── */}
-        <div className="l1-head">
+        <div className="l1-head" {...dragHandleProps}>
           <div className={`storm-type-badge ${BADGE_CLASS[type] || 'low'}`}>
             {typeLabel}
           </div>

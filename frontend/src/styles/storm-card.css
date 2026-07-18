@@ -76,7 +76,10 @@ body.dimmed #dim-layer {
     0 24px 80px oklch(0 0 0 / 0.55),
     0  2px 10px oklch(0 0 0 / 0.30);
   overflow: hidden;
-  animation: sc-entry 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* --drag-x/--drag-y come from useDraggable (drag by the L1 header).
+     No animation fill-mode: the final keyframe must release so this applies. */
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+  animation: sc-entry 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes sc-entry {
