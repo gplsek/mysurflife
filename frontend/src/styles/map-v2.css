@@ -1273,12 +1273,6 @@
   .mv-timeline { left: 14px; right: 14px; }
   .mv-tl-quick { display: none; }
   .mv-tl-when { min-width: 0; }
-  /* Timeline is full-width here — lift the legends clear of its top edge */
-  .mv-legend-stack { bottom: 112px; }
-}
-@media (max-width: 480px) {
-  .mv-wind-legend { padding: 6px 10px 5px; }
-  .mv-wind-legend .wind-legend-bar { width: 150px; }
 }
 
 /* ─── Responsive ─── */
@@ -1398,12 +1392,14 @@
 
 /* ── Wind overlay legend (Phase D, WIND_TILES_EXECUTION_PLAN) ── */
 /* Positioning lives on the stack so wind + wave legends never overlap —
-   they stack upward from the same anchor with a gap */
+   they stack upward from the same anchor with a gap. z-index sits BELOW the
+   cards (40) so an open storm/preview card covers the legend, never the
+   reverse, and above the timeline (28). */
 .mv-legend-stack {
   position: absolute;
   left: 14px;
   bottom: 92px;
-  z-index: 720;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1473,6 +1469,16 @@
   font-size: 10px;
   opacity: 0.65;
   margin-top: 2px;
+}
+
+/* Mobile: the timeline goes full-width and two rows tall (~150px from the
+   bottom edge) — clear it entirely and slim the legend down. These rules must
+   come AFTER the base .mv-wind-legend rules: same specificity, last wins. */
+@media (max-width: 900px) {
+  .mv-legend-stack { bottom: 172px; }
+  .mv-wind-legend { padding: 6px 10px 5px; }
+  .mv-wind-legend .wind-legend-bar { width: 150px; }
+  .mv-wind-legend .wind-legend-title { margin-bottom: 2px; }
 }
 
 /* ─── Overlay probe (Windy-style picker) ─────────────────────────── */
