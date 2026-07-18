@@ -73,6 +73,10 @@
 .sd-compass-wrap {
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 10;
 }
+/* The Compass component's wrapper div keeps its inline 520px size while the
+   responsive rules below shrink only the svg — center the svg within it so
+   the rings/arrows stay locked on the spot marker at every breakpoint. */
+.sd-compass-wrap > div { display: grid; place-items: center; }
 
 /* ─── Content area ─── */
 .sd-content {
