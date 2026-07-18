@@ -233,8 +233,10 @@ def _parse_forecast_track(section: str, issued_utc: Optional[str]) -> List[Dict]
 
     # ── Style A: ".12 HOUR FORECAST ... [NEAR] <LAT><LON>" ─────────────────
     # Handles both "61N45W" (concatenated) and "61N 45W" (spaced)
+    # "(?:\.{2,}|[^.])*?" lets the match cross "...INVEST EP97..." ellipses
+    # while still stopping at sentence-ending single periods.
     hour_pat = re.compile(
-        r"\.(\d{1,3})\s+HOUR\s+FORECAST\b[^.]*?"
+        r"\.(\d{1,3})\s+HOUR\s+FORECAST\b(?:\.{2,}|[^.])*?"
         r"(?:NEAR\s+|LOW\s+|HIGH\s+|CENTER\s+NEAR\s+)?"
         r"(\d+(?:\.\d+)?[NS])\s*(\d+(?:\.\d+)?[EW])",
         re.IGNORECASE,
@@ -282,10 +284,11 @@ def _parse_forecast_track(section: str, issued_utc: Optional[str]) -> List[Dict]
             except Exception:
                 pass
 
-        if hours_ahead not in seen_hours:
+        # A waypoint without a parseable "BY <hh>Z <day>" has no timing — it's
+        # either the current position or a Style-A duplicate; skip it.
+        if hours_ahead is not None and hours_ahead not in seen_hours:
             waypoints.append({"hours_ahead": hours_ahead, "lat": lat, "lon": lon})
-            if hours_ahead is not None:
-                seen_hours.add(hours_ahead)
+            seen_hours.add(hours_ahead)
 
     # Sort by hours_ahead (None last)
     waypoints.sort(key=lambda w: w["hours_ahead"] if w["hours_ahead"] is not None else 9999)
@@ -335,24 +338,42 @@ def _parse_bulletin(text: str) -> Dict:
     #   "LOW 42N 155W 985 MB MOVING NE 15 KT..."
     #   "HIGH 35N 142W 1022 MB NEARLY STATIONARY..."
     #   "TROPICAL STORM AT 18N 130W..."
+    #   "TROPICAL STORM ELIDA NEAR 19.7N 124.0W 990 MB..."       (named — NHC EP/AT)
+    #   "BROAD LOW PRES...INVEST EP97...NEAR 11N107W 1008 MB"    (invest filler)
     system_patterns = [
-        # Type + optional NEAR/AT qualifier + coordinates (space optional) + pressure
-        # Handles: "LOW NEAR 29N150W", "NEW LOW 39N69W", "TROPICAL STORM 18N 130W"
-        r"(?:NEW\s+)?(LOW|HIGH|TROPICAL\s+STORM|TROPICAL\s+DEPRESSION|HURRICANE|TYPHOON)"
-        r"[\s,]*(?:NEAR\s+|AT\s+)?(\d+(?:\.\d+)?[NS])\s*(\d+(?:\.\d+)?[EW])"
-        r"(?:[\s,]+(\d+)\s*MB)?",
+        # Type + optional name/invest filler + optional NEAR/AT + coordinates + pressure.
+        # Named tropical systems put the name between the type and NEAR — without
+        # the name group, every named hurricane/TS silently failed to parse.
+        r"(?:NEW\s+|BROAD\s+)?(?P<type>LOW|HIGH|TROPICAL\s+STORM|TROPICAL\s+DEPRESSION|HURRICANE|TYPHOON)"
+        r"(?:\s+PRES(?:SURE)?)?"
+        r"(?:\s*\.{2,}\s*INVEST\s+[A-Z]{2}\d{2}[A-Z]?\s*\.{2,}\s*)?"
+        r"(?:\s+(?!NEAR\b|AT\b)(?P<name>[A-Z][A-Z-]{2,}))?"
+        r"[\s,]*(?:NEAR\s+|AT\s+)?(?P<lat>\d+(?:\.\d+)?[NS])\s*(?P<lon>\d+(?:\.\d+)?[EW])"
+        r"(?:[\s,]+(?P<mb>\d+)\s*MB)?",
     ]
 
     for sec in sections:
+        # Only match the CURRENT position — ".24 HOUR FORECAST LOW 63N62W" etc.
+        # would otherwise register each forecast position as its own system
+        # (three Elidas on the map). Those go into forecast_track instead.
+        current_text = re.split(r"\.\d{1,3}\s+HOUR\s+FORECAST", sec, flags=re.IGNORECASE)[0]
         for pat in system_patterns:
-            for match in re.finditer(pat, sec, re.IGNORECASE):
-                sys_type = match.group(1).strip().upper()
-                lat = _parse_lat(match.group(2))
-                lon = _parse_lon(match.group(3))
+            for match in re.finditer(pat, current_text, re.IGNORECASE):
+                sys_type = match.group("type").strip().upper()
+                lat = _parse_lat(match.group("lat"))
+                lon = _parse_lon(match.group("lon"))
                 if lat is None or lon is None:
                     continue
 
-                pressure_mb = int(match.group(4)) if match.group(4) else None
+                storm_name = match.group("name")
+                # Reject obvious non-name captures (regex backtracking can only
+                # bind real words here, but keep the guard cheap and explicit)
+                if storm_name and storm_name.upper() in (
+                    "PRES", "PRESSURE", "FORCE", "WINDS", "INLAND", "CENTER", "COMPLEX"
+                ):
+                    storm_name = None
+
+                pressure_mb = int(match.group("mb")) if match.group("mb") else None
 
                 # Wind speed — take maximum across all mentions in section:
                 #   "WINDS X TO Y KT" (range → use max Y)
@@ -364,6 +385,11 @@ def _parse_bulletin(text: str) -> Dict:
                 ] + [
                     int(w) for w in re.findall(
                         r"(?:WINDS?\s+TO|MAX\s+WINDS?)\s+(\d+)\s*KT", sec, re.IGNORECASE
+                    )
+                ] + [
+                    # NHC tropical wording: "MAXIMUM SUSTAINED WINDS 60 KT"
+                    int(w) for w in re.findall(
+                        r"MAX(?:IMUM)?\s+SUSTAINED\s+WINDS?\s+(\d+)\s*KT", sec, re.IGNORECASE
                     )
                 ]
                 wind_kts = max(_wind_vals) if _wind_vals else None
@@ -378,14 +404,19 @@ def _parse_bulletin(text: str) -> Dict:
                 _seas_m_raw: list = re.findall(
                     r"SEAS?\s+\d+(?:\.\d+)?\s+TO\s+(\d+(?:\.\d+)?)\s*M\b",
                     sec, re.IGNORECASE,
+                ) + re.findall(
+                    # NHC tropical wording: "WITH SEAS TO 7 M"
+                    r"SEAS?\s+TO\s+(\d+(?:\.\d+)?)\s*M\b",
+                    sec, re.IGNORECASE,
                 )
                 _seas_ft += [float(v) * 3.281 for v in _seas_m_raw]
                 sea_max_ft = round(max(_seas_ft)) if _seas_ft else None
                 sea_min_ft = None  # kept for schema compat; peak is what matters
 
                 # Movement — "MOVING NE 15 KT" or "NEARLY STATIONARY"
+                # "MOVING NE 15 KT" and NHC "MOVING NNW OR 330 DEG AT 10 KT"
                 move_m = re.search(
-                    r"MOVING\s+([\w/]+)\s+(\d+)\s*KT",
+                    r"MOVING\s+([\w/]+)(?:\s+OR\s+\d+\s+DEG)?(?:\s+AT)?\s+(\d+)\s*KT",
                     sec,
                     re.IGNORECASE,
                 )
@@ -417,6 +448,8 @@ def _parse_bulletin(text: str) -> Dict:
                     "forecast_track": track if track else None,
                     "raw_text":     sec,
                 }
+                if storm_name:
+                    entry["storm_name"] = storm_name.title()
                 if pressure_mb:
                     entry["pressure_mb"] = pressure_mb
                 if wind_kts:

@@ -266,7 +266,12 @@ async def assemble_active_storms(
                 continue
 
             basin  = s.get("basin_label") or hs.get("label", ocean.replace("-", " ").title())
-            name   = f"{_format_type(sys_type)} · {basin}"
+            # Named tropical systems display as "Tropical Storm Elida" rather
+            # than the generic "Tropical Storm · East Pacific High Seas Forecast"
+            if s.get("storm_name"):
+                name = f"{_format_type(sys_type)} {s['storm_name']}"
+            else:
+                name = f"{_format_type(sys_type)} · {basin}"
             storm_id = _storm_id(ocean, s["lat"], s["lon"], s.get("pressure_mb"))
 
             out.append({
