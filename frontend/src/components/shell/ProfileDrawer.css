@@ -351,7 +351,7 @@
 
 /* ─── Toast ─── */
 .pd-toast {
-  position: fixed; bottom: 22px; left: 50%;
+  position: fixed; bottom: calc(22px + env(safe-area-inset-bottom)); left: 50%;
   transform: translateX(-50%) translateY(16px);
   z-index: 210;
   padding: 11px 18px; border-radius: 10px;
@@ -388,7 +388,9 @@
 @media (max-width: 600px) {
   .pd-drawer {
     width: 100%;
-    top: auto; bottom: 0; height: 92vh;
+    top: auto; bottom: 0;
+    height: 92vh;   /* fallback for browsers without dvh */
+    height: 92dvh;  /* tracks visible viewport as mobile browser chrome collapses */
     border-left: none; border-top: 1px solid var(--border-strong);
     border-radius: 16px 16px 0 0;
     transform: translateY(calc(100% + 20px));
@@ -405,6 +407,6 @@
   .pd-avatar { width: 56px; height: 56px; font-size: 18px; }
   .pd-identity-info h3 { font-size: 18px; }
   .pd-seg button { padding: 4px 7px; font-size: 11px; }
-  .pd-foot { padding: 10px 16px; }
+  .pd-foot { padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
   .pd-admin-section { padding: 14px 16px; }
 }
