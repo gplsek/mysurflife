@@ -74,9 +74,15 @@
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 10;
 }
 /* The Compass component's wrapper div keeps its inline 520px size while the
-   responsive rules below shrink only the svg — center the svg within it so
-   the rings/arrows stay locked on the spot marker at every breakpoint. */
-.sd-compass-wrap > div { display: grid; place-items: center; }
+   responsive rules below shrink only the svg. Grid centering fails once the
+   520px div outgrows the hero (the overflowing track pins to the top-left,
+   pushing the rose down-right of the marker) — so pin the div's center to
+   the hero's center absolutely, and center the shrunken svg within it. */
+.sd-compass-wrap > div {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid; place-items: center;
+}
 
 /* ─── Content area ─── */
 .sd-content {
