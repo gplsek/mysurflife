@@ -7,6 +7,7 @@ import { buildClusters }                                  from '../components/ma
 import { spotMarkerHtml, buoyMarkerHtml, clusterMarkerHtml, userSpotMarkerHtml } from '../components/map/markers';
 import { stormMarkerHtml }                                from '../components/map/StormMarker';
 import { useMapBundle }                                   from '../components/map/useMapBundle';
+import { OverlayProbe }                                   from '../components/map/OverlayProbe';
 import Chrome                                             from '../components/map/Chrome';
 import { StormCard }                                      from '../components/map/StormCard';
 import { WindTileController, fetchWindManifest, prefetchFrame,
@@ -283,6 +284,7 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
   }, [stormIdParam, storms]);
 
   const [addSpotMode,  setAddSpotMode]  = useState(false);
+  const [probe,        setProbe]        = useState(null);   // {lat, lon} overlay picker anchor
   const [addSpotForm,  setAddSpotForm]  = useState(null);  // {lat, lng} when pin dropped
   const pendingPinRef = useRef(null);   // temporary pin marker
 
@@ -899,6 +901,25 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     }
   }, [state.query, spotsRef, buoysRef]);
 
+  // Overlay probe: click samples the wind/wave field at that point (Windy-style
+  // picker). Only when an overlay layer is active, and never in add-spot mode.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || addSpotMode) return;
+    const onClick = (e) => {
+      const s = stateRef.current;
+      if (!s.showWind && !s.showWaves && !s.showSwell) return;
+      setProbe({ lat: e.latlng.lat, lon: e.latlng.lng });
+    };
+    map.on('click', onClick);
+    return () => map.off('click', onClick);
+  }, [addSpotMode, stateRef]);
+
+  // Drop the probe when every overlay layer is switched off
+  useEffect(() => {
+    if (!state.showWind && !waveActive) setProbe(null);
+  }, [state.showWind, waveActive]);
+
   // Add-spot mode: map click drops a pin
   useEffect(() => {
     const map = mapRef.current;
@@ -982,6 +1003,19 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
     <div className="mv-root">
       <div id="mv-map" ref={mapContainerRef} className="mv-map" />
       <div id="dim-layer" />
+      {probe && (state.showWind || waveActive) && (
+        <OverlayProbe
+          mapRef={mapRef}
+          lat={probe.lat}
+          lon={probe.lon}
+          curH={curH}
+          showWind={state.showWind}
+          windVar={windVar}
+          waveActive={waveActive}
+          waveVar={waveVar}
+          onClose={() => setProbe(null)}
+        />
+      )}
       {addSpotMode && (
         <div className="mv-add-spot-hint">
           {addSpotForm ? 'Spot pinned — fill in details below' : 'Click the map to drop a pin'}

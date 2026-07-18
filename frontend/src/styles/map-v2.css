@@ -1454,3 +1454,116 @@
   opacity: 0.65;
   margin-top: 2px;
 }
+
+/* ─── Overlay probe (Windy-style picker) ─────────────────────────── */
+.mv-probe {
+  position: absolute;
+  z-index: 35;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.mv-probe-dot {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid oklch(0.2 0.02 235 / 0.85);
+  box-shadow: 0 1px 6px oklch(0 0 0 / 0.5);
+}
+.mv-probe-stem {
+  position: absolute;
+  left: -0.5px;
+  top: -51px;
+  width: 1px;
+  height: 45px;
+  background: oklch(1 0 0 / 0.55);
+}
+.mv-probe-pill {
+  position: absolute;
+  left: 0;
+  top: -51px;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 30px 7px 12px;
+  background: var(--panel-strong, oklch(0.16 0.02 235 / 0.92));
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px oklch(0 0 0 / 0.5);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.mv-probe-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mv-probe-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.mv-probe-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: 38px;
+  flex-shrink: 0;
+}
+.mv-probe-value {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+.mv-probe-unit {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--fg-2);
+  margin-left: 2px;
+}
+.mv-probe-period {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-2);
+  margin-left: 6px;
+}
+.mv-probe-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-2);
+}
+.mv-probe-empty {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mv-probe-close {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.mv-probe-close:hover { color: var(--fg); background: var(--bg-3); }

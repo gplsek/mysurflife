@@ -309,6 +309,33 @@ async def wave_tile(run: str, hour: int, z: int, x: int, y_spec: str,
     return Response(png, media_type="image/png", headers=headers)
 
 
+@router.get("/point")
+async def overlay_point(lat: float, lon: float, hour: int = 0):
+    """
+    Single-hour point probe for the overlay picker popup.
+
+    Samples the same cached float grids the tiles are baked from, so the value
+    always matches the pixel under the click. Returns wind + gust + wave +
+    swell in one payload (directions are FROM-direction, deg true); the client
+    shows whichever rows match its active layers.
+    """
+    from services.point_forecast import sample_point_forecast
+
+    h = max(0, min(int(hour), ot.TILE_HOURS[-1]))
+    h -= h % 3  # snap to the 3-hourly tile cadence
+    res = await sample_point_forecast(lat, lon, start_hour=h, end_hour=h, step_hours=3)
+    points = res.get("points") or []
+    pt = points[0] if points else {}
+    return {
+        "lat": lat,
+        "lon": lon,
+        "hour": h,
+        "wind_run": res.get("wind_run"),
+        "wave_run": res.get("wave_run"),
+        **{k: v for k, v in pt.items() if k != "hour"},
+    }
+
+
 @router.get("/_stats")
 async def tile_stats():
     return ot.cache_stats()
