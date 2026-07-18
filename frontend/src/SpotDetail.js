@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 import LogoPulse from './design/LogoPulse';
 import Logo from './design/Logo';
 import { Compass, ForecastScrubber, DayPicker, ConditionsGrid, BreakFacts, SpotTitle, SwellBreakdown, StripChartStack } from './components/spot';
+import HeroOverlays from './components/spot/HeroOverlays';
 import AISpotAnalysis from './AISpotAnalysis';
 import SwellWindRose, { RoseLegend } from './components/SwellWindRose';
 import WindowsEditor from './components/WindowsEditor';
@@ -120,6 +121,8 @@ const SpotDetail = () => {
   const timelineFetchedForRef = useRef(null);
 
   const [selectedHour, setSelectedHour] = useState(0);
+  const [heroWind, setHeroWind] = useState(false);          // hero wind overlay
+  const [heroWave, setHeroWave] = useState(null);           // null | 'height' | 'swell'
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isRelocateMode, setIsRelocateMode] = useState(false);
@@ -541,6 +544,12 @@ const SpotDetail = () => {
                   }
                 } : {}}
               />
+              {/* Relocate mode needs the close-up zoom — suppress overlays there */}
+              <HeroOverlays
+                showWind={heroWind && !isRelocateMode}
+                waveVar={isRelocateMode ? null : heroWave}
+                hour={selectedHour}
+              />
             </MapContainer>
           ) : (
             <div className="hero-map" style={{ background: 'var(--bg-2)' }} />
@@ -637,6 +646,24 @@ const SpotDetail = () => {
         <div className="sd-compass-wrap">
           <Compass swells={swells} wind={wind} size={520} />
         </div>
+
+        {/* Overlay layer toggles */}
+        {hasCoords && !isEditMode && (
+          <div className="sd-hero-layers" role="group" aria-label="Map overlay layers">
+            <button
+              className={`sd-chip${heroWind ? ' sd-chip--accent' : ''}`}
+              onClick={() => setHeroWind(w => !w)}
+            >Wind</button>
+            <button
+              className={`sd-chip${heroWave === 'height' ? ' sd-chip--accent' : ''}`}
+              onClick={() => setHeroWave(v => (v === 'height' ? null : 'height'))}
+            >Waves</button>
+            <button
+              className={`sd-chip${heroWave === 'swell' ? ' sd-chip--accent' : ''}`}
+              onClick={() => setHeroWave(v => (v === 'swell' ? null : 'swell'))}
+            >Swell</button>
+          </div>
+        )}
       </section>
 
       {/* ── Content ── */}

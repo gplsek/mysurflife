@@ -84,6 +84,19 @@
   display: grid; place-items: center;
 }
 
+/* ─── Hero overlay layer toggles ─── */
+.sd-hero-layers {
+  position: absolute;
+  right: 16px;
+  bottom: 96px;   /* clear of the content card that overlaps the hero by 80px */
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.sd-hero-layers .sd-chip { min-width: 64px; justify-content: center; }
+
 /* ─── Content area ─── */
 .sd-content {
   position: relative; z-index: 5;
