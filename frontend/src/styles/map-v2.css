@@ -1479,6 +1479,11 @@
   .mv-wind-legend { padding: 6px 10px 5px; }
   .mv-wind-legend .wind-legend-bar { width: 150px; }
   .mv-wind-legend .wind-legend-title { margin-bottom: 2px; }
+
+  /* Full storm detail card open (StormCard toggles body.dimmed): it takes
+     most of the screen — hide the timeline and legends underneath it */
+  body.dimmed .mv-timeline,
+  body.dimmed .mv-legend-stack { display: none; }
 }
 
 /* ─── Overlay probe (Windy-style picker) ─────────────────────────── */
