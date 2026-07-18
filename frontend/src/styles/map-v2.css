@@ -1273,6 +1273,12 @@
   .mv-timeline { left: 14px; right: 14px; }
   .mv-tl-quick { display: none; }
   .mv-tl-when { min-width: 0; }
+  /* Timeline is full-width here — lift the legends clear of its top edge */
+  .mv-legend-stack { bottom: 112px; }
+}
+@media (max-width: 480px) {
+  .mv-wind-legend { padding: 6px 10px 5px; }
+  .mv-wind-legend .wind-legend-bar { width: 150px; }
 }
 
 /* ─── Responsive ─── */
@@ -1391,11 +1397,19 @@
 }
 
 /* ── Wind overlay legend (Phase D, WIND_TILES_EXECUTION_PLAN) ── */
-.mv-wind-legend {
+/* Positioning lives on the stack so wind + wave legends never overlap —
+   they stack upward from the same anchor with a gap */
+.mv-legend-stack {
   position: absolute;
   left: 14px;
   bottom: 92px;
   z-index: 720;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.mv-wind-legend {
   background: rgba(10, 18, 24, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 10px;
@@ -1434,12 +1448,18 @@
   color: rgba(244, 241, 234, 0.95);
 }
 
+/* Always in the layout (fixed height) — visibility fades in/out so the
+   legend never resizes when a tile frame loads */
 .mv-overlay-loading {
   display: flex; align-items: center; gap: 6px;
+  height: 16px;
   margin-top: 6px;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
   color: var(--muted);
+  opacity: 0;
+  transition: opacity 180ms ease;
 }
+.mv-overlay-loading.show { opacity: 1; }
 
 .mv-wind-legend .wind-legend-bar {
   width: 200px;

@@ -1030,26 +1030,36 @@ export default function Map({ state, stateRef, toggleState, setRegion, setQuery,
           onCancel={() => { setAddSpotMode(false); setAddSpotForm(null); }}
         />
       )}
-      {state.showWind && (
-        <div className="mv-wind-legend">
-          <div className="mv-wind-var-toggle" role="group" aria-label="Wind layer variable">
-            <button
-              className={windVar === 'speed' ? 'on' : ''}
-              onClick={() => pickWindVar('speed')}
-            >Wind</button>
-            <button
-              className={windVar === 'gust' ? 'on' : ''}
-              onClick={() => pickWindVar('gust')}
-            >Gusts</button>
-          </div>
-          <WindLegend variable={windVar} />
-          {overlayLoading && <div className="mv-overlay-loading"><LogoPulse size={12} compact /> loading forecast…</div>}
-        </div>
-      )}
-      {waveActive && (
-        <div className="mv-wind-legend">
-          <WaveLegend variable={waveVar} />
-          {overlayLoading && <div className="mv-overlay-loading"><LogoPulse size={12} compact /> loading forecast…</div>}
+      {(state.showWind || waveActive) && (
+        <div className="mv-legend-stack">
+          {state.showWind && (
+            <div className="mv-wind-legend">
+              <div className="mv-wind-var-toggle" role="group" aria-label="Wind layer variable">
+                <button
+                  className={windVar === 'speed' ? 'on' : ''}
+                  onClick={() => pickWindVar('speed')}
+                >Wind</button>
+                <button
+                  className={windVar === 'gust' ? 'on' : ''}
+                  onClick={() => pickWindVar('gust')}
+                >Gusts</button>
+              </div>
+              <WindLegend variable={windVar} />
+              {/* Always mounted with reserved height — mounting/unmounting
+                  resized the legend on every tile load and made it jump */}
+              <div className={`mv-overlay-loading${overlayLoading ? ' show' : ''}`} aria-hidden={!overlayLoading}>
+                <LogoPulse size={12} compact /> loading forecast…
+              </div>
+            </div>
+          )}
+          {waveActive && (
+            <div className="mv-wind-legend">
+              <WaveLegend variable={waveVar} />
+              <div className={`mv-overlay-loading${overlayLoading ? ' show' : ''}`} aria-hidden={!overlayLoading}>
+                <LogoPulse size={12} compact /> loading forecast…
+              </div>
+            </div>
+          )}
         </div>
       )}
       <Chrome
