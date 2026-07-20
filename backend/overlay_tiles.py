@@ -516,26 +516,39 @@ _WARM_CONCURRENCY = 2
 # ~1.5 GB per worker — the per-process task guard alone is not enough. The
 # lock file is the SAME one the prewarm cron wraps itself in (flock -n), so
 # cron job and in-server warmers mutually exclude across the whole machine.
-WARM_LOCK_PATH = "/tmp/mysurflife-prewarm.lock"
+#
+# MUST NOT live in /tmp: the systemd unit sets PrivateTmp=true, which gives
+# the service its own /tmp namespace — a /tmp lock silently stopped excluding
+# the cron warmer (and vice versa), letting several GRIB-decoding warmers run
+# at once. That memory storm froze the host on 2026-07-20. /run/lock is
+# shared across PrivateTmp boundaries.
+WARM_LOCK_PATH = "/run/lock/mysurflife-prewarm.lock"
 
 
 def acquire_warm_lock() -> Optional[Any]:
-    """Non-blocking exclusive flock; returns an open fd to hold, or None."""
+    """Non-blocking exclusive flock; returns an open fd to hold, or None
+    (lock held elsewhere). Falls back to the system temp dir on hosts without
+    /run/lock (dev Macs) — same single-warmer semantics, per-namespace."""
     import fcntl
 
-    try:
-        fd = os.open(WARM_LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o664)
-    except OSError:
-        return None
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return fd
-    except OSError:
-        os.close(fd)
-        return None
+    fallback = str(Path(tempfile.gettempdir()) / "mysurflife-prewarm.lock")
+    for path in (WARM_LOCK_PATH, fallback):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o664)
+        except OSError:
+            continue  # lock dir missing — try the fallback location
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
+        except OSError:
+            os.close(fd)
+            return None  # another warmer holds the lock
+    return None
 
 
 def release_warm_lock(fd: Any) -> None:
+    if fd is None:
+        return
     try:
         os.close(fd)  # closing releases the flock
     except OSError:
