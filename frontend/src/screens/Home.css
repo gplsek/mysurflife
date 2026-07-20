@@ -578,6 +578,30 @@
   color: var(--accent, oklch(0.82 0.16 195)); font-weight: 500; text-decoration: none;
 }
 .home-inline-form .home-go-note a:hover { text-decoration: underline; }
+.home-inline-form textarea {
+  width: 100%; padding: 12px 14px;
+  background: oklch(0.16 0.018 230); border: 1px solid oklch(1 0 0 / 0.08);
+  border-radius: 9px; color: oklch(0.96 0.008 90); font-size: 14px;
+  font-family: inherit; outline: none; margin-bottom: 12px;
+  resize: vertical; min-height: 54px;
+  transition: border-color 0.15s;
+}
+.home-inline-form textarea:focus { border-color: var(--accent, oklch(0.82 0.16 195)); }
+.home-inline-form textarea::placeholder { color: oklch(0.58 0.014 230); }
+.home-inline-form .home-mode-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent, oklch(0.82 0.16 195)); font-weight: 500;
+  font-size: 12px; font-family: inherit;
+}
+.home-inline-form .home-mode-link:hover { text-decoration: underline; }
+.home-request-done { text-align: center; padding: 18px 6px; }
+.home-request-done h4 {
+  margin: 0 0 8px; font-size: 17px; color: oklch(0.96 0.008 90);
+}
+.home-request-done p {
+  margin: 0; font-size: 13px; line-height: 1.6; color: oklch(0.68 0.012 90);
+}
+.home-request-done b { color: var(--accent, oklch(0.82 0.16 195)); font-weight: 500; }
 
 /* ── FOOTER ── */
 .home-footer {

@@ -252,6 +252,73 @@
   font-size: 13px !important;
 }
 
+/* Invite Requests */
+.requests-list {
+  margin-bottom: 24px;
+  border-left: 3px solid #f59e0b;
+}
+
+.badge-pending {
+  margin-left: 8px;
+  padding: 3px 10px;
+  background-color: #fef3c7;
+  color: #92400e;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.request-note {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.request-approve,
+.request-decline {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.request-approve {
+  background-color: #0ea5e9;
+  color: white;
+  border: none;
+}
+
+.request-approve:hover:not(:disabled) {
+  background-color: #0284c7;
+}
+
+.request-decline {
+  background-color: white;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.request-decline:hover:not(:disabled) {
+  background-color: #f8fafc;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+.request-approve:disabled,
+.request-decline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Badges */
 .badge-you {
   padding: 2px 8px;
