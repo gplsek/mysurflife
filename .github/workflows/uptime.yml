@@ -1,0 +1,78 @@
+name: uptime
+
+# Off-box uptime monitor for mysurflife.com (added after the 2026-07-20
+# OOM freeze, which went unnoticed until a user hit the dead site).
+#
+# Every ~10 minutes: probe the homepage and a backend API endpoint. A probe
+# only counts as DOWN after a failed retry 30s later (rides out blips and
+# deploy restarts). On DOWN: open a GitHub issue labeled 'outage' (repo
+# watchers get emailed) — exactly one open issue per outage. On recovery:
+# comment on and close the open outage issue.
+#
+# Note: GitHub cron is best-effort — runs can fire a few minutes late.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe site
+        id: probe
+        run: |
+          failures=""
+          for url in "https://mysurflife.com/" "https://mysurflife.com/api/overlays/models"; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo 000)
+            echo "$url -> $code"
+            if [ "$code" != "200" ]; then
+              sleep 30
+              code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo 000)
+              echo "retry: $url -> $code"
+              if [ "$code" != "200" ]; then
+                failures="$failures$url -> HTTP $code\n"
+              fi
+            fi
+          done
+          if [ -n "$failures" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            printf "failures<<EOF\n%b\nEOF\n" "$failures" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open outage issue (if none already open)
+        if: steps.probe.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh issue list -R "$GITHUB_REPOSITORY" --label outage --state open --json number -q length)
+          if [ "$open" = "0" ]; then
+            gh label create outage -R "$GITHUB_REPOSITORY" --color B60205 --description "Site down (uptime monitor)" 2>/dev/null || true
+            gh issue create -R "$GITHUB_REPOSITORY" \
+              --title "🔴 mysurflife.com is DOWN ($(date -u '+%Y-%m-%d %H:%M UTC'))" \
+              --label outage \
+              --body "$(printf 'The uptime monitor could not reach the site (two attempts, 30s apart):\n\n```\n%b\n```\n\nRunbook: reboot the EC2 instance from the AWS console if SSH is also unresponsive; otherwise `sudo systemctl status mysurflife-backend` / `sudo systemctl status apache2` on the server.\n\nThis issue closes automatically when the site recovers.' "${{ steps.probe.outputs.failures }}")"
+          else
+            echo "outage issue already open — not duplicating"
+          fi
+
+      - name: Close outage issue on recovery
+        if: steps.probe.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list -R "$GITHUB_REPOSITORY" --label outage --state open --json number -q '.[].number'); do
+            gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "✅ Site is reachable again as of $(date -u '+%Y-%m-%d %H:%M UTC') — closing."
+            gh issue close "$n" -R "$GITHUB_REPOSITORY"
+          done
