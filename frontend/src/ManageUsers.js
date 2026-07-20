@@ -130,6 +130,8 @@ const ManageUsers = () => {
   const [inviting,       setInviting]       = useState(false);
   const [inviteError,    setInviteError]    = useState('');
   const [editingUserId,  setEditingUserId]  = useState(null);
+  const [requests,       setRequests]       = useState([]);
+  const [handlingReqId,  setHandlingReqId]  = useState(null);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) navigate('/');
@@ -152,9 +154,52 @@ const ManageUsers = () => {
     }
   }, []);
 
+  const fetchRequests = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/admin/access-requests?status=pending', { headers });
+      if (!res.ok) throw new Error(`Failed to fetch requests: ${res.status}`);
+      const data = await res.json();
+      setRequests(data.requests || []);
+    } catch (err) {
+      console.error('Error fetching access requests:', err);
+    }
+  }, []);
+
   useEffect(() => {
-    if (isAdmin) fetchUsers();
-  }, [isAdmin, fetchUsers]);
+    if (isAdmin) { fetchUsers(); fetchRequests(); }
+  }, [isAdmin, fetchUsers, fetchRequests]);
+
+  const handleApproveRequest = async (req) => {
+    if (!window.confirm(`Approve ${req.email} and send an invite?`)) return;
+    try {
+      setHandlingReqId(req.id);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/access-requests/${req.id}/approve`, { method: 'POST', headers });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Failed'); }
+      setRequests(rs => rs.filter(r => r.id !== req.id));
+      await fetchUsers();
+    } catch (err) {
+      alert('Failed to approve request: ' + err.message);
+    } finally {
+      setHandlingReqId(null);
+    }
+  };
+
+  const handleDeclineRequest = async (req) => {
+    if (!window.confirm(`Decline the request from ${req.email}? No email is sent.`)) return;
+    try {
+      setHandlingReqId(req.id);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/access-requests/${req.id}/decline`, { method: 'POST', headers });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Failed'); }
+      setRequests(rs => rs.filter(r => r.id !== req.id));
+    } catch (err) {
+      alert('Failed to decline request: ' + err.message);
+    } finally {
+      setHandlingReqId(null);
+    }
+  };
 
   const handleInviteUser = async (e) => {
     e.preventDefault();
@@ -318,6 +363,57 @@ const ManageUsers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {requests.length > 0 && (
+          <div className="users-list requests-list">
+            <div className="users-list-header">
+              <h2>Invite Requests <span className="badge-pending">{requests.length} pending</span></h2>
+            </div>
+            <div className="users-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Note</th>
+                    <th>Requested</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {requests.map(req => (
+                    <tr key={req.id}>
+                      <td><span className="user-email-addr">{req.email}</span></td>
+                      <td className="text-muted">{req.name || '—'}</td>
+                      <td className="text-muted request-note" title={req.note || ''}>
+                        {req.note || '—'}
+                      </td>
+                      <td className="text-muted">{formatDate(req.created_at)}</td>
+                      <td>
+                        <div className="request-actions">
+                          <button
+                            className="request-approve"
+                            onClick={() => handleApproveRequest(req)}
+                            disabled={handlingReqId === req.id}
+                          >
+                            {handlingReqId === req.id ? 'Working…' : 'Approve + Invite'}
+                          </button>
+                          <button
+                            className="request-decline"
+                            onClick={() => handleDeclineRequest(req)}
+                            disabled={handlingReqId === req.id}
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

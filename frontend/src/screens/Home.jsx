@@ -207,6 +207,14 @@ export default function Home() {
   const [error, setError] = useState('');
   const ctaEmailRef = useRef(null);
 
+  // Request-access form (signin | request | requested)
+  const [ctaMode, setCtaMode] = useState('signin');
+  const [reqName, setReqName] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
+  const [reqNote, setReqNote] = useState('');
+  const [reqSubmitting, setReqSubmitting] = useState(false);
+  const [reqError, setReqError] = useState('');
+
   useEffect(() => {
     const io = new IntersectionObserver(
       (entries) => entries.forEach(e => {
@@ -227,6 +235,29 @@ export default function Home() {
     if (authErr) {
       setError(authErr.message || 'Invalid email or password');
       setSubmitting(false);
+    }
+  };
+
+  const handleRequestAccess = async (e) => {
+    e.preventDefault();
+    if (!reqEmail) { setReqError('Email is required'); return; }
+    setReqError('');
+    setReqSubmitting(true);
+    try {
+      const res = await fetch('/api/access-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: reqEmail, name: reqName, note: reqNote }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || 'Something went wrong — please try again.');
+      }
+      setCtaMode('requested');
+    } catch (err) {
+      setReqError(err.message);
+    } finally {
+      setReqSubmitting(false);
     }
   };
 
@@ -576,37 +607,92 @@ export default function Home() {
               </div>
             </div>
             <div className="home-inline-form">
-              {error && <div className="home-inline-error">{error}</div>}
-              <form onSubmit={handleSignIn}>
-                <label htmlFor="cta-email">Email</label>
-                <input
-                  id="cta-email"
-                  type="email"
-                  placeholder="you@email.com"
-                  autoComplete="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  disabled={submitting}
-                  ref={ctaEmailRef}
-                />
-                <label htmlFor="cta-pw">Password</label>
-                <input
-                  id="cta-pw"
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  disabled={submitting}
-                />
-                <button type="submit" className="home-go" disabled={submitting}>
-                  {submitting ? 'Signing in…' : 'Sign in →'}
-                </button>
-                <div className="home-go-note">
-                  Access is by invitation only.{' '}
-                  <a href="mailto:hello@mysurflife.com">Request access →</a>
+              {ctaMode === 'requested' ? (
+                <div className="home-request-done">
+                  <h4>Request received. 🤙</h4>
+                  <p>We'll review it and send an invite to <b>{reqEmail}</b> when a spot opens up.</p>
                 </div>
-              </form>
+              ) : ctaMode === 'request' ? (
+                <>
+                  {reqError && <div className="home-inline-error">{reqError}</div>}
+                  <form onSubmit={handleRequestAccess}>
+                    <label htmlFor="req-name">Name</label>
+                    <input
+                      id="req-name"
+                      type="text"
+                      placeholder="Your name"
+                      autoComplete="name"
+                      value={reqName}
+                      onChange={e => setReqName(e.target.value)}
+                      disabled={reqSubmitting}
+                    />
+                    <label htmlFor="req-email">Email</label>
+                    <input
+                      id="req-email"
+                      type="email"
+                      placeholder="you@email.com"
+                      autoComplete="email"
+                      value={reqEmail}
+                      onChange={e => setReqEmail(e.target.value)}
+                      disabled={reqSubmitting}
+                    />
+                    <label htmlFor="req-note">Where do you surf? <span style={{ opacity: 0.5 }}>(optional)</span></label>
+                    <textarea
+                      id="req-note"
+                      rows={2}
+                      placeholder="Home break, how you found us…"
+                      value={reqNote}
+                      onChange={e => setReqNote(e.target.value)}
+                      disabled={reqSubmitting}
+                    />
+                    <button type="submit" className="home-go" disabled={reqSubmitting}>
+                      {reqSubmitting ? 'Sending…' : 'Request access →'}
+                    </button>
+                    <div className="home-go-note">
+                      Already have an account?{' '}
+                      <button type="button" className="home-mode-link" onClick={() => setCtaMode('signin')}>
+                        Sign in →
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                <>
+                  {error && <div className="home-inline-error">{error}</div>}
+                  <form onSubmit={handleSignIn}>
+                    <label htmlFor="cta-email">Email</label>
+                    <input
+                      id="cta-email"
+                      type="email"
+                      placeholder="you@email.com"
+                      autoComplete="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      disabled={submitting}
+                      ref={ctaEmailRef}
+                    />
+                    <label htmlFor="cta-pw">Password</label>
+                    <input
+                      id="cta-pw"
+                      type="password"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      disabled={submitting}
+                    />
+                    <button type="submit" className="home-go" disabled={submitting}>
+                      {submitting ? 'Signing in…' : 'Sign in →'}
+                    </button>
+                    <div className="home-go-note">
+                      Access is by invitation only.{' '}
+                      <button type="button" className="home-mode-link" onClick={() => { setReqEmail(email); setCtaMode('request'); }}>
+                        Request access →
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         </section>
