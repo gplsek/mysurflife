@@ -451,3 +451,70 @@ git push
 **New Files:**
 - `CDIP_INTEGRATION_STATUS.md` - Detailed Phase 2 status and next steps
 
+
+---
+
+## Session: July 18–20, 2026 — Mobile fixes, storm pipeline, overlays, OOM incident
+
+Thirteen PRs shipped (#38–#50), all merged to main and deployed.
+
+### Bug fixes
+- **Sione "something went wrong" on analysis** — no code bug: production was
+  running pre-`cb6a81d` code (the July 14 max_tokens fix); a deploy resolved it.
+- **#38 Mobile Sign out hidden** — profile drawer sheet `92vh → 92dvh` + safe-area
+  padding on footer/toast.
+- **#39 Spot compass off-center** — the 520px Compass wrapper outgrows the mobile
+  hero; CSS grid lays oversized tracks from the top-left, so `place-items: center`
+  centered within the overflowing track, not the hero. Fixed with absolute
+  centering (`left/top: 50%` + `translate(-50%,-50%)`).
+- **#40 Named tropical storms never parsed** — `high_seas.py` system regex had no
+  allowance for a storm NAME between type and coords (`TROPICAL STORM ELIDA NEAR
+  19.7N 124.0W`); East Pacific bulletins parsed to zero systems. Also: only the
+  current-position sentence spawns systems (forecast positions were creating
+  ghost storms), NHC wording parsed (MAXIMUM SUSTAINED WINDS / SEAS TO X M /
+  MOVING NNW OR 330 DEG), untimed Style-B waypoints dropped.
+- **#41 Bulletin storms hidden at "Now"** — `stormAliveAtHour` lead-grace gating
+  (built for model segments) suppressed any storm whose track starts at +24h —
+  i.e. every NHC bulletin storm. Gating now applies to `source==='model'` only.
+- **#45/#46/#47 Wind legend** — loading note gets reserved height (no resize jump);
+  legend z-index 30 (below cards), `bottom: 172px` on mobile (timeline is 2 rows);
+  full detail card (`body.dimmed`) hides timeline+legends on mobile. Lesson
+  learned in #46: equal-specificity media overrides must come AFTER base rules.
+
+### Features
+- **#42 Draggable storm cards** — `useDraggable` hook, offsets via `--drag-x/y`
+  CSS vars composing with existing transforms; entry animations must not use
+  fill-mode `both` (retained keyframe transform overrides the drag).
+- **#43 Windy-style point probe** — click map with overlay on → dot+stem+pill with
+  sampled values. New `GET /api/tiles/point` samples the same grids tiles are
+  baked from via `sample_point_forecast`.
+- **#44 Favicons + SEO + llms.txt** — favicon PNGs/ICO had never been generated
+  (`npm run favicons` output now committed + root /favicon.ico); homepage meta
+  description/OG/Twitter/JSON-LD; robots.txt, sitemap.xml, llms.txt.
+- **#48 Spot hero overlays (phase 1)** — wind/waves/swell tiles over the hero
+  satellite with toggle chips, auto zoom 15↔10, frames follow the 168h scrubber.
+  Phase 2 candidates: GL particles on hero, per-layer mini legend.
+- **#50 Uptime monitor** — GitHub Actions every ~10 min probes `/` +
+  `/api/overlays/models`; opens/auto-closes an `outage`-labeled issue.
+
+### Incident: 2026-07-20 production freeze (~16:00–18:11 UTC)
+- Symptom: kernel answered TCP on 22/80/443 but userland never responded (no SSH
+  banner) — memory thrash. Recovered by user reboot via AWS console (the EC2
+  instance is in a different AWS account than the local CLI profile).
+- **Not an attack**: peak 1.5k req/hour, top IP was the owner; only owner SSH
+  logins; normal scanner noise.
+- **Root cause (#49)**: warm lock at `/tmp/mysurflife-prewarm.lock` was neutered
+  by the unit's `PrivateTmp=true` — in-server warmers and the cron prewarm locked
+  different /tmp namespaces, so multiple GRIB-decoding warmers ran concurrently
+  after run flips. Box: 7.6 GB RAM, no swap, workers idling at 1.1 GB each ×4,
+  chronic OOM kills in kernel log (Jun 10, Jun 28, Jul 3 ×2). Lock moved to
+  `/run/lock` (cron updated to match). **Rule: no cross-process locks in /tmp
+  for this service.**
+- **Ops guardrails (server-side, not in repo)**: 4 GB swapfile + swappiness 10;
+  systemd drop-in `MemoryHigh=4G MemoryMax=5G OOMPolicy=continue`; workers 4→2
+  (baseline 4.7→2.5 GB). Deploy: `ssh -i ~/gtekg.pem ubuntu@mysurflife.com`,
+  `cd /var/www/mysurflife && ./deploy.sh`.
+
+**Session Date:** Jul 18–20, 2026
+**Last Commit:** merge of #50 (uptime monitor)
+**Current Status:** all deployed & verified; Elida (990mb/60kt) live on /map
