@@ -333,6 +333,39 @@ export default function ProfileDrawer({ open, onClose }) {
             )}
           </section>
 
+          {/* ── Admin section (admins only — kept high for discoverability) ── */}
+          {isAdmin && (
+            <section className="pd-admin-section">
+              <div className="pd-section-head" style={{ marginBottom: 8 }}>
+                <div className="pd-section-title">Admin</div>
+              </div>
+              <div className="pd-admin-links">
+                <button className="pd-admin-link" onClick={() => handleAdminNav('/admin/users')}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="5" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.3"/>
+                    <path d="M1 12c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                    <path d="M10 7v4M8 9h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  </svg>
+                  Manage Users
+                </button>
+                <button className="pd-admin-link" onClick={() => handleAdminNav('/admin/personas')}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.3"/>
+                    <path d="M7 1v2M7 11v2M1 7h2M11 7h2M3.2 3.2l1.4 1.4M9.4 9.4l1.4 1.4M3.2 10.8l1.4-1.4M9.4 4.6l1.4-1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  </svg>
+                  Manage AI Personas
+                </button>
+                <button className="pd-admin-link" onClick={() => handleAdminNav('/admin/storms')}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 10c0-1 .5-2 1.3-2.6A4 4 0 0 1 7 3a4 4 0 0 1 3.8 2.7C12 5.9 13 7 13 8.5c0 .8-.7 1.5-1.5 1.5H2.5C1.7 10 1 9.3 1 8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                    <path d="M7 10v3M5 12h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  </svg>
+                  Storm Filters
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* ── 2. Skill & experience ── */}
           <section className="pd-section">
             <div className="pd-section-head">
@@ -607,39 +640,6 @@ export default function ProfileDrawer({ open, onClose }) {
               </button>
             </div>
           </section>
-
-          {/* ── Admin section ── */}
-          {isAdmin && (
-            <section className="pd-admin-section">
-              <div className="pd-section-head" style={{ marginBottom: 8 }}>
-                <div className="pd-section-title">Admin</div>
-              </div>
-              <div className="pd-admin-links">
-                <button className="pd-admin-link" onClick={() => handleAdminNav('/admin/users')}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="5" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.3"/>
-                    <path d="M1 12c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                    <path d="M10 7v4M8 9h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                  </svg>
-                  Manage Users
-                </button>
-                <button className="pd-admin-link" onClick={() => handleAdminNav('/admin/personas')}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.3"/>
-                    <path d="M7 1v2M7 11v2M1 7h2M11 7h2M3.2 3.2l1.4 1.4M9.4 9.4l1.4 1.4M3.2 10.8l1.4-1.4M9.4 4.6l1.4-1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                  </svg>
-                  Manage AI Personas
-                </button>
-                <button className="pd-admin-link" onClick={() => handleAdminNav('/admin/storms')}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 10c0-1 .5-2 1.3-2.6A4 4 0 0 1 7 3a4 4 0 0 1 3.8 2.7C12 5.9 13 7 13 8.5c0 .8-.7 1.5-1.5 1.5H2.5C1.7 10 1 9.3 1 8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                    <path d="M7 10v3M5 12h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                  </svg>
-                  Storm Filters
-                </button>
-              </div>
-            </section>
-          )}
 
           {/* ── 8. About ── */}
           <section className="pd-section">
