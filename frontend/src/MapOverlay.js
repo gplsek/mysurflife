@@ -18,6 +18,7 @@ const { BaseLayer } = LayersControl;
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import markerRetina from 'leaflet/dist/images/marker-icon-2x.png';
+import { CARTO_KEY_QS } from './components/map/constants';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -2590,14 +2591,14 @@ export default function MapOverlay({ showBuoys: showBuoysProp, showSurfSpots: sh
             
             <BaseLayer checked={overlayType === 'wind' || overlayType === 'waves'} name="Windy Dark">
               <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`}
                 attribution="© OpenStreetMap © CARTO"
               />
             </BaseLayer>
             
             <BaseLayer name="Carto Voyager">
               <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`}
                 attribution="&copy; OpenStreetMap &copy; CARTO"
               />
             </BaseLayer>
@@ -2628,7 +2629,7 @@ export default function MapOverlay({ showBuoys: showBuoysProp, showSurfSpots: sh
           {(overlayType === 'wind' || overlayType === 'waves') && (
             <Pane name="labels" style={{ zIndex: 650, pointerEvents: 'none' }}>
               <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
+                url={`https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`}
                 attribution="&copy; OpenStreetMap &copy; CARTO"
                 opacity={0.95}
               />

@@ -1,7 +1,11 @@
-export const CARTO_DARK         = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
-export const CARTO_LABELS       = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
-export const CARTO_LIGHT        = 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
-export const CARTO_LIGHT_LABELS = 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
+// CARTO basemaps require an API key (referer-restricted) since Sep 2026.
+export const CARTO_KEY_QS       = process.env.REACT_APP_CARTO_API_KEY ? `?key=${process.env.REACT_APP_CARTO_API_KEY}` : '';
+if (!CARTO_KEY_QS) console.warn('⚠️ REACT_APP_CARTO_API_KEY not set — CARTO basemap tiles will show "API KEY REQUIRED"');
+
+export const CARTO_DARK         = `https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`;
+export const CARTO_LABELS       = `https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`;
+export const CARTO_LIGHT        = `https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`;
+export const CARTO_LIGHT_LABELS = `https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png${CARTO_KEY_QS}`;
 export const CARTO_ATTR         = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 export const REGIONS = [
